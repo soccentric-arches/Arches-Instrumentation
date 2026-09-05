@@ -1,0 +1,20 @@
+# Editors / OS
+*.swp
+*~
+.DS_Store
+
+# Python (expected stack for the bench-side agent; see REQ.md)
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Build outputs
+build/
+dist/
+out/
+
+# Local env
+.env
