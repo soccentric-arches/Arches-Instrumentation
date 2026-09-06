@@ -1,0 +1,27 @@
+[Unit]
+Description=Arches Instrumentation telemetry
+Documentation=file:///usr/share/doc/instrumentation/interface.md
+After=instr-faults.service instr-monitord.service instr-hardware.service
+Wants=instr-monitord.service
+# istate owns orchestration; systemd owns restart policy and sandboxing (§7.1).
+
+[Service]
+
+[Service]
+Type=notify
+ExecStart=/usr/bin/instr-telemetry
+Restart=on-failure
+RestartSec=2s
+ReadWritePaths=/run/instrumentation
+User=instr-telemetry
+Group=instr
+ProtectSystem=strict
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectHome=yes
+CapabilityBoundingSet=
+LimitNOFILE=2048
+MemoryMax=64M
+
+[Install]
+WantedBy=multi-user.target

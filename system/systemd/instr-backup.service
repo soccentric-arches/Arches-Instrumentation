@@ -1,0 +1,27 @@
+[Unit]
+Description=Arches Instrumentation backup
+Documentation=file:///usr/share/doc/instrumentation/interface.md
+After=instr-networkd.service
+Wants=instr-networkd.service
+# istate owns orchestration; systemd owns restart policy and sandboxing (§7.1).
+
+[Service]
+
+[Service]
+Type=notify
+ExecStart=/usr/bin/instr-backup
+Restart=on-failure
+RestartSec=2s
+# /pst access only under istate's direction (R4).
+ReadWritePaths=/pst/backup /run/instrumentation
+User=instr-backup
+Group=instr
+ProtectSystem=strict
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectHome=yes
+CapabilityBoundingSet=
+LimitNOFILE=2048
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,24 @@
+[Unit]
+Description=Arches Instrumentation istate (hub)
+Documentation=file:///usr/share/doc/instrumentation/interface.md
+After=network.target local-fs.target
+
+[Service]
+Type=notify
+ExecStart=/usr/bin/instr-istate
+Restart=on-failure
+RestartSec=2s
+ReadWritePaths=/pst /run/instrumentation
+StateDirectory=instrumentation
+User=instr-istate
+Group=instr
+ProtectSystem=strict
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectHome=yes
+RestrictSUIDSGID=yes
+CapabilityBoundingSet=
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target

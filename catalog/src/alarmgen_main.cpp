@@ -1,0 +1,36 @@
+// alarmgen — builds the shared alarm ID header from catalog/alarms.yaml.
+#include <fstream>
+#include <iostream>
+
+#include "instr/catalog/codegen.h"
+#include "instr/common/version_gen.h"
+
+int main(int argc, char** argv) {
+  if (argc != 3) {
+    std::cerr << "usage: alarmgen <catalog.yaml> <output-header.h>\n";
+    return 2;
+  }
+  std::ifstream in(argv[1]);
+  if (!in) {
+    std::cerr << "cannot open " << argv[1] << "\n";
+    return 2;
+  }
+  std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  auto cat = instr::catalog::parse_catalog(text);
+  if (!cat.ok()) {
+    std::cerr << "catalog rejected: " << cat.error.str() << "\n";
+    return 1;
+  }
+  auto hdr = instr::catalog::render_header(*cat, INSTR_VERSION);
+  if (!hdr.ok()) {
+    std::cerr << "header render failed: " << hdr.error.str() << "\n";
+    return 1;
+  }
+  std::ofstream out(argv[2]);
+  if (!out) {
+    std::cerr << "cannot write " << argv[2] << "\n";
+    return 2;
+  }
+  out << *hdr;
+  return 0;
+}

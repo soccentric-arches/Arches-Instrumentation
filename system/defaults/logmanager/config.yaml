@@ -1,0 +1,9 @@
+# logmanager configuration (defaults): which logs to collect and send
+enabled: true
+budget_bytes: 134217728
+sources:
+  - name: journal-system
+    kind: journal
+    level: INFO
+    rotate_size_bytes: 8388608
+    retention_files: 5

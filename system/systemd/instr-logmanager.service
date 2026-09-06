@@ -1,0 +1,27 @@
+[Unit]
+Description=Arches Instrumentation logmanager
+Documentation=file:///usr/share/doc/instrumentation/interface.md
+After=instr-alarms.service
+Wants=instr-alarms.service
+# istate owns orchestration; systemd owns restart policy and sandboxing (§7.1).
+
+[Service]
+
+[Service]
+Type=notify
+ExecStart=/usr/bin/instr-logmanager
+Restart=on-failure
+RestartSec=2s
+ReadWritePaths=/pst/state/logs /run/instrumentation
+SupplementaryGroups=systemd-journal
+User=instr-logmanager
+Group=instr
+ProtectSystem=strict
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectHome=yes
+CapabilityBoundingSet=
+LimitNOFILE=2048
+
+[Install]
+WantedBy=multi-user.target

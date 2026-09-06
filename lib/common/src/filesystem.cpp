@@ -1,0 +1,295 @@
+#include "instr/common/filesystem.h"
+
+#include <dirent.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/statvfs.h>
+#include <unistd.h>
+
+#include <algorithm>
+#include <cstring>
+
+namespace instr {
+
+// ---------------- NativeFileSystem ----------------
+
+bool NativeFileSystem::exists(const std::string& path) {
+  struct stat st;
+  return ::stat(path.c_str(), &st) == 0;
+}
+
+Result<std::string> NativeFileSystem::read(const std::string& path) {
+  int fd = ::open(path.c_str(), O_RDONLY);
+  if (fd < 0) return Result<std::string>::fail(Errc::Io, "open failed: " + std::string(strerror(errno)), path);
+  std::string out;
+  char buf[65536];
+  ssize_t n;
+  while ((n = ::read(fd, buf, sizeof(buf))) > 0) out.append(buf, size_t(n));
+  int saved = errno;
+  ::close(fd);
+  if (n < 0) return Result<std::string>::fail(Errc::Io, "read failed: " + std::string(strerror(saved)), path);
+  return Result<std::string>::good(std::move(out));
+}
+
+Error NativeFileSystem::write(const std::string& path, const std::string& data, bool append) {
+  int flags = O_WRONLY | O_CREAT | (append ? O_APPEND : O_TRUNC);
+  int fd = ::open(path.c_str(), flags, 0644);
+  if (fd < 0) return Error::make(Errc::Io, "open failed: " + std::string(strerror(errno)), path);
+  size_t off = 0;
+  while (off < data.size()) {
+    ssize_t n = ::write(fd, data.data() + off, data.size() - off);
+    if (n < 0) {
+      int saved = errno;
+      ::close(fd);
+      return Error::make(Errc::Io, "write failed: " + std::string(strerror(saved)), path);
+    }
+    off += size_t(n);
+  }
+  ::fsync(fd);
+  ::close(fd);
+  return Error::none();
+}
+
+Error NativeFileSystem::mkdirs(const std::string& path) {
+  std::string cur;
+  for (size_t i = 0; i < path.size(); ++i) {
+    cur += path[i];
+    if (path[i] == '/' && i > 0) {
+      ::mkdir(cur.substr(0, i).c_str(), 0755);
+    }
+  }
+  if (::mkdir(path.c_str(), 0755) != 0 && errno != EEXIST)
+    return Error::make(Errc::Io, "mkdir failed: " + std::string(strerror(errno)), path);
+  return Error::none();
+}
+
+Error NativeFileSystem::remove(const std::string& path, bool recursive) {
+  struct stat st;
+  if (::stat(path.c_str(), &st) != 0) return Error::make(Errc::NotFound, "not found", path);
+  if (S_ISDIR(st.st_mode)) {
+    if (!recursive) return Error::make(Errc::Busy, "directory not empty and recursive=false", path);
+    DIR* d = ::opendir(path.c_str());
+    if (!d) return Error::make(Errc::Io, "opendir failed", path);
+    struct dirent* e;
+    Error err = Error::none();
+    while ((e = ::readdir(d)) != nullptr) {
+      std::string name = e->d_name;
+      if (name == "." || name == "..") continue;
+      Error r = remove(path + "/" + name, true);
+      if (!r.ok() && err.ok()) err = r;
+    }
+    ::closedir(d);
+    if (!err.ok()) return err;
+  }
+  if (::unlink(path.c_str()) != 0 && ::rmdir(path.c_str()) != 0)
+    return Error::make(Errc::Io, "unlink/rmdir failed: " + std::string(strerror(errno)), path);
+  return Error::none();
+}
+
+Error NativeFileSystem::rename(const std::string& from, const std::string& to) {
+  if (::rename(from.c_str(), to.c_str()) != 0)
+    return Error::make(Errc::Io, "rename failed: " + std::string(strerror(errno)), from + " -> " + to);
+  return Error::none();
+}
+
+Result<std::vector<std::string>> NativeFileSystem::list_dir(const std::string& path) {
+  DIR* d = ::opendir(path.c_str());
+  if (!d) return Result<std::vector<std::string>>::fail(Errc::NotFound, "opendir failed", path);
+  std::vector<std::string> out;
+  struct dirent* e;
+  while ((e = ::readdir(d)) != nullptr) {
+    std::string name = e->d_name;
+    if (name == "." || name == "..") continue;
+    out.push_back(name);
+  }
+  ::closedir(d);
+  std::sort(out.begin(), out.end());
+  return Result<std::vector<std::string>>::good(std::move(out));
+}
+
+Result<uint64_t> NativeFileSystem::file_size(const std::string& path) {
+  struct stat st;
+  if (::stat(path.c_str(), &st) != 0)
+    return Result<uint64_t>::fail(Errc::NotFound, "stat failed", path);
+  return Result<uint64_t>::good(uint64_t(st.st_size));
+}
+
+Result<uint64_t> NativeFileSystem::free_space(const std::string& path) {
+  struct statvfs v;
+  if (::statvfs(path.c_str(), &v) != 0)
+    return Result<uint64_t>::fail(Errc::Io, "statvfs failed", path);
+  return Result<uint64_t>::good(uint64_t(v.f_bavail) * uint64_t(v.f_frsize));
+}
+
+Error NativeFileSystem::fsync_path(const std::string& path) {
+  int fd = ::open(path.c_str(), O_RDONLY);
+  if (fd < 0) return Error::make(Errc::Io, "fsync open failed", path);
+  ::fsync(fd);
+  ::close(fd);
+  return Error::none();
+}
+
+// ---------------- SimulatedFileSystem ----------------
+
+bool SimulatedFileSystem::is_dir(const std::string& p) const {
+  return dirs_.count(p) > 0;
+}
+
+bool SimulatedFileSystem::exists(const std::string& path) {
+  return files_.count(path) > 0 || is_dir(path);
+}
+
+Result<std::string> SimulatedFileSystem::read(const std::string& path) {
+  auto it = files_.find(path);
+  if (it == files_.end())
+    return Result<std::string>::fail(Errc::NotFound, "no such file", path);
+  int n = ++read_count_[path];
+  std::string data = it->second;
+  auto cit = corrupt_.find(path);
+  if (cit != corrupt_.end() && n >= cit->second) {
+    // Simulate corruption: flip the first byte.
+    if (!data.empty()) data[0] = char(uint8_t(data[0]) ^ 0xFF);
+  }
+  return Result<std::string>::good(std::move(data));
+}
+
+Error SimulatedFileSystem::write(const std::string& path, const std::string& data, bool append) {
+  ++write_count_;
+  if (fail_writes_after_ > 0 && write_count_ > fail_writes_after_)
+    return Error::make(Errc::Io, "simulated write failure", path);
+  if (append) {
+    files_[path] += data;
+  } else {
+    files_[path] = data;
+  }
+  // All ancestor directories implicitly exist.
+  size_t pos = path.find_last_of('/');
+  while (pos != std::string::npos && pos > 0) {
+    dirs_[path.substr(0, pos)] = true;
+    std::string parent = path.substr(0, pos);
+    pos = parent.find_last_of('/');
+    if (pos == 0) {
+      dirs_["/"] = true;
+      break;
+    }
+  }
+  return Error::none();
+}
+
+Error SimulatedFileSystem::mkdirs(const std::string& path) {
+  if (fail_mkdirs_) return Error::make(Errc::Io, "simulated mkdir failure", path);
+  std::string cur;
+  size_t start = 0;
+  if (!path.empty() && path[0] == '/') {
+    dirs_["/"] = true;
+    start = 1;
+  }
+  for (size_t i = start; i <= path.size(); ++i) {
+    if (i == path.size() || path[i] == '/') {
+      std::string part = path.substr(0, i);
+      if (!part.empty()) dirs_[part] = true;
+    }
+  }
+  return Error::none();
+}
+
+Error SimulatedFileSystem::remove(const std::string& path, bool recursive) {
+  if (files_.erase(path) > 0) return Error::none();
+  if (is_dir(path)) {
+    if (!recursive) {
+      // Only remove if empty.
+      for (const auto& f : files_)
+        if (f.first.rfind(path + "/", 0) == 0)
+          return Error::make(Errc::Busy, "directory not empty", path);
+      for (const auto& d : dirs_)
+        if (d.first.rfind(path + "/", 0) == 0)
+          return Error::make(Errc::Busy, "directory not empty", path);
+    } else {
+      for (auto it = files_.begin(); it != files_.end();) {
+        if (it->first.rfind(path + "/", 0) == 0) it = files_.erase(it);
+        else ++it;
+      }
+      for (auto it = dirs_.begin(); it != dirs_.end();) {
+        if (it->first.rfind(path + "/", 0) == 0) it = dirs_.erase(it);
+        else ++it;
+      }
+    }
+    dirs_.erase(path);
+    return Error::none();
+  }
+  return Error::make(Errc::NotFound, "not found", path);
+}
+
+Error SimulatedFileSystem::rename(const std::string& from, const std::string& to) {
+  if (fail_renames_) return Error::make(Errc::Io, "simulated rename failure", from);
+  auto fit = files_.find(from);
+  if (fit != files_.end()) {
+    files_[to] = fit->second;
+    files_.erase(fit);
+    size_t pos = to.find_last_of('/');
+    if (pos != std::string::npos && pos > 0) dirs_[to.substr(0, pos)] = true;
+    return Error::none();
+  }
+  if (is_dir(from)) {
+    // Move all children.
+    std::string prefix = from + "/";
+    for (auto it = files_.begin(); it != files_.end();) {
+      if (it->first.rfind(prefix, 0) == 0) {
+        files_[to + "/" + it->first.substr(prefix.size())] = it->second;
+        it = files_.erase(it);
+      } else ++it;
+    }
+    for (auto it = dirs_.begin(); it != dirs_.end();) {
+      if (it->first.rfind(prefix, 0) == 0) {
+        dirs_[to + "/" + it->first.substr(prefix.size())] = true;
+        it = dirs_.erase(it);
+      } else ++it;
+    }
+    dirs_.erase(from);
+    dirs_[to] = true;
+    return Error::none();
+  }
+  return Error::make(Errc::NotFound, "rename source not found", from);
+}
+
+Result<std::vector<std::string>> SimulatedFileSystem::list_dir(const std::string& path) {
+  if (!is_dir(path))
+    return Result<std::vector<std::string>>::fail(Errc::NotFound, "not a directory", path);
+  std::vector<std::string> out;
+  std::string prefix = path == "/" ? "/" : path + "/";
+  for (const auto& f : files_) {
+    if (f.first.rfind(prefix, 0) == 0) {
+      std::string rest = f.first.substr(prefix.size());
+      if (rest.find('/') == std::string::npos) out.push_back(rest);
+    }
+  }
+  for (const auto& d : dirs_) {
+    if (d.first != path && d.first.rfind(prefix, 0) == 0) {
+      std::string rest = d.first.substr(prefix.size());
+      if (rest.find('/') == std::string::npos) out.push_back(rest);
+    }
+  }
+  std::sort(out.begin(), out.end());
+  return Result<std::vector<std::string>>::good(std::move(out));
+}
+
+Result<uint64_t> SimulatedFileSystem::file_size(const std::string& path) {
+  auto it = files_.find(path);
+  if (it == files_.end())
+    return Result<uint64_t>::fail(Errc::NotFound, "no such file", path);
+  return Result<uint64_t>::good(it->second.size());
+}
+
+Result<uint64_t> SimulatedFileSystem::free_space(const std::string&) {
+  return Result<uint64_t>::good(free_space_);
+}
+
+Error SimulatedFileSystem::fsync_path(const std::string&) { return Error::none(); }
+
+uint64_t SimulatedFileSystem::used_bytes() const {
+  uint64_t total = 0;
+  for (const auto& f : files_) total += f.second.size();
+  return total;
+}
+
+}  // namespace instr

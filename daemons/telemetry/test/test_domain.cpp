@@ -1,0 +1,107 @@
+// Unit tests — telemetry domain (REQ §12).
+#include <gtest/gtest.h>
+
+#include "instr/common/timestamps.h"
+#include "instr/telemetry/domain.h"
+
+using namespace instr;
+using namespace instr::telemetry;
+using namespace instr::telemetry::domain;
+
+TEST(TelemetryRegistry, RegistersAndRejectsDuplicates) {
+  MetricRegistry r;
+  EXPECT_EQ(r.register_metric("cpu.util", "percent", "gauge", "monitord"), MetricRegistry::Reg::Ok);
+  EXPECT_EQ(r.register_metric("cpu.util", "percent", "gauge", "other-app"),
+            MetricRegistry::Reg::Duplicate);  // alarm-visible, never silent overwrite
+  EXPECT_EQ(r.register_metric("", "percent", "gauge", "app"), MetricRegistry::Reg::Invalid);
+  EXPECT_EQ(r.register_metric("x", "", "histogram", "app"), MetricRegistry::Reg::Invalid);
+}
+
+TEST(TelemetryAggregator, FunctionsMinMaxMeanCountLast) {
+  Aggregator agg;
+  uint64_t t = 1000;
+  agg.add("cpu.util", 10, t);
+  agg.add("cpu.util", 90, t + 1);
+  agg.add("cpu.util", 50, t + 2);
+  auto wins = agg.close(t + 3);
+  std::map<std::string, double> vals;
+  for (const auto& w : wins) vals[w.fn] = w.value;
+  EXPECT_NEAR(vals["min"], 10, 1e-9);
+  EXPECT_NEAR(vals["max"], 90, 1e-9);
+  EXPECT_NEAR(vals["mean"], 50, 1e-9);
+  EXPECT_NEAR(vals["count"], 3, 1e-9);
+  EXPECT_NEAR(vals["last"], 50, 1e-9);
+}
+
+TEST(TelemetryBatchShaper, ShapesBatchesAtRecordLimit) {
+  BatchShaper shaper(5, 30.0);
+  uint64_t t = 1'000'000'000;
+  std::optional<MetricBatch> b;
+  for (int i = 0; i < 5; ++i) {
+    auto maybe = shaper.ingest("m", double(i), "", t + i, {});
+    if (maybe) b = maybe;
+  }
+  ASSERT_TRUE(b.has_value());
+  EXPECT_GE(b->records.size(), 1u);
+  EXPECT_EQ(shaper.pending_samples(), 0u);
+}
+
+TEST(TelemetryBatchShaper, FlushOnInterval) {
+  BatchShaper shaper(1000, 30.0);
+  uint64_t t = 1'000'000'000;
+  EXPECT_FALSE(shaper.ingest("m", 1, "", t, {}).has_value());
+  auto b = shaper.flush(t + uint64_t(31 * 1e9));
+  ASSERT_TRUE(b.has_value());
+  EXPECT_FALSE(shaper.flush(t + uint64_t(32 * 1e9)).has_value());
+}
+
+static size_t buf_size_before_drain() { return 7u; }
+
+TEST(TelemetryRetention, DropsOldestTelemetryFirst) {
+  RetentionBuffer buf(3);
+  MetricBatch b;
+  b.records.push_back(MetricRecord{});
+  for (int i = 0; i < 5; ++i) buf.push(b, RetentionBuffer::Class::Telemetry);
+  EXPECT_EQ(buf.dropped(), 2u);  // oldest-first drop
+  // Protected batches are NEVER dropped (§7.8/§11): they may exceed the
+  // bound temporarily — alarms and faults must not be shed.
+  MetricBatch prot;
+  for (int i = 0; i < 4; ++i) buf.push(prot, RetentionBuffer::Class::Protected);
+  EXPECT_EQ(buf.dropped(), 2u);   // telemetry drops only
+  EXPECT_EQ(buf.size(), 7u);      // 1 telemetry + 6 protected retained
+}
+
+TEST(TelemetryHealthScore, MonotonicPenaltiesWithFactors) {
+  HealthInputs base;
+  auto clean = compute_health_score(base);
+  EXPECT_DOUBLE_EQ(clean.score, 100.0);
+  EXPECT_TRUE(clean.factors.count("cpu"));
+
+  HealthInputs bad = base;
+  bad.cpu_util_pct = 100;
+  bad.mem_used_pct = 100;
+  bad.max_thermal_c = 95;
+  bad.alarms_critical = 2;
+  auto worse = compute_health_score(bad);
+  EXPECT_LT(worse.score, 60.0);
+  EXPECT_GT(worse.factors["alarms"], 40.0);
+
+  EXPECT_DOUBLE_EQ(compute_health_score(bad).score, worse.score);  // deterministic
+}
+
+TEST(TelemetryHealthScore, FloorAtZero) {
+  HealthInputs extreme;
+  extreme.alarms_critical = 100;
+  EXPECT_DOUBLE_EQ(compute_health_score(extreme).score, 0.0);
+}
+
+TEST(TelemetryRepro, MetadataOnEveryRecord) {
+  BatchShaper shaper(2, 30.0);
+  shaper.set_repro({"9.9.9", "3", "rev-c", "SIM-1"});
+  shaper.ingest("m", 1, "", 1000, {});
+  auto b = shaper.flush(2000);
+  ASSERT_TRUE(b.has_value());
+  EXPECT_EQ(b->repro.firmware_version, "9.9.9");
+  EXPECT_EQ(b->repro.config_schema_version, "3");
+  EXPECT_EQ(b->repro.hardware_revision, "rev-c");
+}

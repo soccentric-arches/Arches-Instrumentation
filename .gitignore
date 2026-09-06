@@ -18,3 +18,5 @@ out/
 
 # Local env
 .env
+# CMake build dirs (presets)
+build-*/

@@ -1,0 +1,99 @@
+# test — the complete suite (REQ §12): unit, contract, integration,
+# fault-injection, secret-leak. Coverage gate enforced in CI (Jenkinsfile).
+find_package(GTest REQUIRED)
+include(GoogleTest)
+
+if(TARGET GTest::gtest AND TARGET GTest::gtest_main)
+  link_libraries(GTest::gtest GTest::gtest_main)
+else()
+  link_libraries(gtest gtest_main pthread)
+endif()
+
+# ---- lib/common ----
+add_executable(unit_common unit/test_common.cpp)
+target_link_libraries(unit_common PRIVATE instr_common)
+gtest_discover_tests(unit_common)
+
+add_executable(unit_json_schema unit/test_json_schema.cpp)
+target_link_libraries(unit_json_schema PRIVATE instr_common)
+gtest_discover_tests(unit_json_schema)
+
+add_executable(unit_command_table unit/test_command_table.cpp)
+target_link_libraries(unit_command_table PRIVATE instr_common)
+gtest_discover_tests(unit_command_table)
+
+add_executable(unit_filesystem unit/test_filesystem.cpp)
+target_link_libraries(unit_filesystem PRIVATE instr_common instr_ctrl)
+gtest_discover_tests(unit_filesystem)
+
+add_executable(unit_platform unit/test_platform.cpp)
+target_link_libraries(unit_platform PRIVATE instr_platform)
+gtest_discover_tests(unit_platform)
+
+add_executable(unit_catalog unit/test_catalog_codegen.cpp)
+target_link_libraries(unit_catalog PRIVATE instr_alarm_codegen)
+gtest_discover_tests(unit_catalog)
+
+# ---- per-daemon domain tests ----
+foreach(d monitord networkd hardware faults alarms logmanager telemetry ota backup)
+  add_executable(unit_${d} ../daemons/${d}/test/test_domain.cpp)
+  target_link_libraries(unit_${d} PRIVATE instr_${d}_lib)
+  gtest_discover_tests(unit_${d})
+endforeach()
+
+# ---- istate domain tests ----
+foreach(t pst provisioning orchestrator northbound config)
+  add_executable(unit_istate_${t} istate/test_${t}.cpp)
+  target_link_libraries(unit_istate_${t} PRIVATE instr_istate_lib)
+  gtest_discover_tests(unit_istate_${t})
+endforeach()
+
+# ---- contract tests (§12): breaking .proto change fails CI ----
+add_executable(contract_protos contract/contract_tests.cpp)
+add_dependencies(contract_protos protos_golden)
+target_link_libraries(contract_protos PRIVATE instr_common instr_istate_lib instr_protos)
+gtest_discover_tests(contract_protos)
+
+# ---- integration harness: hub + nine spokes + simulated platform on a
+# build host with no hardware (§12) ----
+add_executable(integration_harness integration/harness.cpp)
+target_link_libraries(integration_harness PRIVATE
+  instr_istate_lib instr_monitord_lib instr_networkd_lib instr_hardware_lib
+  instr_faults_lib instr_alarms_lib instr_logmanager_lib instr_telemetry_lib
+  instr_ota_lib instr_backup_lib)
+gtest_discover_tests(integration_harness)
+
+# ---- fault injection (§12): storage errors, link loss, hangs, corrupt
+# /pst, full disk, clock jumps, proto mismatch ----
+add_executable(fault_injection fault-injection/fault_tests.cpp)
+target_link_libraries(fault_injection PRIVATE
+  instr_istate_lib instr_monitord_lib instr_telemetry_lib instr_networkd_lib)
+gtest_discover_tests(fault_injection)
+
+# ---- secret-leak test (§12): credentials never in logs, backups, telemetry ----
+add_executable(secret_leak_test secret-leak/secret_leak_test.cpp)
+target_link_libraries(secret_leak_test PRIVATE instr_common instr_backup_lib instr_logmanager_lib instr_telemetry_lib)
+gtest_discover_tests(secret_leak_test)
+
+# ---- coverage gate inputs (Jenkins parses ctest; coverage via gcovr) ----
+find_program(GCOVR_BIN gcovr)
+if(GCOVR_BIN)
+  add_custom_target(coverage
+    COMMAND ${GCOVR_BIN} --root ${CMAKE_SOURCE_DIR}
+            --filter '.*\\.cpp$' --xml -o ${CMAKE_BINARY_DIR}/coverage.xml
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    COMMENT "Coverage report (gate enforced in Jenkins)")
+endif()
+
+# ---- golden descriptor for the contract tests ----
+set(PROTO_DESC "${CMAKE_BINARY_DIR}/contract/protos.pb")
+file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/contract")
+add_custom_command(
+  OUTPUT "${PROTO_DESC}"
+  COMMAND protobuf::protoc ARGS "-I${CMAKE_SOURCE_DIR}/proto"
+          "--descriptor_set_out=${PROTO_DESC}" ${PROTO_FILES_ALL}
+  DEPENDS ${PROTO_FILES_ALL}
+  COMMENT "Contract: building proto descriptor set")
+add_custom_target(protos_golden DEPENDS "${PROTO_DESC}")
+target_compile_definitions(contract_protos PRIVATE PROTO_DESC_FILE="${PROTO_DESC}"
+                          GOLDEN_FILE="${CMAKE_SOURCE_DIR}/test/contract/protos.golden.sha256")

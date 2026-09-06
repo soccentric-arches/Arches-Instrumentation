@@ -1,0 +1,28 @@
+[Unit]
+Description=Arches Instrumentation ota
+Documentation=file:///usr/share/doc/instrumentation/interface.md
+After=instr-networkd.service
+Wants=instr-networkd.service
+# istate owns orchestration; systemd owns restart policy and sandboxing (§7.1).
+
+[Service]
+
+[Service]
+Type=notify
+ExecStart=/usr/bin/instr-ota
+Restart=on-failure
+RestartSec=2s
+# Boot-state capability only (§10).
+AmbientCapabilities=CAP_SYS_BOOT
+CapabilityBoundingSet=CAP_SYS_BOOT
+ReadWritePaths=/pst/state/ota /run/instrumentation /mnt/boot
+User=instr-ota
+Group=instr
+ProtectSystem=strict
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectHome=read-only
+LimitNOFILE=2048
+
+[Install]
+WantedBy=multi-user.target
