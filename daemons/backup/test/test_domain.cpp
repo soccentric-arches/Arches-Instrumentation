@@ -192,3 +192,67 @@ TEST(BackupSchedule, RuntimeScheduleState) {
   ASSERT_EQ(list.size(), 2u);
   EXPECT_LT(list[0].manifest.created_unix_s, list[1].manifest.created_unix_s);
 }
+
+// §7.10: "HQ uploads encrypted to HQ's public key". The local archive key is
+// derived from device identity, which protects an archive sitting on the
+// device — it does nothing for one in transit or at rest at HQ, and anything
+// holding the device secret could read it. These pin the separate path.
+TEST(BackupEncryption, ArchiveForHqIsSealedToHqKeyAndOpaqueLocally) {
+  auto rng = [](uint8_t* out, size_t n) { (void)crypto::random_bytes(out, n); };
+  crypto::X25519Key hq = crypto::x25519_generate(rng);
+
+  SimulatedFileSystem fs;
+  BackupOptions opts;
+  opts.device_serial = "SIM-1";
+  opts.identity_secret = "device-identity-secret";
+  opts.hq_public_key = std::string(reinterpret_cast<const char*>(hq.pub.data()), 32);
+  BackupEngine eng(fs, opts);
+  ASSERT_TRUE(eng.hq_upload_available());
+
+  const std::string payload = "network:\n  ssid: site-wifi\n  psk: SUPER-SECRET\n";
+  auto sealed = eng.seal_for_hq(payload);
+  ASSERT_TRUE(sealed.ok()) << sealed.error.str();
+
+  // The plaintext must not survive anywhere in the sealed blob.
+  EXPECT_EQ(sealed->find("SUPER-SECRET"), std::string::npos);
+  EXPECT_EQ(sealed->find("site-wifi"), std::string::npos);
+
+  // HQ opens it with its private key.
+  auto opened = BackupEngine::open_from_hq(
+      *sealed, std::string(reinterpret_cast<const char*>(hq.priv.data()), 32));
+  ASSERT_TRUE(opened.ok()) << opened.error.str();
+  EXPECT_EQ(*opened, payload);
+
+  // A different HQ key cannot: the seal is to one recipient, not to anyone
+  // who happens to hold the device.
+  crypto::X25519Key other = crypto::x25519_generate(rng);
+  auto wrong = BackupEngine::open_from_hq(
+      *sealed, std::string(reinterpret_cast<const char*>(other.priv.data()), 32));
+  EXPECT_FALSE(wrong.ok());
+}
+
+TEST(BackupEncryption, EachSealUsesAFreshEphemeralKey) {
+  auto rng = [](uint8_t* out, size_t n) { (void)crypto::random_bytes(out, n); };
+  crypto::X25519Key hq = crypto::x25519_generate(rng);
+  SimulatedFileSystem fs;
+  BackupOptions opts;
+  opts.identity_secret = "s";
+  opts.hq_public_key = std::string(reinterpret_cast<const char*>(hq.pub.data()), 32);
+  BackupEngine eng(fs, opts);
+  auto a = eng.seal_for_hq("same plaintext");
+  auto b = eng.seal_for_hq("same plaintext");
+  ASSERT_TRUE(a.ok());
+  ASSERT_TRUE(b.ok());
+  EXPECT_NE(*a, *b) << "identical ciphertext for identical input leaks equality";
+}
+
+TEST(BackupEncryption, WithoutAnHqKeyUploadIsRefusedNotSentInTheClear) {
+  SimulatedFileSystem fs;
+  BackupOptions opts;
+  opts.identity_secret = "s";  // no hq_public_key
+  BackupEngine eng(fs, opts);
+  EXPECT_FALSE(eng.hq_upload_available());
+  auto sealed = eng.seal_for_hq("config");
+  EXPECT_FALSE(sealed.ok());
+  EXPECT_NE(sealed.error.message.find("refusing"), std::string::npos);
+}

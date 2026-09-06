@@ -33,6 +33,7 @@
 
 #include "instr/common/config_sink.h"
 #include "instr/common/daemon_skeleton.h"
+#include "instr/common/crypto.h"
 #include "instr/common/log.h"
 #include "instr/common/periodic.h"
 #include "instr/common/version_gen.h"
@@ -70,6 +71,19 @@ int main(int argc, char** argv) {
   opts.firmware_version = INSTR_VERSION;
   auto secret = fs.read(root + "/run/instrumentation/enrollment-secret");
   opts.identity_secret = secret.ok() ? *secret : "";
+  // HQ's public key arrives with the tunnel configuration at enrollment and
+  // is published by istate. Without it an archive simply is not uploaded —
+  // §7.10 requires HQ uploads be encrypted to HQ's key, so "send it in the
+  // clear instead" is not an available fallback.
+  auto hq_key = fs.read(root + "/run/instrumentation/hq-public.key");
+  if (hq_key.ok()) {
+    auto raw = instr::crypto::base64_decode(*hq_key);
+    if (raw.ok() && raw->size() == 32) {
+      opts.hq_public_key = *raw;
+    } else {
+      log.error("backup", "HQ public key is malformed; uploads to HQ are disabled");
+    }
+  }
   instr::backup::BackupCore core(fs, opts, ts);
   core.set_archive_dir(root + "/pst/backup");
   auto cfg_schema = instr::load_daemon_schema(fs, root, "backup");

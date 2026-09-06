@@ -64,6 +64,10 @@ struct BackupOptions {
   std::string schema_version;
   std::string firmware_version;
   std::string identity_secret;  // key derivation input (never logged, never stored)
+  // HQ's X25519 public key (32 raw bytes). An archive destined for HQ is
+  // sealed to this key, so the upload is unreadable to anything between the
+  // device and HQ — including whatever holds the local archive key (§7.10).
+  std::string hq_public_key;
 };
 
 struct ArchiveInfo {
@@ -111,6 +115,22 @@ class BackupEngine {
   Result<size_t> restore_commit(const std::string& archive_path, const CommitFn& commit);
 
   static bool excluded_path(const std::string& rel, const std::vector<std::string>& excludes);
+
+  // ---- encryption for upload (§7.10) ----
+  // Local archives are sealed with a key derived from device identity;
+  // archives going to HQ are sealed to HQ's public key instead. The two are
+  // different threat models: the local key protects an archive at rest on
+  // the device, HQ's key protects it in transit and at rest in the cloud.
+  //
+  // Ephemeral X25519: a fresh keypair per archive, the shared secret run
+  // through HKDF. The ephemeral public key travels with the ciphertext, so
+  // HQ needs only its own private key to open it and the device keeps no
+  // long-term secret that could decrypt what it has already uploaded.
+  //   layout: "AHQ1" || ephemeral_pub(32) || aead_seal(...)
+  Result<std::string> seal_for_hq(const std::string& plaintext) const;
+  static Result<std::string> open_from_hq(const std::string& sealed,
+                                          const std::string& hq_private_key);
+  bool hq_upload_available() const { return opts_.hq_public_key.size() == 32; }
 
  private:
   std::string key_for_archive() const;  // HKDF(identity serial+secret)

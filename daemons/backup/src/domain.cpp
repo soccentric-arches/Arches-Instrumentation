@@ -27,6 +27,8 @@
 
 #include "instr/backup/domain.h"
 
+#include <cstring>
+
 #include "instr/common/json.h"
 
 #include <algorithm>
@@ -306,6 +308,59 @@ Result<size_t> BackupEngine::restore_commit(const std::string& archive_path,
   Error e = commit(staged);
   if (!e.ok()) return Result<size_t>::fail(e);
   return Result<size_t>::good(staged.size());
+}
+
+}  // namespace domain
+}  // namespace backup
+}  // namespace instr
+namespace instr {
+namespace backup {
+namespace domain {
+
+// Sealed-box to HQ's public key (§7.10). See the header for the layout and
+// why the ephemeral key matters.
+static constexpr char kHqSealMagic[4] = {'A', 'H', 'Q', '1'};
+
+Result<std::string> BackupEngine::seal_for_hq(const std::string& plaintext) const {
+  if (opts_.hq_public_key.size() != 32)
+    return Result<std::string>::fail(Errc::InvalidArgument,
+                                     "no HQ public key configured: refusing to upload an "
+                                     "archive unencrypted",
+                                     "backup");
+  auto rng = [](uint8_t* out, size_t n) { (void)crypto::random_bytes(out, n); };
+  crypto::X25519Key eph = crypto::x25519_generate(rng);
+  auto shared = crypto::x25519(eph.priv.data(),
+                               reinterpret_cast<const uint8_t*>(opts_.hq_public_key.data()));
+
+  // Bind the ephemeral public key into the KDF so a shared secret cannot be
+  // replayed under a different ephemeral key.
+  std::string eph_pub(reinterpret_cast<const char*>(eph.pub.data()), 32);
+  std::string key = crypto::hkdf_sha256(
+      std::string(reinterpret_cast<const char*>(shared.data()), shared.size()), eph_pub,
+      "arches-backup-hq-v1", 32);
+
+  std::string out(kHqSealMagic, sizeof(kHqSealMagic));
+  out += eph_pub;
+  out += crypto::aead_seal(key, plaintext, rng);
+  return Result<std::string>::good(std::move(out));
+}
+
+Result<std::string> BackupEngine::open_from_hq(const std::string& sealed,
+                                               const std::string& hq_private_key) {
+  // Present so the format is testable end to end on the device side: HQ runs
+  // the same computation with its private key.
+  if (hq_private_key.size() != 32)
+    return Result<std::string>::fail(Errc::InvalidArgument, "bad HQ private key", "backup");
+  if (sealed.size() < sizeof(kHqSealMagic) + 32 ||
+      std::memcmp(sealed.data(), kHqSealMagic, sizeof(kHqSealMagic)) != 0)
+    return Result<std::string>::fail(Errc::Corrupt, "not an HQ-sealed archive", "backup");
+  const std::string eph_pub = sealed.substr(sizeof(kHqSealMagic), 32);
+  auto shared = crypto::x25519(reinterpret_cast<const uint8_t*>(hq_private_key.data()),
+                               reinterpret_cast<const uint8_t*>(eph_pub.data()));
+  std::string key = crypto::hkdf_sha256(
+      std::string(reinterpret_cast<const char*>(shared.data()), shared.size()), eph_pub,
+      "arches-backup-hq-v1", 32);
+  return crypto::aead_open(key, sealed.substr(sizeof(kHqSealMagic) + 32));
 }
 
 }  // namespace domain

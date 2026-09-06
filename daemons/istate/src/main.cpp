@@ -38,6 +38,7 @@
 #include "instr/istate/core.h"
 #include "instr/istate/table.h"
 #include "instr/istate/hubs.h"
+#include "instr/platform/descriptors.h"
 #include "instr/platform/factory.h"
 #include "instr/common/filesystem.h"
 #include <grpcpp/grpcpp.h>
@@ -92,6 +93,33 @@ int main(int argc, char** argv) {
 
   auto defaults = load_defaults(fs, root + "/usr/share/instrumentation/defaults");
   core.set_default_provider([defaults] { return defaults; });
+  // Capability manifest (§5.1): the board's descriptor is the source of
+  // truth for what this target has, so istate reports honestly instead of
+  // accepting a call it cannot serve.
+  {
+    auto caps_txt = fs.read(root + "/etc/instrumentation/capabilities.yaml");
+    auto caps_schema_txt =
+        fs.read(root + "/usr/share/instrumentation/schemas/capability.schema.json");
+    instr::JValue caps_schema = instr::JValue::object();
+    if (caps_schema_txt.ok()) {
+      auto parsed = instr::load_schema_text(*caps_schema_txt);
+      if (parsed.ok()) caps_schema = *parsed;
+    }
+    if (caps_txt.ok()) {
+      auto manifest = instr::platform::load_capability_manifest(*caps_txt, caps_schema,
+                                                                "capabilities.yaml");
+      if (manifest.ok()) {
+        core.set_capabilities(manifest->capabilities);
+      } else {
+        log.error("istate", "capability manifest rejected: " + manifest.error.str() +
+                                " — reporting no optional capabilities");
+      }
+    } else {
+      log.warning("istate",
+                  "no capability manifest installed — reporting no optional capabilities");
+    }
+  }
+
 
   auto table = build_istate_table(&core);
   std::string ctrl_path =
