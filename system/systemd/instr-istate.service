@@ -27,7 +27,8 @@ SystemCallArchitectures=native
 # own user, which is how the call graph is enforced (§3.1, §10). Without it
 # every socket stays root-owned and any member of the instr group can call
 # any hub service. CAP_SYS_ADMIN is NOT granted: istate requests unit
-# start/stop through systemd rather than performing it (§7.1).
+# start/stop through systemd rather than performing it itself (§7.1), so no
+# administrative capability is granted here.
 AmbientCapabilities=CAP_CHOWN
 CapabilityBoundingSet=CAP_CHOWN
 LimitNOFILE=4096

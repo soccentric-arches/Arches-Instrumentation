@@ -31,6 +31,11 @@ target_link_libraries(unit_default_configs PRIVATE instr_common)
 target_compile_definitions(unit_default_configs PRIVATE REPO_ROOT="${CMAKE_SOURCE_DIR}")
 gtest_discover_tests(unit_default_configs)
 
+add_executable(unit_system_files unit/test_system_files.cpp)
+target_link_libraries(unit_system_files PRIVATE instr_istate_lib)
+target_compile_definitions(unit_system_files PRIVATE REPO_ROOT="${CMAKE_SOURCE_DIR}")
+gtest_discover_tests(unit_system_files)
+
 add_executable(unit_platform unit/test_platform.cpp)
 target_link_libraries(unit_platform PRIVATE instr_platform)
 gtest_discover_tests(unit_platform)

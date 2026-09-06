@@ -1,8 +1,8 @@
 [Unit]
 Description=Arches Instrumentation networkd
 Documentation=file:///usr/share/doc/instrumentation/interface.md
-After=instr-istate.service
-Wants=instr-istate.service
+After=instr-istate.service instr-faults.service instr-monitord.service instr-hardware.service instr-alarms.service instr-logmanager.service instr-telemetry.service
+Wants=instr-istate.service instr-faults.service instr-monitord.service instr-hardware.service instr-alarms.service instr-logmanager.service instr-telemetry.service
 # istate owns orchestration; systemd owns restart policy and sandboxing (§7.1).
 
 [Service]
@@ -19,6 +19,12 @@ Group=instr
 ProtectSystem=strict
 PrivateTmp=yes
 NoNewPrivileges=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+SystemCallArchitectures=native
 ProtectHome=yes
 LimitNOFILE=4096
 
