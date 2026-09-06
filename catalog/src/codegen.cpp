@@ -39,6 +39,7 @@ namespace instr
 namespace catalog
 {
 
+/// @brief Canonical lowercase severity name.
 const char* severity_name(Severity s)
 {
     switch (s)
@@ -52,6 +53,7 @@ const char* severity_name(Severity s)
     return "INFO";
 }
 
+/// @brief Parse a severity name (case-insensitive).
 Severity severity_from_name(const std::string& n, Error* err)
 {
     std::string u;
@@ -65,6 +67,7 @@ Severity severity_from_name(const std::string& n, Error* err)
     return Severity::Info;
 }
 
+/// @brief Encode "0x1_04_1_0007"-form id text into the packed identity.
 Result<uint32_t> parse_alarm_id_text(const std::string& text)
 {
     // Format: 0x<domain>_<module>_<type>_<index>
@@ -99,6 +102,7 @@ Result<uint32_t> parse_alarm_id_text(const std::string& text)
     return Result<uint32_t>::good(v);
 }
 
+/// @brief Parse and validate catalog YAML; duplicates are loud errors.
 Result<AlarmCatalog> parse_catalog(const std::string& yaml_text)
 {
     try
@@ -141,6 +145,7 @@ Result<AlarmCatalog> parse_catalog(const std::string& yaml_text)
     }
 }
 
+/// @brief Convert a symbolic name to INSTR_ALARM_<UPPER_SNAKE> form.
 static std::string to_upper_snake(const std::string& name)
 {
     std::string out;
@@ -158,6 +163,7 @@ static std::string to_upper_snake(const std::string& name)
     return out;
 }
 
+/// @brief Escape and quote a string as a C literal.
 static std::string c_str(const std::string& s)
 {
     std::string out = "\"";
@@ -174,6 +180,7 @@ static std::string c_str(const std::string& s)
     return out + "\"";
 }
 
+/// @brief Render the generated INSTR_ALARM_* header from the catalog.
 Result<std::string> render_header(const AlarmCatalog& cat, const std::string& version)
 {
     std::ostringstream o;

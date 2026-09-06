@@ -31,6 +31,7 @@
 #include "instr/catalog/codegen.h"
 #include "instr/common/version_gen.h"
 
+/// @brief alarmgen tool entry: parse the catalog YAML and emit the C++ header.
 int main(int argc, char** argv)
 {
     if (argc != 3)
