@@ -45,6 +45,8 @@ using namespace instr::platform;
 namespace
 {
 /// @brief Create a unique per-test temporary directory.
+/// @param tag Distinct tag for the test.
+/// @return The unique directory path.
 static std::string tmp_dir(const char* tag)
 {
     return std::string("/tmp/instr-fault-") + tag + "-" + std::to_string(::getpid());

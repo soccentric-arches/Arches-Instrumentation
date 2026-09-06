@@ -51,6 +51,8 @@ namespace
 {
 
 /// @brief Build a Stamp from the manual test clock.
+/// @param ts Manual clock to stamp from.
+/// @return A Stamp built from the clock.
 static Stamp stamp_of(ManualTimeSource& ts)
 {
     Stamp s;
@@ -63,6 +65,11 @@ static Stamp stamp_of(ManualTimeSource& ts)
 }
 
 /// @brief Build a generic spoke message with a JSON payload.
+/// @param daemon Originating spoke.
+/// @param type Frame type.
+/// @param payload JSON payload.
+/// @param ts Clock for the timestamp.
+/// @return The generic spoke message.
 static transport::GenericSpokeMsg spoke_msg(const std::string& daemon, const std::string& type, const std::string& payload, const Stamp& ts)
 {
     transport::GenericSpokeMsg m;

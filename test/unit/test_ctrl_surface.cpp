@@ -65,6 +65,7 @@ struct Surface
 };
 
 /// @brief Build every daemon's command table for surface-wide assertions.
+/// @return Every daemon command table for surface-wide assertions.
 std::vector<Surface> all_surfaces()
 {
     std::vector<Surface> v;

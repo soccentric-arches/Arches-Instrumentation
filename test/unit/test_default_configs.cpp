@@ -47,6 +47,8 @@ namespace
 const char* kDaemons[] = {"istate", "networkd", "monitord", "hardware", "faults", "alarms", "logmanager", "telemetry", "ota", "backup"};
 
 /// @brief Read a shipped schema/default file.
+/// @param path File to read.
+/// @return The file contents.
 std::string slurp(const std::string& path)
 {
     std::ifstream f(path);
@@ -55,11 +57,15 @@ std::string slurp(const std::string& path)
     return ss.str();
 }
 /// @brief Path of a daemon's shipped JSON Schema.
+/// @param d Daemon name.
+/// @return The daemon's schema path.
 std::string schema_path(const std::string& d)
 {
     return std::string(REPO_ROOT) + "/schemas/" + d + ".schema.json";
 }
 /// @brief Path of a daemon's shipped default YAML.
+/// @param d Daemon name.
+/// @return The daemon's defaults path.
 std::string default_path(const std::string& d)
 {
     return std::string(REPO_ROOT) + "/system/defaults/" + d + "/config.yaml";

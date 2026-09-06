@@ -44,6 +44,8 @@
 using namespace instr;
 
 /// @brief Read a whole file (fixtures and golden files).
+/// @param path File to read.
+/// @return The file contents.
 static std::string slurp(const std::string& path)
 {
     std::ifstream f(path);

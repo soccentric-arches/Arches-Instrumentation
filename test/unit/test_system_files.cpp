@@ -47,6 +47,8 @@ namespace
 const char* kDaemons[] = {"istate", "networkd", "monitord", "hardware", "faults", "alarms", "logmanager", "telemetry", "ota", "backup"};
 
 /// @brief Read a system/systemd file.
+/// @param p File to read.
+/// @return The file contents.
 std::string slurp(const std::string& p)
 {
     std::ifstream f(p);
@@ -55,11 +57,16 @@ std::string slurp(const std::string& p)
     return ss.str();
 }
 /// @brief Path of a daemon's systemd unit file.
+/// @param d Daemon name.
+/// @return The daemon's unit file path.
 std::string unit(const std::string& d)
 {
     return slurp(std::string(REPO_ROOT) + "/system/systemd/instr-" + d + ".service");
 }
 /// @brief Count occurrences of a substring.
+/// @param hay Text to search.
+/// @param needle Substring to count.
+/// @return Number of occurrences.
 size_t count_of(const std::string& hay, const std::string& needle)
 {
     size_t n = 0, pos = 0;
