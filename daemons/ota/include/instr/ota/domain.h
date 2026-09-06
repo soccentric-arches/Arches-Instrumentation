@@ -49,8 +49,10 @@
 
 namespace instr
 {
+/// @brief OTA daemon: signed update pipeline with rollback (§7.9, §11).
 namespace ota
 {
+/// @brief Pure domain logic for this daemon: no transport, no sockets, fully unit-testable.
 namespace domain
 {
 
@@ -120,6 +122,8 @@ struct OtaProgressEvent
 
 /// @brief Version comparison: dotted numeric with v-prefix tolerance ("1.2.10" > "1.2.9").
 /// @return Negative / zero / positive, or an error for malformed versions.
+/// @param a First version.
+/// @param b Second version.
 Result<int> compare_versions(const std::string& a, const std::string& b);
 
 /// @brief Update engine: artifact intake, verification, staging, apply, confirm/rollback.
@@ -127,11 +131,16 @@ class OtaEngine
 {
   public:
     /// @brief Bind the engine to storage, platform, a clock and its policy.
+/// @param fs Storage backend.
+/// @param plat Boot-slot operations.
+/// @param ts Clock.
+/// @param cfg Initial policy.
     OtaEngine(IFileSystem& fs, platform::IPlatform& plat, TimeSource& ts, OtaConfig cfg) : fs_(fs), plat_(plat), ts_(ts), cfg_(cfg)
     {
     }
 
     /// @brief Update the policy while the engine is live (§9).
+/// @param c New policy.
     void set_config(const OtaConfig& c)
     {
         cfg_ = c;
@@ -142,6 +151,7 @@ class OtaEngine
     }
     /// @brief SWUpdate is the install engine (§7.9); the path is configurable so a
     /// test can point at a stub and CI never shells out to the real thing.
+/// @param p Install engine binary path.
     void set_swupdate_binary(std::string p)
     {
         swupdate_binary_ = std::move(p);
@@ -155,6 +165,7 @@ class OtaEngine
     /// Default implementation execs SWUpdate.
     using InstallFn = std::function<Result<int>(const std::string& artifact, const std::string& target_slot, const ArtifactManifest& m)>;
     /// @brief Replace the installer.
+/// @param f Installer replacement (tests).
     void set_install_fn(InstallFn f)
     {
         install_fn_ = std::move(f);
@@ -165,27 +176,33 @@ class OtaEngine
     /// Public keys only: a device can verify a release but nothing on it can
     /// sign one. Several are held at once so a signing key can be rotated
     /// across a fleet gradually.
+/// @param key_id Key id to trust.
+/// @param public_key_raw32 Raw 32-byte public key.
     void add_release_key(const std::string& key_id, const std::string& public_key_raw32)
     {
         release_keys_[key_id] = public_key_raw32;
     }
     /// @brief Remove a release key.
+/// @param key_id Key id to retire.
     void remove_release_key(const std::string& key_id)
     {
         release_keys_.erase(key_id);
     }
     /// @brief Registered release keys (key id → raw public key).
+/// @return Registered release keys (key id → raw public key).
     const std::map<std::string, std::string>& release_keys() const
     {
         return release_keys_;
     }
 
     /// @brief Current update state machine.
+/// @return The current update state machine.
     const UpdateState& state() const
     {
         return state_;
     }
     /// @brief Finished update history.
+/// @return Finished update history.
     const std::vector<HistoryEntry>& history() const
     {
         return history_;
@@ -194,11 +211,17 @@ class OtaEngine
     /// @brief Receive one artifact chunk; supports resume via the persisted offset.
     ///
     /// Re-calls with the same offset append. Returns bytes stored so far.
+/// @param data Chunk bytes.
+/// @param offset Expected byte offset (resume checkpoint).
+/// @return Bytes stored so far, or an error.
     Result<uint64_t> receive_chunk(const std::string& data, uint64_t offset);
     /// @brief Bytes stored so far for the in-flight artifact.
+/// @return Bytes stored so far for the in-flight artifact.
     Result<uint64_t> received_bytes() const;
 
     /// @brief Parse and validate a manifest JSON document.
+/// @param manifest_json Manifest JSON text.
+/// @return The parsed manifest, or an error.
     Result<ArtifactManifest> parse_manifest(const std::string& manifest_json) const;
     /// @brief Verify an artifact: integrity, then signature, then anti-rollback.
     ///
@@ -209,33 +232,46 @@ class OtaEngine
     Error verify(const ArtifactManifest& m, const std::string& enrollment_secret, const std::string& running_version);
 
     /// @brief Verify and place the artifact in the staging slot (§7.9 gates staging on verification).
+/// @param m Parsed manifest.
+/// @param enrollment_secret Secret for the legacy HMAC path.
+/// @param running_version Currently running version (anti-rollback floor).
     Error stage(const ArtifactManifest& m, const std::string& enrollment_secret, const std::string& running_version);
     /// @brief Run the installer for the staged artifact and switch boot slots.
     Error apply();
 
     /// @brief Confirm the pending trial slot after a successful boot (§11).
     ///
+/// @return ok() on confirmation, or an error.
     /// On boot with a pending trial slot, the engine waits for confirm();
     /// past the deadline it rolls back automatically.
     Error confirm();
     /// @brief Roll back to the previous slot with a reason.
+/// @param reason Why the rollback happened.
     Error rollback(const std::string& reason);
     /// @brief Periodic call: fires the automatic rollback when the deadline is overdue.
+/// @param now_mono_ns Current monotonic time.
+/// @return A progress event, or std::nullopt.
     std::optional<OtaProgressEvent> tick(uint64_t now_mono_ns);
 
     /// @brief True when updates are permitted at this wall time.
+/// @param wall_unix_s Current wall time.
+/// @return True when updates are permitted.
     bool in_maintenance_window(int64_t wall_unix_s) const;
     /// @brief Replace the maintenance windows.
+/// @param w Maintenance windows to install.
     void set_windows(const std::vector<OtaConfig::Window>& w)
     {
         cfg_.windows = w;
     }
     /// @brief Override the bandwidth limit.
+/// @param bytes_per_s Download cap in bytes per second (0 = unlimited).
     void set_bandwidth_limit(uint64_t bytes_per_s)
     {
         cfg_.bandwidth_limit_bytes_per_s = bytes_per_s;
     }
     /// @brief Bytes the limiter permits right now (token bucket).
+/// @param dt_s Elapsed seconds since the last call.
+/// @return Bytes the limiter permits.
     uint64_t bandwidth_allotment(double dt_s);
 
     /// @brief Canary support: enough state for HQ staged rollouts.
@@ -246,11 +282,13 @@ class OtaEngine
     std::string canary_json(double health_score, double fault_rate_24h) const;
 
     /// @brief Install the progress-event sink.
+/// @param f Progress-event sink.
     void set_event_sink(std::function<void(const OtaProgressEvent&)> f)
     {
         event_sink_ = std::move(f);
     }
     /// @brief Install the enrollment-secret provider (never stored at rest).
+/// @param f Enrollment-secret provider.
     void set_enrollment_secret_provider(std::function<std::string()> f)
     {
         secret_provider_ = std::move(f);
@@ -258,30 +296,42 @@ class OtaEngine
 
   private:
     /// @brief Emit a progress event to the sink and record the state.
+/// @param stage Stage name.
+/// @param progress 0..1 progress.
+/// @param message Human-readable detail.
     Error emit(const std::string& stage, double progress, const std::string& message);
     /// @brief Run the install engine (SWUpdate by default, install_fn_ when set).
+/// @param artifact Staged artifact path.
+/// @param target_slot Boot slot to install into.
+/// @param m Manifest describing the artifact.
+/// @return The installer exit status, or an error.
     Result<int> run_install(const std::string& artifact, const std::string& target_slot, const ArtifactManifest& m);
     /// @brief Staged artifact path.
+/// @return The staged artifact path.
     std::string staging_path() const
     {
         return "/pst/state/ota/artifact.bin";
     }
     /// @brief Resume-offset file path.
+/// @return The resume-offset file path.
     std::string offset_path() const
     {
         return "/pst/state/ota/offset";
     }
     /// @brief Manifest file path.
+/// @return The manifest file path.
     std::string manifest_path() const
     {
         return "/pst/state/ota/manifest.json";
     }
     /// @brief History file path.
+/// @return The history file path.
     std::string history_path() const
     {
         return "/pst/state/ota/history.json";
     }
     /// @brief Load the update history from disk.
+/// @return The update history loaded from disk.
     std::string history_json() const;
 
     IFileSystem& fs_;                     ///< Storage backend.

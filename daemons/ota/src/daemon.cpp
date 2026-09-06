@@ -29,10 +29,13 @@
 
 namespace instr
 {
+/// @brief OTA daemon: signed update pipeline with rollback (§7.9, §11).
 namespace ota
 {
 
 /// @brief Render the update history as a JSON array.
+/// @param h History entries to render.
+/// @return The history as a JSON array.
 static JValue history_json_value(const std::vector<HistoryEntry>& h)
 {
     JValue arr = JValue::array();
@@ -49,6 +52,7 @@ static JValue history_json_value(const std::vector<HistoryEntry>& h)
 }
 
 /// @brief Render engine state as JSON.
+/// @return The engine state as JSON.
 std::string OtaCore::status_json() const
 {
     const UpdateState& st = engine_.state();
@@ -64,6 +68,8 @@ std::string OtaCore::status_json() const
 }
 
 /// @brief Build the ota ctrl command table.
+/// @param core Domain core the table reads from.
+/// @return The command table.
 CommandTable build_ota_table(OtaCore* core)
 {
     CommandTable t;
@@ -143,6 +149,11 @@ CommandTable build_ota_table(OtaCore* core)
 }
 
 /// @brief Wire the channel, config sink and handlers together.
+/// @param core Domain core.
+/// @param log Logger.
+/// @param table Command table.
+/// @param hub_target istate gRPC target.
+/// @param build_version Build version to advertise.
 OtaSpoke::OtaSpoke(OtaCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version) : core_(core), log_(log), table_(table)
 {
     using ChannelT = SpokeChannel<ota::OtaHub, ota::OtaSpokeFrame, ota::OtaHubFrame>;
@@ -166,6 +177,7 @@ OtaSpoke::OtaSpoke(OtaCore* core, Logger* log, const CommandTable* table, const 
 }
 
 /// @brief Install the schema every config delivery must satisfy.
+/// @param schema Schema every config delivery must satisfy.
 void OtaSpoke::set_schema(JValue schema)
 {
     config_sink_ = std::make_unique<ConfigSink>("ota", std::move(schema), [this](const ConfigDocument& doc) { return core_->apply_config(doc); });
@@ -184,6 +196,7 @@ void OtaSpoke::stop()
 }
 
 /// @brief Queue a progress event to istate.
+/// @param ev Progress event to queue.
 void OtaSpoke::send_event(const OtaProgressEvent& ev)
 {
     channel_->enqueue([&ev](ota::OtaSpokeFrame& f) {

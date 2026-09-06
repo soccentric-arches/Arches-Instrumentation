@@ -39,12 +39,17 @@
 
 namespace instr
 {
+/// @brief OTA daemon: signed update pipeline with rollback (§7.9, §11).
 namespace ota
 {
+/// @brief Pure domain logic for this daemon: no transport, no sockets, fully unit-testable.
 namespace domain
 {
 
 /// @brief Dotted-numeric version comparison with v-prefix tolerance.
+/// @param a First version.
+/// @param b Second version.
+/// @return Negative / zero / positive, or an error for malformed versions.
 Result<int> compare_versions(const std::string& a, const std::string& b)
 {
     auto split = [](const std::string& s) {
@@ -78,6 +83,9 @@ Result<int> compare_versions(const std::string& a, const std::string& b)
 }
 
 /// @brief Append one artifact chunk with resume support.
+/// @param data Chunk bytes.
+/// @param offset Expected byte offset (resume checkpoint).
+/// @return Bytes stored so far, or an error.
 Result<uint64_t> OtaEngine::receive_chunk(const std::string& data, uint64_t offset)
 {
     // Resume support: offset persisted alongside the artifact.
@@ -106,6 +114,7 @@ Result<uint64_t> OtaEngine::receive_chunk(const std::string& data, uint64_t offs
 }
 
 /// @brief Bytes stored so far for the in-flight artifact.
+/// @return Bytes stored so far for the in-flight artifact.
 Result<uint64_t> OtaEngine::received_bytes() const
 {
     auto off_txt = fs_.read(offset_path());
@@ -121,6 +130,8 @@ Result<uint64_t> OtaEngine::received_bytes() const
 }
 
 /// @brief Parse and validate a manifest JSON document.
+/// @param manifest_json Manifest JSON text.
+/// @return The parsed manifest, or an error.
 Result<ArtifactManifest> OtaEngine::parse_manifest(const std::string& manifest_json) const
 {
     auto j = json_parse(manifest_json);
@@ -137,6 +148,10 @@ Result<ArtifactManifest> OtaEngine::parse_manifest(const std::string& manifest_j
 }
 
 /// @brief Verify integrity, then signature, then anti-rollback floor.
+/// @param m Parsed manifest.
+/// @param enrollment_secret Secret for the legacy HMAC path.
+/// @param running_version Currently running version (anti-rollback floor).
+/// @return ok(), or the specific verification failure.
 Error OtaEngine::verify(const ArtifactManifest& m, const std::string& enrollment_secret, const std::string& running_version)
 {
     emit("verifying", 0.1, "integrity check");
@@ -185,6 +200,10 @@ Error OtaEngine::verify(const ArtifactManifest& m, const std::string& enrollment
 }
 
 /// @brief Run the install engine (SWUpdate or the injected installer).
+/// @param artifact Staged artifact path.
+/// @param target_slot Boot slot to install into.
+/// @param m Manifest describing the artifact.
+/// @return The installer exit status, or an error.
 Result<int> OtaEngine::run_install(const std::string& artifact, const std::string& target_slot, const ArtifactManifest& m)
 {
     if (install_fn_) return install_fn_(artifact, target_slot, m);
@@ -214,6 +233,9 @@ Result<int> OtaEngine::run_install(const std::string& artifact, const std::strin
 }
 
 /// @brief Verify and place the artifact in the staging slot.
+/// @param m Parsed manifest.
+/// @param enrollment_secret Secret for the legacy HMAC path.
+/// @param running_version Currently running version (anti-rollback floor).
 Error OtaEngine::stage(const ArtifactManifest& m, const std::string& enrollment_secret, const std::string& running_version)
 {
     Error e = verify(m, enrollment_secret, running_version);
@@ -281,6 +303,7 @@ Error OtaEngine::confirm()
 }
 
 /// @brief Roll back to the previous slot.
+/// @param reason Why the rollback happened.
 Error OtaEngine::rollback(const std::string& reason)
 {
     auto slots = plat_.boot_slots();
@@ -303,6 +326,8 @@ Error OtaEngine::rollback(const std::string& reason)
 }
 
 /// @brief Periodic call: fires the automatic rollback when overdue.
+/// @param now_mono_ns Current monotonic time.
+/// @return A progress event, or std::nullopt.
 std::optional<OtaProgressEvent> OtaEngine::tick(uint64_t now_mono_ns)
 {
     if (state_.state == "applied_pending_confirm" && now_mono_ns > state_.confirm_deadline_mono)
@@ -315,6 +340,8 @@ std::optional<OtaProgressEvent> OtaEngine::tick(uint64_t now_mono_ns)
 }
 
 /// @brief True when updates are permitted at this wall time.
+/// @param wall_unix_s Current wall time.
+/// @return True when updates are permitted.
 bool OtaEngine::in_maintenance_window(int64_t wall_unix_s) const
 {
     if (cfg_.windows.empty()) return true; // no schedule → always permitted
@@ -348,6 +375,8 @@ bool OtaEngine::in_maintenance_window(int64_t wall_unix_s) const
 }
 
 /// @brief Bytes the token-bucket limiter permits right now.
+/// @param dt_s Elapsed seconds since the last call.
+/// @return Bytes the limiter permits.
 uint64_t OtaEngine::bandwidth_allotment(double dt_s)
 {
     if (cfg_.bandwidth_limit_bytes_per_s == 0) return 1ull << 30; // unlimited
@@ -367,6 +396,7 @@ uint64_t OtaEngine::bandwidth_allotment(double dt_s)
 }
 
 /// @brief Load the update history from disk.
+/// @return The update history loaded from disk.
 std::string OtaEngine::history_json() const
 {
     std::ostringstream o;
@@ -383,6 +413,9 @@ std::string OtaEngine::history_json() const
 }
 
 /// @brief Render the canary status for HQ staged rollouts.
+/// @param health_score Device health 0..1.
+/// @param fault_rate_24h Fault rate over 24h.
+/// @return The canary status JSON.
 std::string OtaEngine::canary_json(double health_score, double fault_rate_24h) const
 {
     JValue o = JValue::object();
@@ -394,6 +427,9 @@ std::string OtaEngine::canary_json(double health_score, double fault_rate_24h) c
 }
 
 /// @brief Emit a progress event and record the state.
+/// @param stage Stage name.
+/// @param progress 0..1 progress.
+/// @param message Human-readable detail.
 Error OtaEngine::emit(const std::string& stage, double progress, const std::string& message)
 {
     state_.progress = progress;
