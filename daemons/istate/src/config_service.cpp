@@ -33,12 +33,18 @@
 
 namespace instr
 {
+/// @brief istate: /pst owner, spoke orchestrator and HQ northbound bridge (R4, §7.1).
 namespace istate
 {
 
 // ---------------- AuditLog ----------------
 
 /// @brief Append a stamped audit entry (bounded).
+/// @param actor Who performed the action.
+/// @param source Where it came from.
+/// @param action Action kind.
+/// @param detail_json Action detail.
+/// @param ts Clock for stamping.
 void AuditLog::append(const std::string& actor, const std::string& source, const std::string& action, const std::string& detail_json, TimeSource& ts)
 {
     AuditEntry e;
@@ -111,12 +117,16 @@ Error AuditLog::load()
 // ---------------- ConfigService ----------------
 
 /// @brief Load a daemon's effective config.
+/// @param daemon Daemon to read.
+/// @return The effective config, or an error.
 Result<ConfigDocument> ConfigService::get(const std::string& daemon) const
 {
     return pst_.load_config(daemon);
 }
 
 /// @brief Render the drift report (effective vs delivered) as JSON.
+/// @param daemon Daemon to report on.
+/// @return The drift report as JSON.
 std::string ConfigService::drift_report_json(const std::string& daemon) const
 {
     auto doc = pst_.load_config(daemon);
@@ -152,6 +162,11 @@ std::string ConfigService::drift_report_json(const std::string& daemon) const
 }
 
 /// @brief Merge values by origin rules and persist.
+/// @param daemon Target daemon.
+/// @param yaml_text Incoming YAML.
+/// @param origin Claimed origin of the values.
+/// @param force Overwrite protected local keys when true.
+/// @return Rejected paths and error text.
 ConfigService::SetResult ConfigService::set(const std::string& daemon, const std::string& yaml_text, Origin origin, bool force)
 {
     SetResult res;
@@ -212,6 +227,13 @@ ConfigService::SetResult ConfigService::set(const std::string& daemon, const std
 }
 
 /// @brief Verify then apply a signed config push.
+/// @param daemon Target daemon.
+/// @param yaml_text Incoming YAML.
+/// @param key_id Signing key id.
+/// @param signature Ed25519 signature.
+/// @param hmac_hex Legacy HMAC.
+/// @param enrollment_secret Secret for the legacy path.
+/// @return Rejected paths, or an error when verification fails.
 Result<std::vector<std::string>> ConfigService::apply_signed(const std::string& daemon, const std::string& yaml_text, const std::string& key_id, const std::string& signature, const std::string& hmac_hex, const std::string& enrollment_secret)
 {
     // Verification happens BEFORE any write (§9). Nothing below this point

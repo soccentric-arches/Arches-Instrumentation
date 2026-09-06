@@ -46,6 +46,7 @@ struct CfgFixture
     PstStore pst{fs, "/pst", budgets};
     ConfigService svc{pst, fs};
     std::map<std::string, std::string> defaults{{"networkd", "mode: dhcp\ninterval: 5\n"}};
+    /// @brief Provision a temp /pst with seeded defaults for config tests.
     CfgFixture()
     {
         pst.mount();
@@ -176,6 +177,7 @@ struct HqSigner
     std::string public_key; // 32 raw bytes
     EVP_PKEY* key = nullptr;
 
+    /// @brief Generates an Ed25519 keypair for signed-push tests.
     HqSigner()
     {
         EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_ED25519, nullptr);
@@ -187,6 +189,7 @@ struct HqSigner
         EVP_PKEY_get_raw_public_key(key, raw, &len);
         public_key.assign(reinterpret_cast<char*>(raw), len);
     }
+    /// @brief Releases the signing key context.
     ~HqSigner()
     {
         EVP_PKEY_free(key);

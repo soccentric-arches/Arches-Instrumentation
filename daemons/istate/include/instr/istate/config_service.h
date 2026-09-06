@@ -45,6 +45,7 @@
 
 namespace instr
 {
+/// @brief istate: /pst owner, spoke orchestrator and HQ northbound bridge (R4, §7.1).
 namespace istate
 {
 
@@ -64,12 +65,21 @@ class AuditLog
 {
   public:
     /// @brief Bind the log to storage, a path and a size bound.
+/// @param fs Storage backend.
+/// @param path Audit file path.
+/// @param max_entries Entry bound (oldest dropped).
     AuditLog(IFileSystem& fs, const std::string& path, size_t max_entries) : fs_(fs), path_(path), max_entries_(max_entries)
     {
     }
     /// @brief Append one entry (stamped from @p ts).
+/// @param actor Who performed the action.
+/// @param source Where it came from.
+/// @param action Action kind.
+/// @param detail_json Action detail.
+/// @param ts Clock for stamping.
     void append(const std::string& actor, const std::string& source, const std::string& action, const std::string& detail_json, TimeSource& ts);
     /// @brief In-memory entries, oldest first.
+/// @return In-memory entries, oldest first.
     const std::deque<AuditEntry>& entries() const
     {
         return entries_;
@@ -92,19 +102,27 @@ class ConfigService
 {
   public:
     /// @brief Bind the service to the /pst store and a filesystem.
+/// @param pst /pst store.
+/// @param fs Storage backend.
     ConfigService(PstStore& pst, IFileSystem& fs) : pst_(pst), fs_(fs)
     {
     }
 
     /// @brief Register a per-daemon JSON schema (validated at load; rejected with a clear file-and-line error).
+/// @param daemon Daemon the schema describes.
+/// @param schema JSON Schema for its config.
     void set_schema(const std::string& daemon, const JValue& schema)
     {
         schemas_[daemon] = schema;
     }
 
     /// @brief Get the effective config of a daemon.
+/// @param daemon Daemon to read.
+/// @return The effective config, or an error.
     Result<ConfigDocument> get(const std::string& daemon) const;
     /// @brief Drift report: actual effective config so HQ can compare against intent.
+/// @param daemon Daemon to report on.
+/// @return The drift report as JSON.
     std::string drift_report_json(const std::string& daemon) const;
 
     /// @brief Outcome of a config set.
@@ -130,16 +148,20 @@ class ConfigService
     /// that an HMAC — where the verifier is also a signer — cannot provide.
     /// Several ids can be trusted at once so a key can be rotated without a
     /// flag day: publish the new key, switch signing, retire the old one.
+/// @param key_id Key id to trust.
+/// @param public_key_raw32 Raw 32-byte public key.
     void add_signing_key(const std::string& key_id, const std::string& public_key_raw32)
     {
         signing_keys_[key_id] = public_key_raw32;
     }
     /// @brief Retire a signing key.
+/// @param key_id Key id to retire.
     void remove_signing_key(const std::string& key_id)
     {
         signing_keys_.erase(key_id);
     }
     /// @brief Trusted signing keys (key id → raw public key).
+/// @return Trusted signing keys (key id → raw public key).
     const std::map<std::string, std::string>& signing_keys() const
     {
         return signing_keys_;
@@ -153,6 +175,12 @@ class ConfigService
     /// last_push_used_legacy_hmac().
     ///
     /// @return Rejected paths, or an error when verification fails.
+/// @param daemon Target daemon.
+/// @param yaml_text Incoming YAML.
+/// @param key_id Signing key id.
+/// @param signature Ed25519 signature over "<daemon>|<yaml>".
+/// @param hmac_hex Legacy HMAC (accepted only with no signing keys).
+/// @param enrollment_secret Secret for the legacy HMAC path.
     Result<std::vector<std::string>> apply_signed(const std::string& daemon, const std::string& yaml_text, const std::string& key_id, const std::string& signature, const std::string& hmac_hex, const std::string& enrollment_secret);
     /// @brief True when the last push fell back to the legacy HMAC path.
     bool last_push_used_legacy_hmac() const
@@ -161,6 +189,7 @@ class ConfigService
     }
 
     /// @brief Registered schemas per daemon.
+/// @return Registered schemas per daemon.
     const std::map<std::string, JValue>& schemas() const
     {
         return schemas_;

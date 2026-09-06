@@ -32,10 +32,13 @@
 
 namespace instr
 {
+/// @brief istate: /pst owner, spoke orchestrator and HQ northbound bridge (R4, §7.1).
 namespace istate
 {
 
 /// @brief Canonical name of a lifecycle state.
+/// @param s State to name.
+/// @return Canonical name of the lifecycle state.
 const char* Provisioner::state_name(State s) const
 {
     switch (s)
@@ -50,6 +53,8 @@ const char* Provisioner::state_name(State s) const
 }
 
 /// @brief Derive a hostname from the factory identity.
+/// @param id Factory identity to derive the hostname from.
+/// @return The derived hostname.
 std::string Provisioner::derive_hostname(const platform::FactoryIdentity& id)
 {
     // Deterministic from the serial: arch-<last 6 hex of serial>.
@@ -60,6 +65,8 @@ std::string Provisioner::derive_hostname(const platform::FactoryIdentity& id)
 }
 
 /// @brief First-boot sequence: identity, keygen, enrollment, hostname.
+/// @param enroll_fn HQ enrollment round-trip.
+/// @return The established identity, or an error.
 Result<DeviceIdentity> Provisioner::run_first_boot(const EnrollFn& enroll_fn)
 {
     // 1. Mount and validate /pst; detect virgin state (done by PstStore::mount).
@@ -116,6 +123,8 @@ Result<DeviceIdentity> Provisioner::run_first_boot(const EnrollFn& enroll_fn)
 }
 
 /// @brief Rotate the tunnel key and re-enroll without factory involvement.
+/// @param enroll_fn HQ enrollment round-trip.
+/// @return The new identity, or an error.
 Result<DeviceIdentity> Provisioner::rotate_key(const EnrollFn& enroll_fn)
 {
     // Rotation: regenerate, re-enroll, no factory involvement (§6.2).
@@ -124,6 +133,9 @@ Result<DeviceIdentity> Provisioner::rotate_key(const EnrollFn& enroll_fn)
 }
 
 /// @brief Shared body of first-boot and rotation.
+/// @param rotation True when this is a key rotation.
+/// @param enroll_fn HQ enrollment round-trip.
+/// @return The established identity, or an error.
 Result<DeviceIdentity> Provisioner::generate_and_enroll(bool rotation, const EnrollFn& enroll_fn)
 {
     // Keypair generated on device via X25519 (RFC 7748, own implementation).

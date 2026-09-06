@@ -43,6 +43,7 @@
 
 namespace instr
 {
+/// @brief istate: /pst owner, spoke orchestrator and HQ northbound bridge (R4, §7.1).
 namespace istate
 {
 
@@ -57,6 +58,7 @@ struct DeviceIdentity
     std::string wg_public_key;     ///< WireGuard public key (base64).
     std::string factory_sig;       ///< HMAC(factory secret, pubkey) — base64.
     /// @brief The public key in base64 (identity accessor).
+/// @return The public key in base64.
     std::string pubkey_b64() const
     {
         return wg_public_key;
@@ -87,9 +89,14 @@ class Provisioner
         Operational,   ///< Fully provisioned.
     };
     /// @brief Canonical name of a state.
+/// @param s State to name.
+/// @return Canonical name of the lifecycle state.
     const char* state_name(State s) const;
 
     /// @brief Bind the provisioner to the store, platform and filesystem.
+/// @param pst /pst store.
+/// @param plat Platform (factory identity + entropy).
+/// @param fs Storage backend.
     Provisioner(PstStore& pst, platform::IPlatform& plat, IFileSystem& fs) : pst_(pst), plat_(plat), fs_(fs)
     {
     }
@@ -100,11 +107,13 @@ class Provisioner
         return state_;
     }
     /// @brief Established identity (after first boot).
+/// @return The established identity (after first boot).
     const DeviceIdentity& identity() const
     {
         return identity_;
     }
     /// @brief Tunnel configuration from enrollment.
+/// @return The tunnel configuration from enrollment.
     const TunnelConfig& tunnel() const
     {
         return tunnel_;
@@ -116,16 +125,25 @@ class Provisioner
     /// request, it returns the tunnel configuration.
     using EnrollFn = std::function<Result<TunnelConfig>(const DeviceIdentity&)>;
     /// @brief Run first boot: identity, keygen, enrollment, hostname, /pst seed.
+/// @param enroll_fn HQ enrollment round-trip.
+/// @return The established identity, or an error.
     Result<DeviceIdentity> run_first_boot(const EnrollFn& enroll_fn);
 
     /// @brief Key rotation without a site visit: regenerate, re-enroll, no factory involvement.
+/// @param enroll_fn HQ enrollment round-trip.
+/// @return The new identity, or an error.
     Result<DeviceIdentity> rotate_key(const EnrollFn& enroll_fn);
 
     /// @brief Hostname derivation from factory identity.
+/// @param id Factory identity to derive the hostname from.
+/// @return The derived hostname.
     static std::string derive_hostname(const platform::FactoryIdentity& id);
 
   private:
     /// @brief Shared body of first-boot and rotation.
+/// @param rotation True when this is a key rotation.
+/// @param enroll_fn HQ enrollment round-trip.
+/// @return The established identity, or an error.
     Result<DeviceIdentity> generate_and_enroll(bool rotation, const EnrollFn& enroll_fn);
 
     PstStore& pst_;                ///< /pst store (not owned).

@@ -40,6 +40,7 @@
 
 namespace instr
 {
+/// @brief istate: /pst owner, spoke orchestrator and HQ northbound bridge (R4, §7.1).
 namespace istate
 {
 
@@ -57,6 +58,10 @@ using transport::HubServiceBase;
 // CAP_CHOWN) the chown cannot succeed. That is reported once, loudly, rather
 // than passed over: on a device it means the enforcement is not in place.
 /// @brief Create/chown one spoke socket so only that daemon's user may connect (§3.1).
+/// @param path Socket path to create/chown.
+/// @param daemon Owning daemon (its user is looked up).
+/// @param log Logger for diagnostics.
+/// @return True when the socket was prepared.
 static bool own_socket(const std::string& path, const std::string& daemon, Logger* log)
 {
     if (::chmod(path.c_str(), 0660) != 0)
@@ -88,9 +93,16 @@ static bool own_socket(const std::string& path, const std::string& daemon, Logge
 
 // ---- typed per-spoke hub services ----
 
+/// @brief Typed per-spoke hub service bound to the istate core.
+/// @tparam Service Generated `<X>Hub::Service` type.
+/// @tparam SpokeFrame Typed spoke frame.
+/// @tparam HubFrame Typed hub frame.
 template <typename Service, typename SpokeFrame, typename HubFrame> class TypedHub : public HubServiceBase<Service, SpokeFrame, HubFrame>
 {
   public:
+    /// @brief Construct a hub for @p daemon wiring ingest into the istate core.
+    /// @param core istate core the hub ingests into.
+    /// @param daemon Spoke identity this hub accepts.
     TypedHub(IstateCore& core, std::string daemon) : HubServiceBase<Service, SpokeFrame, HubFrame>(daemon, INSTR_VERSION), core_(core)
     {
         this->set_ingest([this, &core](const GenericSpokeMsg& m) { core.on_spoke_msg(m); });
@@ -100,10 +112,15 @@ template <typename Service, typename SpokeFrame, typename HubFrame> class TypedH
         this->set_registration_fn([&core](const common::RegistrationRequest& req, bool accepted) { core.on_spoke_registration(req, accepted); });
     }
     // Forward hub frames to this spoke's open channel.
+    /// @brief Forward a hub message to this spoke's open channel.
+    /// @param m Hub message to relay.
+    /// @return True when queued.
     bool forward(const GenericHubMsg& m)
     {
         return open_ ? (this->push(m), true) : false;
     }
+    /// @brief Record whether the spoke channel is open.
+    /// @param v True when the channel opens.
     void set_open(bool v)
     {
         open_ = v;
@@ -120,6 +137,9 @@ class MonitorHubImpl : public TypedHub<monitord::MonitorHub::Service, monitord::
 {
   public:
     using TypedHub::TypedHub;
+    /// @brief Convert a typed monitord spoke frame into the generic transport message.
+    /// @param f Typed spoke frame to convert.
+    /// @return The generic transport message.
     GenericSpokeMsg to_generic(const monitord::MonitorSpokeFrame& f) override
     {
         GenericSpokeMsg m;
@@ -180,6 +200,10 @@ class MonitorHubImpl : public TypedHub<monitord::MonitorHub::Service, monitord::
         }
         return m;
     }
+    /// @brief Apply a generic hub message onto a typed monitord hub frame.
+    /// @param f Typed hub frame to fill.
+    /// @param m Generic hub message.
+    /// @return None.
     void apply(monitord::MonitorHubFrame& f, const GenericHubMsg& m) override
     {
         if (m.has_command) *f.mutable_command() = m.command;
@@ -197,6 +221,9 @@ class NetworkHubImpl : public TypedHub<networkd::NetworkHub::Service, networkd::
 {
   public:
     using TypedHub::TypedHub;
+    /// @brief Convert a typed networkd spoke frame into the generic transport message.
+    /// @param f Typed spoke frame to convert.
+    /// @return The generic transport message.
     GenericSpokeMsg to_generic(const networkd::NetworkSpokeFrame& f) override
     {
         GenericSpokeMsg m;
@@ -238,6 +265,10 @@ class NetworkHubImpl : public TypedHub<networkd::NetworkHub::Service, networkd::
         }
         return m;
     }
+    /// @brief Apply a generic hub message onto a typed networkd hub frame.
+    /// @param f Typed hub frame to fill.
+    /// @param m Generic hub message.
+    /// @return None.
     void apply(networkd::NetworkHubFrame& f, const GenericHubMsg& m) override
     {
         if (m.has_command) *f.mutable_command() = m.command;
@@ -252,6 +283,9 @@ class HardwareHubImpl : public TypedHub<hardware::HardwareHub::Service, hardware
 {
   public:
     using TypedHub::TypedHub;
+    /// @brief Convert a typed hardware spoke frame into the generic transport message.
+    /// @param f Typed spoke frame to convert.
+    /// @return The generic transport message.
     GenericSpokeMsg to_generic(const hardware::HardwareSpokeFrame& f) override
     {
         GenericSpokeMsg m;
@@ -298,6 +332,10 @@ class HardwareHubImpl : public TypedHub<hardware::HardwareHub::Service, hardware
         }
         return m;
     }
+    /// @brief Apply a generic hub message onto a typed hardware hub frame.
+    /// @param f Typed hub frame to fill.
+    /// @param m Generic hub message.
+    /// @return None.
     void apply(hardware::HardwareHubFrame& f, const GenericHubMsg& m) override
     {
         if (m.has_command) *f.mutable_command() = m.command;
@@ -312,6 +350,9 @@ class FaultHubImpl : public TypedHub<faults::FaultHub::Service, faults::FaultSpo
 {
   public:
     using TypedHub::TypedHub;
+    /// @brief Convert a typed faults spoke frame into the generic transport message.
+    /// @param f Typed spoke frame to convert.
+    /// @return The generic transport message.
     GenericSpokeMsg to_generic(const faults::FaultSpokeFrame& f) override
     {
         GenericSpokeMsg m;
@@ -363,6 +404,10 @@ class FaultHubImpl : public TypedHub<faults::FaultHub::Service, faults::FaultSpo
         }
         return m;
     }
+    /// @brief Apply a generic hub message onto a typed faults hub frame.
+    /// @param f Typed hub frame to fill.
+    /// @param m Generic hub message.
+    /// @return None.
     void apply(faults::FaultHubFrame& f, const GenericHubMsg& m) override
     {
         if (m.has_command) *f.mutable_command() = m.command;
@@ -377,6 +422,9 @@ class AlarmHubImpl : public TypedHub<alarms::AlarmHub::Service, alarms::AlarmSpo
 {
   public:
     using TypedHub::TypedHub;
+    /// @brief Convert a typed alarms spoke frame into the generic transport message.
+    /// @param f Typed spoke frame to convert.
+    /// @return The generic transport message.
     GenericSpokeMsg to_generic(const alarms::AlarmSpokeFrame& f) override
     {
         GenericSpokeMsg m;
@@ -428,6 +476,10 @@ class AlarmHubImpl : public TypedHub<alarms::AlarmHub::Service, alarms::AlarmSpo
         }
         return m;
     }
+    /// @brief Apply a generic hub message onto a typed alarms hub frame.
+    /// @param f Typed hub frame to fill.
+    /// @param m Generic hub message.
+    /// @return None.
     void apply(alarms::AlarmHubFrame& f, const GenericHubMsg& m) override
     {
         if (m.has_command) *f.mutable_command() = m.command;
@@ -442,6 +494,9 @@ class LogHubImpl : public TypedHub<logmanager::LogHub::Service, logmanager::LogS
 {
   public:
     using TypedHub::TypedHub;
+    /// @brief Convert a typed logmanager spoke frame into the generic transport message.
+    /// @param f Typed spoke frame to convert.
+    /// @return The generic transport message.
     GenericSpokeMsg to_generic(const logmanager::LogSpokeFrame& f) override
     {
         GenericSpokeMsg m;
@@ -507,6 +562,10 @@ class LogHubImpl : public TypedHub<logmanager::LogHub::Service, logmanager::LogS
         }
         return m;
     }
+    /// @brief Apply a generic hub message onto a typed logmanager hub frame.
+    /// @param f Typed hub frame to fill.
+    /// @param m Generic hub message.
+    /// @return None.
     void apply(logmanager::LogHubFrame& f, const GenericHubMsg& m) override
     {
         if (m.has_command) *f.mutable_command() = m.command;
@@ -521,6 +580,9 @@ class TelemetryHubImpl : public TypedHub<telemetry::TelemetryHub::Service, telem
 {
   public:
     using TypedHub::TypedHub;
+    /// @brief Convert a typed telemetry spoke frame into the generic transport message.
+    /// @param f Typed spoke frame to convert.
+    /// @return The generic transport message.
     GenericSpokeMsg to_generic(const telemetry::TelemetrySpokeFrame& f) override
     {
         GenericSpokeMsg m;
@@ -567,6 +629,10 @@ class TelemetryHubImpl : public TypedHub<telemetry::TelemetryHub::Service, telem
         }
         return m;
     }
+    /// @brief Apply a generic hub message onto a typed telemetry hub frame.
+    /// @param f Typed hub frame to fill.
+    /// @param m Generic hub message.
+    /// @return None.
     void apply(telemetry::TelemetryHubFrame& f, const GenericHubMsg& m) override
     {
         if (m.has_command) *f.mutable_command() = m.command;
@@ -581,6 +647,9 @@ class OtaHubImpl : public TypedHub<ota::OtaHub::Service, ota::OtaSpokeFrame, ota
 {
   public:
     using TypedHub::TypedHub;
+    /// @brief Convert a typed ota spoke frame into the generic transport message.
+    /// @param f Typed spoke frame to convert.
+    /// @return The generic transport message.
     GenericSpokeMsg to_generic(const ota::OtaSpokeFrame& f) override
     {
         GenericSpokeMsg m;
@@ -628,6 +697,10 @@ class OtaHubImpl : public TypedHub<ota::OtaHub::Service, ota::OtaSpokeFrame, ota
         }
         return m;
     }
+    /// @brief Apply a generic hub message onto a typed ota hub frame.
+    /// @param f Typed hub frame to fill.
+    /// @param m Generic hub message.
+    /// @return None.
     void apply(ota::OtaHubFrame& f, const GenericHubMsg& m) override
     {
         if (m.has_command) *f.mutable_command() = m.command;
@@ -642,6 +715,9 @@ class BackupHubImpl : public TypedHub<backup::BackupHub::Service, backup::Backup
 {
   public:
     using TypedHub::TypedHub;
+    /// @brief Convert a typed backup spoke frame into the generic transport message.
+    /// @param f Typed spoke frame to convert.
+    /// @return The generic transport message.
     GenericSpokeMsg to_generic(const backup::BackupSpokeFrame& f) override
     {
         GenericSpokeMsg m;
@@ -689,6 +765,10 @@ class BackupHubImpl : public TypedHub<backup::BackupHub::Service, backup::Backup
         }
         return m;
     }
+    /// @brief Apply a generic hub message onto a typed backup hub frame.
+    /// @param f Typed hub frame to fill.
+    /// @param m Generic hub message.
+    /// @return None.
     void apply(backup::BackupHubFrame& f, const GenericHubMsg& m) override
     {
         if (m.has_command) *f.mutable_command() = m.command;
@@ -705,10 +785,15 @@ class BackupHubImpl : public TypedHub<backup::BackupHub::Service, backup::Backup
 class ConfigurationApiImpl final : public istate::ConfigurationApi::Service
 {
   public:
+    /// @brief Construct the Configuration API service over the core.
+    /// @param core istate core.
     explicit ConfigurationApiImpl(IstateCore& core) : core_(core)
     {
     }
 
+    /// @brief Configuration/Application API: system info for the peer.
+    /// @param reply Receives the system info.
+    /// @return gRPC status.
     grpc::Status GetSystemInfo(grpc::ServerContext*, const istate::SystemInfoRequest*, istate::SystemInfo* reply) override
     {
         auto j = json_parse(core_.system_info_json());
@@ -739,6 +824,9 @@ class ConfigurationApiImpl final : public istate::ConfigurationApi::Service
         return grpc::Status::OK;
     }
 
+    /// @brief Map a proto origin enum to the domain enum.
+    /// @param o Proto origin.
+/// @return The domain origin.
     static instr::Origin origin_from_proto(common::Origin o)
     {
         switch (o)
@@ -754,6 +842,10 @@ class ConfigurationApiImpl final : public istate::ConfigurationApi::Service
         return instr::Origin::Default;
     }
 
+    /// @brief Configuration API: merge values by origin rules.
+    /// @param req Set request (daemon, YAML, origin, force).
+    /// @param reply Receives rejected paths and the error text.
+    /// @return gRPC status.
     grpc::Status SetConfig(grpc::ServerContext*, const istate::SetConfigRequest* req, istate::SetConfigReply* reply) override
     {
         auto r = core_.config_service().set(req->daemon(), req->yaml(), origin_from_proto(req->origin()), req->force());
@@ -769,6 +861,9 @@ class ConfigurationApiImpl final : public istate::ConfigurationApi::Service
         return grpc::Status::OK;
     }
 
+    /// @brief Configuration API: list managed spokes and their state.
+    /// @param reply Receives the spoke states.
+    /// @return gRPC status.
     grpc::Status ListSpokes(grpc::ServerContext*, const istate::ListSpokesRequest*, istate::SpokeStatusList* reply) override
     {
         auto j = json_parse(core_.orchestrator().status_json());
@@ -785,6 +880,10 @@ class ConfigurationApiImpl final : public istate::ConfigurationApi::Service
         return grpc::Status::OK;
     }
 
+    /// @brief Configuration API: start/stop/restart a spoke unit.
+    /// @param req Control request (unit, action).
+    /// @param reply Receives the outcome ack.
+    /// @return gRPC status.
     grpc::Status SpokeControl(grpc::ServerContext*, const istate::SpokeControlRequest* req, common::Ack* reply) override
     {
         auto info = core_.orchestrator().spoke(req->daemon());
@@ -803,6 +902,10 @@ class ConfigurationApiImpl final : public istate::ConfigurationApi::Service
         return grpc::Status::OK;
     }
 
+    /// @brief Configuration API: system or factory reset (explicitly gated).
+    /// @param req Reset request (kind, confirmation).
+    /// @param reply Receives the outcome ack.
+    /// @return gRPC status.
     grpc::Status Reset(grpc::ServerContext*, const istate::ResetRequest* req, common::Ack* reply) override
     {
         Result<bool> r = req->factory() ? core_.factory_reset(req->actor(), req->confirmation()) : core_.system_reset(req->actor());
@@ -811,6 +914,10 @@ class ConfigurationApiImpl final : public istate::ConfigurationApi::Service
         return grpc::Status::OK;
     }
 
+    /// @brief Configuration API: stream timeline events matching @p req.
+    /// @param req Event filter (since sequence).
+    /// @param writer Stream of timeline events.
+    /// @return gRPC status when the stream ends.
     grpc::Status StreamEvents(grpc::ServerContext* /*ctx*/, const istate::EventFilter* req, grpc::ServerWriter<istate::TimelineEvent>* writer) override
     {
         // Ordered per-device event stream (§7.1).
@@ -834,6 +941,9 @@ class ConfigurationApiImpl final : public istate::ConfigurationApi::Service
         return grpc::Status::OK;
     }
 
+    /// @brief Configuration API: live log tail to the peer.
+    /// @param writer Stream of log lines.
+    /// @return gRPC status when the stream ends.
     grpc::Status StreamLogs(grpc::ServerContext*, const istate::TailSpec*, grpc::ServerWriter<logmanager::TailLine>* writer) override
     {
         // Fans out the live tail (subscribed via TailFanout; this stream receives
@@ -862,6 +972,9 @@ class ConfigurationApiImpl final : public istate::ConfigurationApi::Service
         return grpc::Status::OK;
     }
 
+    /// @brief Configuration API: last computed health score.
+    /// @param reply Receives the score and its factors.
+    /// @return gRPC status.
     grpc::Status GetHealthScore(grpc::ServerContext*, const istate::HealthScoreRequest*, istate::HealthScoreReply* reply) override
     {
         // Health comes from the telemetry spoke's last computed score via relay.
@@ -884,6 +997,9 @@ class ConfigurationApiImpl final : public istate::ConfigurationApi::Service
         return grpc::Status::OK;
     }
 
+    /// @brief Configuration API: provisioning/enrollment state.
+    /// @param reply Receives the state.
+    /// @return gRPC status.
     grpc::Status GetEnrollmentStatus(grpc::ServerContext*, const istate::EnrollmentRequest*, istate::EnrollmentStatus* reply) override
     {
         reply->set_state(core_.provisioner().state_name(core_.provisioner().state()));
@@ -899,6 +1015,10 @@ class ConfigurationApiImpl final : public istate::ConfigurationApi::Service
         return grpc::Status::OK;
     }
 
+    /// @brief Configuration API: rotate the tunnel key and re-enroll.
+    /// @param req Rotate request.
+    /// @param reply Receives the outcome ack.
+    /// @return gRPC status.
     grpc::Status RotateKey(grpc::ServerContext*, const istate::RotateKeyRequest* req, common::Ack* reply) override
     {
         // Key rotation without a site visit (§6.2).
@@ -919,6 +1039,10 @@ class ConfigurationApiImpl final : public istate::ConfigurationApi::Service
         return grpc::Status::OK;
     }
 
+    /// @brief Configuration API: relay a command to a spoke, correlated to its ack.
+    /// @param req Relay request (daemon, op, args).
+    /// @param reply Receives the spoke's ack.
+    /// @return gRPC status.
     grpc::Status RelayCommand(grpc::ServerContext*, const istate::RelayRequest* req, common::Ack* reply) override
     {
         // Full-coverage pass-through to a spoke (Configuration → spoke via istate).
@@ -937,6 +1061,9 @@ class ConfigurationApiImpl final : public istate::ConfigurationApi::Service
         return grpc::Status::OK;
     }
 
+    /// @brief Configuration API: per-consumer budget usage.
+    /// @param reply Receives the budget report.
+    /// @return gRPC status.
     grpc::Status Budgets(grpc::ServerContext*, const istate::BudgetsRequest*, istate::BudgetsReply* reply) override
     {
         auto j = json_parse(core_.budgets_json());
@@ -967,6 +1094,9 @@ class ConfigurationApiImpl final : public istate::ConfigurationApi::Service
 // "a:\n  b:\n    c: 7". ConfigService::set takes a YAML document, and an
 // application sets one key at a time.
 /// @brief Convert an application's dotted key into a nested YAML snippet.
+/// @param key Dotted key ("a.b.c").
+/// @param value Scalar value.
+/// @return The nested YAML snippet.
 static std::string dotted_key_to_yaml(const std::string& key, const std::string& value)
 {
     std::vector<std::string> parts;
@@ -991,6 +1121,8 @@ static std::string dotted_key_to_yaml(const std::string& key, const std::string&
 class ApplicationApiImpl final : public istate::ApplicationApi::Service
 {
   public:
+    /// @brief Construct the application API service over the core (R5, §7.6, §7.8).
+    /// @param core istate core.
     explicit ApplicationApiImpl(IstateCore& core) : core_(core)
     {
     }
@@ -1025,6 +1157,10 @@ class ApplicationApiImpl final : public istate::ApplicationApi::Service
         return grpc::Status::OK;
     }
 
+    /// @brief Application API: write config with origin=App (§6.2, attributed).
+    /// @param req Set request (app name, dotted keys).
+    /// @param reply Receives rejected paths and the error text.
+    /// @return gRPC status.
     grpc::Status SetAppConfig(grpc::ServerContext*, const istate::SetAppConfigRequest* req, istate::SetConfigReply* reply) override
     {
         if (req->app().empty()) return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "app is required");
@@ -1045,6 +1181,10 @@ class ApplicationApiImpl final : public istate::ApplicationApi::Service
         return grpc::Status::OK;
     }
 
+    /// @brief Application API: raise an alarm owned by the application (R5).
+    /// @param req Raise request (owner, id, text).
+    /// @param reply Receives the outcome.
+    /// @return gRPC status.
     grpc::Status RaiseAlarm(grpc::ServerContext*, const istate::RaiseAlarmRequest* req, istate::AlarmAck* reply) override
     {
         if (req->owner().empty()) return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "owner is required: an alarm is declared by an application (R5)");
@@ -1062,6 +1202,10 @@ class ApplicationApiImpl final : public istate::ApplicationApi::Service
         return relay_alarm("raise", args, req->owner(), req->alarm_id(), reply);
     }
 
+    /// @brief Application API: clear an alarm it owns.
+    /// @param req Clear request (owner, id).
+    /// @param reply Receives the outcome.
+    /// @return gRPC status.
     grpc::Status ClearAlarm(grpc::ServerContext*, const istate::ClearAlarmRequest* req, istate::AlarmAck* reply) override
     {
         if (req->owner().empty()) return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "owner is required (R5)");
@@ -1071,6 +1215,10 @@ class ApplicationApiImpl final : public istate::ApplicationApi::Service
         return relay_alarm("clear", args, req->owner(), req->alarm_id(), reply);
     }
 
+    /// @brief Application API: register a metric with Telemetry (§7.8).
+    /// @param req Registration request (name, unit, type, app).
+    /// @param reply Receives the outcome ack.
+    /// @return gRPC status.
     grpc::Status RegisterMetric(grpc::ServerContext*, const istate::RegisterMetricRequest* req, common::Ack* reply) override
     {
         if (req->app().empty() || req->name().empty()) return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "app and name are required");
@@ -1085,6 +1233,10 @@ class ApplicationApiImpl final : public istate::ApplicationApi::Service
         return grpc::Status::OK;
     }
 
+    /// @brief Application API: report metric samples.
+    /// @param req Samples batched by the application.
+    /// @param reply Receives per-sample outcomes.
+    /// @return gRPC status.
     grpc::Status ReportMetrics(grpc::ServerContext*, const istate::ReportMetricsRequest* req, istate::ReportMetricsReply* reply) override
     {
         uint32_t accepted = 0, rejected = 0;
@@ -1117,6 +1269,12 @@ class ApplicationApiImpl final : public istate::ApplicationApi::Service
   private:
     // Relays one command to a spoke and reports whether it succeeded. Returns
     // {ok, message}; a spoke that is down is Unavailable, never a hang (R10).
+    /// @brief Relay a command to a spoke and wait for its ack.
+    /// @param daemon Spoke to relay to.
+    /// @param op Operation name.
+    /// @param args Parsed argument object.
+/// @param data_json JSON payload relayed with the command.
+    /// @return (delivered, ack JSON or error).
     std::pair<bool, std::string> relay(const std::string& daemon, const std::string& op, const JValue& args, std::string* data_json = nullptr)
     {
         common::Command cmd;
@@ -1141,6 +1299,13 @@ class ApplicationApiImpl final : public istate::ApplicationApi::Service
         return {false, msg};
     }
 
+    /// @brief Relay an alarm raise/clear through the Alarms daemon on behalf of an application.
+    /// @param op Operation name (raise/clear).
+    /// @param args Parsed argument object.
+    /// @param owner Alarm owner.
+    /// @param alarm_id Packed alarm id.
+/// @param reply Receives the alarm-operation outcome.
+    /// @return gRPC status reflecting the outcome.
     grpc::Status relay_alarm(const std::string& op, const JValue& args, const std::string& owner, uint32_t alarm_id, istate::AlarmAck* reply)
     {
         std::string data;
@@ -1169,6 +1334,10 @@ class ApplicationApiImpl final : public istate::ApplicationApi::Service
 // ---- server builder ----
 
 /// @brief Build and start the gRPC server hosting every hub service.
+/// @param core istate core the hubs ingest into.
+/// @param run_dir Directory holding the sockets.
+/// @param services Receives the built hub services.
+/// @return The started server, or nullptr when startup failed.
 std::unique_ptr<grpc::Server> build_hub_server(IstateCore& core, const std::string& run_dir, std::vector<std::unique_ptr<grpc::Service>>* services)
 {
     grpc::ServerBuilder builder;
@@ -1271,6 +1440,9 @@ std::unique_ptr<grpc::Server> build_hub_server(IstateCore& core, const std::stri
 // ---- HQ session client ----
 
 /// @brief Construct the HQ client over the tunnel target.
+/// @param core istate core.
+/// @param log Logger.
+/// @param hq_target HQ tunnel target.
 HqClient::HqClient(IstateCore& core, Logger& log, const std::string& hq_target) : core_(core), log_(log), target_(hq_target)
 {
 }
@@ -1329,6 +1501,7 @@ bool HqClient::try_session()
 
     // Reader thread: HQ frames (config push / OTA command / backpressure).
     std::atomic<bool> open{true};
+    // Reader thread: drains HQ replies so the writer never blocks on a full stream buffer.
     std::thread reader([this, &rw, &open] {
         istate::HqFrame hf;
         while (open.load() && rw->Read(&hf))

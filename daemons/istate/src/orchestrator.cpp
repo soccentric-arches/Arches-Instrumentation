@@ -35,10 +35,13 @@
 
 namespace instr
 {
+/// @brief istate: /pst owner, spoke orchestrator and HQ northbound bridge (R4, §7.1).
 namespace istate
 {
 
 /// @brief Canonical name of a spoke state.
+/// @param s State to name.
+/// @return Canonical lowercase name.
 const char* spoke_state_name(SpokeState s)
 {
     switch (s)
@@ -54,6 +57,7 @@ const char* spoke_state_name(SpokeState s)
 }
 
 /// @brief Startup order (§7.1).
+/// @return The declared startup order.
 const std::vector<std::string>& startup_order()
 {
     static const std::vector<std::string> order = {
@@ -63,6 +67,7 @@ const std::vector<std::string>& startup_order()
 }
 
 /// @brief Dependency edges between daemons.
+/// @return The dependency edges.
 const std::map<std::string, std::vector<std::string>>& dependency_edges()
 {
     static const std::map<std::string, std::vector<std::string>> edges = {
@@ -72,6 +77,7 @@ const std::map<std::string, std::vector<std::string>>& dependency_edges()
 }
 
 /// @brief Declare all spokes in startup order.
+/// @param names Spoke names to declare.
 void Orchestrator::declare_spokes(const std::vector<std::string>& names)
 {
     for (const auto& n : names)
@@ -84,6 +90,7 @@ void Orchestrator::declare_spokes(const std::vector<std::string>& names)
 }
 
 /// @brief Start units in dependency order.
+/// @return True when every required unit started.
 bool Orchestrator::start_all()
 {
     bool ok = true;
@@ -125,6 +132,12 @@ void Orchestrator::stop_all()
 }
 
 /// @brief Process a registration handshake.
+/// @param name Spoke registering.
+/// @param build_version Reported build.
+/// @param proto_version Reported proto version.
+/// @param capabilities Reported capabilities.
+/// @param refusal_reason Receives the refusal reason.
+/// @return The handshake outcome.
 Orchestrator::Reg Orchestrator::register_spoke(const std::string& name, const std::string& build_version, uint32_t proto_version, const std::vector<std::string>& capabilities, std::string* refusal_reason)
 {
     auto it = spokes_.find(name);
@@ -156,6 +169,7 @@ Orchestrator::Reg Orchestrator::register_spoke(const std::string& name, const st
 }
 
 /// @brief Mark a spoke ready.
+/// @param name Spoke that became ready.
 void Orchestrator::mark_ready(const std::string& name)
 {
     auto it = spokes_.find(name);
@@ -166,6 +180,7 @@ void Orchestrator::mark_ready(const std::string& name)
 }
 
 /// @brief Record inbound activity from a spoke.
+/// @param name Spoke that sent data.
 void Orchestrator::note_spoke_activity(const std::string& name)
 {
     auto it = spokes_.find(name);
@@ -176,6 +191,7 @@ void Orchestrator::note_spoke_activity(const std::string& name)
 }
 
 /// @brief Mark a spoke stopped.
+/// @param name Spoke that stopped.
 void Orchestrator::mark_stopped(const std::string& name)
 {
     auto it = spokes_.find(name);
@@ -185,6 +201,8 @@ void Orchestrator::mark_stopped(const std::string& name)
 }
 
 /// @brief Record a pong answering an outstanding ping.
+/// @param daemon Spoke that answered.
+/// @param nonce Ping nonce answered.
 void Orchestrator::note_pong(const std::string& daemon, uint64_t nonce)
 {
     auto it = spokes_.find(daemon);
@@ -201,6 +219,9 @@ void Orchestrator::note_pong(const std::string& daemon, uint64_t nonce)
 }
 
 /// @brief Sweep spokes for hangs; emit events and request restarts.
+/// @param now_s Current monotonic seconds.
+/// @param hang_timeout_s Silence threshold in seconds.
+/// @return Liveness events to emit.
 std::vector<Orchestrator::LivenessEvent> Orchestrator::liveness_sweep(double now_s, double hang_timeout_s)
 {
     std::vector<LivenessEvent> out;
@@ -271,6 +292,7 @@ std::vector<Orchestrator::LivenessEvent> Orchestrator::liveness_sweep(double now
 }
 
 /// @brief Pet the watchdog only when every must-live daemon is live.
+/// @return True when the watchdog was petted; false when a must-live daemon is down.
 bool Orchestrator::pet_watchdog()
 {
     // Pet only while every must-live daemon is live; a hung daemon stops the
@@ -289,6 +311,8 @@ bool Orchestrator::pet_watchdog()
 }
 
 /// @brief Look up one spoke.
+/// @param name Spoke to look up.
+/// @return Pointer to the info, or NotFound.
 Result<const SpokeInfo*> Orchestrator::spoke(const std::string& name) const
 {
     auto it = spokes_.find(name);
@@ -297,6 +321,7 @@ Result<const SpokeInfo*> Orchestrator::spoke(const std::string& name) const
 }
 
 /// @brief True when every declared spoke is Ready.
+/// @return True when every declared spoke is Ready.
 bool Orchestrator::all_ready() const
 {
     for (const auto& kv : spokes_)
@@ -305,6 +330,7 @@ bool Orchestrator::all_ready() const
 }
 
 /// @brief True when any spoke is Degraded or Hung.
+/// @return True when any spoke is Degraded or Hung.
 bool Orchestrator::degraded() const
 {
     for (const auto& kv : spokes_)
@@ -313,6 +339,7 @@ bool Orchestrator::degraded() const
 }
 
 /// @brief Render the fleet status as JSON.
+/// @return The fleet status as JSON.
 std::string Orchestrator::status_json() const
 {
     JValue arr = JValue::array();

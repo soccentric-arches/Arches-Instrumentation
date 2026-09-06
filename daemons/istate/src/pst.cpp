@@ -31,12 +31,16 @@
 
 namespace instr
 {
+/// @brief istate: /pst owner, spoke orchestrator and HQ northbound bridge (R4, §7.1).
 namespace istate
 {
 
 // ---------------- BudgetManager ----------------
 
 /// @brief Reserve bytes for a consumer; fails loudly when over budget.
+/// @param consumer Consumer reserving space.
+/// @param bytes Bytes to reserve.
+/// @return True when allowed, or an error when over budget.
 Result<bool> BudgetManager::reserve(const std::string& consumer, uint64_t bytes)
 {
     auto it = budgets_.find(consumer);
@@ -47,6 +51,7 @@ Result<bool> BudgetManager::reserve(const std::string& consumer, uint64_t bytes)
 }
 
 /// @brief Consumers over their 80% warning line.
+/// @return Consumers over their 80% warning line.
 std::vector<std::string> BudgetManager::over_warning() const
 {
     std::vector<std::string> out;
@@ -59,6 +64,7 @@ std::vector<std::string> BudgetManager::over_warning() const
 }
 
 /// @brief Consumers over their hard limit.
+/// @return Consumers over their hard limit.
 std::vector<std::string> BudgetManager::over_limit() const
 {
     std::vector<std::string> out;
@@ -73,6 +79,7 @@ std::vector<std::string> BudgetManager::over_limit() const
 // ---------------- PstStore ----------------
 
 /// @brief Mount and validate /pst with checksum fallback to redundant copies.
+/// @return The mount-and-validate report.
 PstStore::MountReport PstStore::mount()
 {
     MountReport rep;
@@ -116,6 +123,7 @@ PstStore::MountReport PstStore::mount()
 }
 
 /// @brief Seed system/ from the shipped default YAML set.
+/// @param daemon_default_yaml Image default YAML per daemon.
 Error PstStore::seed_defaults(const std::map<std::string, std::string>& daemon_default_yaml)
 {
     for (const auto& kv : daemon_default_yaml)
@@ -130,6 +138,8 @@ Error PstStore::seed_defaults(const std::map<std::string, std::string>& daemon_d
 }
 
 /// @brief Load a daemon's configuration document.
+/// @param daemon Daemon whose config to read.
+/// @return The config document, or an error.
 Result<ConfigDocument> PstStore::load_config(const std::string& daemon) const
 {
     auto text = read_protected("system/" + daemon + "/config.yaml");
@@ -148,6 +158,8 @@ Result<ConfigDocument> PstStore::load_config(const std::string& daemon) const
 }
 
 /// @brief Persist a daemon's configuration atomically (checksum + .bak).
+/// @param daemon Daemon whose config to write.
+/// @param doc Document to persist.
 Error PstStore::save_config(const std::string& daemon, const ConfigDocument& doc)
 {
     fs_.mkdirs(path("system/" + daemon));
@@ -157,12 +169,16 @@ Error PstStore::save_config(const std::string& daemon, const ConfigDocument& doc
 }
 
 /// @brief Read a protected file with .bak fallback.
+/// @param rel_path Protected file to read.
+/// @return Verified contents (with .bak fallback), or an error.
 Result<std::string> PstStore::read_protected(const std::string& rel_path) const
 {
     return AtomicFile::read_protected(fs_, path(rel_path));
 }
 
 /// @brief Write a protected file atomically.
+/// @param rel_path Protected file to write.
+/// @param data Complete contents to write.
 Error PstStore::write_protected(const std::string& rel_path, const std::string& data)
 {
     size_t pos = rel_path.find_last_of('/');
@@ -171,6 +187,7 @@ Error PstStore::write_protected(const std::string& rel_path, const std::string& 
 }
 
 /// @brief Current on-disk schema version.
+/// @return The schema version recorded on disk.
 std::string PstStore::schema_version() const
 {
     auto txt = read_protected("system/.schema-version");
@@ -181,12 +198,15 @@ std::string PstStore::schema_version() const
 }
 
 /// @brief Record a new schema version.
+/// @param v Schema version to record.
 Error PstStore::set_schema_version(const std::string& v)
 {
     return write_protected("system/.schema-version", v + "\n");
 }
 
 /// @brief Merge a release's defaults, preserving existing values by origin.
+/// @param new_defaults Release default YAML per daemon.
+/// @return The added paths.
 std::vector<std::string> PstStore::migrate(const std::map<std::string, std::string>& new_defaults)
 {
     std::vector<std::string> added;
@@ -213,6 +233,7 @@ std::vector<std::string> PstStore::migrate(const std::map<std::string, std::stri
 }
 
 /// @brief System reset: wipe system/ and state/, keep factory/ and backup/.
+/// @param defaults Image defaults for reseeding system/.
 Error PstStore::system_reset(const std::map<std::string, std::string>& defaults)
 {
     // Wipes system/ and state/; keeps factory/ and backup/ (§6.1).

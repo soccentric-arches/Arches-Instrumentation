@@ -31,12 +31,17 @@
 
 namespace instr
 {
+/// @brief istate: /pst owner, spoke orchestrator and HQ northbound bridge (R4, §7.1).
 namespace istate
 {
 
 // ---------------- EventTimeline ----------------
 
 /// @brief Append a stamped event, evicting past the bound.
+/// @param kind Event kind.
+/// @param actor Who produced it.
+/// @param detail_json Event detail.
+/// @param ts Clock for stamping.
 void EventTimeline::append(const std::string& kind, const std::string& actor, const std::string& detail_json, TimeSource& ts)
 {
     TimelineRecord ev;
@@ -54,6 +59,9 @@ void EventTimeline::append(const std::string& kind, const std::string& actor, co
 }
 
 /// @brief Events after a sequence number.
+/// @param s Line callback.
+/// @param seq Sequence to query after.
+/// @return A subscription id.
 std::vector<TimelineRecord> EventTimeline::since(uint64_t seq) const
 {
     std::vector<TimelineRecord> out;
@@ -65,6 +73,8 @@ std::vector<TimelineRecord> EventTimeline::since(uint64_t seq) const
 // ---------------- TailFanout ----------------
 
 /// @brief Subscribe to the live tail.
+/// @param s Line callback.
+/// @return A subscription id.
 int TailFanout::subscribe(Subscriber s)
 {
     std::lock_guard<std::mutex> lk(mu_);
@@ -77,6 +87,7 @@ int TailFanout::subscribe(Subscriber s)
 }
 
 /// @brief Cancel a subscription.
+/// @param id Subscription to cancel.
 void TailFanout::unsubscribe(int id)
 {
     std::lock_guard<std::mutex> lk(mu_);
@@ -89,6 +100,7 @@ void TailFanout::unsubscribe(int id)
 }
 
 /// @brief Publish a line to all subscribers.
+/// @param json_line Line to publish.
 void TailFanout::publish(const std::string& json_line)
 {
     std::lock_guard<std::mutex> lk(mu_);
@@ -104,17 +116,25 @@ void TailFanout::publish(const std::string& json_line)
 // ---------------- NorthboundSpool ----------------
 
 /// @brief Bind the spool to storage, config and budgets.
+/// @param fs Storage backend.
+/// @param cfg Spool configuration.
+/// @param budgets Budget enforcement (may be null).
 NorthboundSpool::NorthboundSpool(IFileSystem& fs, const SpoolConfig& cfg, BudgetManager* budgets) : fs_(fs), spool_(fs, cfg), budgets_(budgets)
 {
 }
 
 /// @brief Open the backing store.
+/// @return ok() when the store opened.
 Error NorthboundSpool::open()
 {
     return spool_.open();
 }
 
 /// @brief Enqueue a record (protected classes never drop).
+/// @param prio Eviction class.
+/// @param payload Record bytes.
+/// @param mono_ns Monotonic production time.
+/// @return True when accepted.
 Result<bool> NorthboundSpool::enqueue(SpoolPriority prio, const std::string& payload, uint64_t mono_ns)
 {
     // Budget enforcement before the write: alarm before the limit (§6).
@@ -136,6 +156,9 @@ Result<bool> NorthboundSpool::enqueue(SpoolPriority prio, const std::string& pay
 }
 
 /// @brief Drain a batch, honouring backpressure.
+/// @param send Per-record send callback (false pauses).
+/// @param max_batch Maximum records this drain.
+/// @return The drain report.
 NorthboundSpool::DrainReport NorthboundSpool::drain(const std::function<bool(const DiskSpool::Entry&)>& send, size_t max_batch)
 {
     DrainReport rep;

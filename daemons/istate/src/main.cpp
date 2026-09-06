@@ -48,6 +48,9 @@ namespace
 {
 // Default YAML set shipped in the image (§6: seeds /pst on first boot).
 /// @brief Load the image default YAML set for seeding and system reset.
+/// @param fs Filesystem to read from.
+/// @param dir Directory holding the default YAML set.
+/// @return The image default YAML per daemon.
 std::map<std::string, std::string> load_defaults(instr::IFileSystem& fs, const std::string& dir)
 {
     std::map<std::string, std::string> out;
@@ -63,6 +66,8 @@ std::map<std::string, std::string> load_defaults(instr::IFileSystem& fs, const s
 
 // gRPC servers are truthy via operator bool.
 /// @brief True when the gRPC server has started.
+/// @param s Server to check.
+/// @return True when BuildAndStart succeeded.
 inline bool server_up(const std::unique_ptr<grpc::Server>& s)
 {
     return s != nullptr;

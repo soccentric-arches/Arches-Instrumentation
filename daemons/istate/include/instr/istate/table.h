@@ -31,9 +31,12 @@
 
 namespace instr
 {
+/// @brief istate: /pst owner, spoke orchestrator and HQ northbound bridge (R4, §7.1).
 namespace istate
 {
 /// @brief Build the istate ctrl command table (config, spokes, spool, audit, resets).
+/// @param core istate core the table reads from.
+/// @return The command table.
 CommandTable build_istate_table(IstateCore* core);
 } // namespace istate
 } // namespace instr

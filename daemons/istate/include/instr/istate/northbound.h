@@ -45,6 +45,7 @@
 
 namespace instr
 {
+/// @brief istate: /pst owner, spoke orchestrator and HQ northbound bridge (R4, §7.1).
 namespace istate
 {
 
@@ -65,17 +66,25 @@ class EventTimeline
 {
   public:
     /// @brief Construct a timeline with an event bound.
+/// @param max_events Event bound.
     EventTimeline(size_t max_events) : max_events_(max_events)
     {
     }
     /// @brief Append a stamped event (oldest evicted past the bound).
+/// @param kind Event kind.
+/// @param actor Who produced it.
+/// @param detail_json Event detail.
+/// @param ts Clock for stamping.
     void append(const std::string& kind, const std::string& actor, const std::string& detail_json, TimeSource& ts);
     /// @brief Retained events, oldest first.
+/// @return Retained events, oldest first.
     const std::deque<TimelineRecord>& events() const
     {
         return events_;
     }
     /// @brief Events with sequence greater than @p seq.
+/// @param seq Sequence to query after.
+/// @return Events with sequence greater than @p seq.
     std::vector<TimelineRecord> since(uint64_t seq) const;
     /// @brief Events currently retained.
     size_t size() const
@@ -96,10 +105,14 @@ class TailFanout
     /// @brief One subscriber's line callback.
     using Subscriber = std::function<void(const std::string& json_line)>;
     /// @brief Subscribe; returns a subscription id for unsubscribe().
+/// @param s Line callback.
+/// @return A subscription id for unsubscribe().
     int subscribe(Subscriber s);
     /// @brief Cancel a subscription.
+/// @param id Subscription to cancel.
     void unsubscribe(int id);
     /// @brief Publish one line to every subscriber (bounded per-subscriber queue).
+/// @param json_line Line to publish.
     void publish(const std::string& json_line);
 
   private:
@@ -120,11 +133,18 @@ class NorthboundSpool
 {
   public:
     /// @brief Bind the spool to storage, configuration and budgeting.
+/// @param fs Storage backend.
+/// @param cfg Spool location and sizing.
+/// @param budgets Budget enforcement (may be null in tests).
     NorthboundSpool(IFileSystem& fs, const SpoolConfig& cfg, BudgetManager* budgets);
 
     /// @brief Open/create the backing store.
     Error open();
     /// @brief Enqueue with the spool class; protected classes never drop.
+/// @param prio Eviction class.
+/// @param payload Record bytes.
+/// @param mono_ns Monotonic production time.
+/// @return True when accepted; false when refused.
     Result<bool> enqueue(SpoolPriority prio, const std::string& payload, uint64_t mono_ns);
     /// @brief Drain up to @p max_batch records through @p send.
     ///
@@ -140,8 +160,12 @@ class NorthboundSpool
         bool paused = false;                ///< Drain paused by backpressure.
     };
     /// @brief Run one drain pass.
+/// @param send Per-record send callback (false pauses).
+/// @param max_batch Maximum records this drain.
+/// @return The drain report.
     DrainReport drain(const std::function<bool(const DiskSpool::Entry&)>& send, size_t max_batch);
     /// @brief Lifetime spool statistics.
+/// @return Lifetime spool statistics.
     const DiskSpool::Stats& stats() const
     {
         return spool_.stats();
@@ -172,6 +196,8 @@ class HqSession
         Backpressured     ///< HQ asked us to pause.
     };
     /// @brief Canonical name of a state.
+/// @param s State to name.
+/// @return Canonical lowercase name.
     static const char* state_name(State s)
     {
         switch (s)
@@ -186,6 +212,8 @@ class HqSession
     }
 
     /// @brief Construct a session with reconnect backoff parameters.
+/// @param backoff_base_s Reconnect backoff base.
+/// @param backoff_max_s Reconnect backoff cap.
     HqSession(double backoff_base_s = 1.0, double backoff_max_s = 60.0) : backoff_(backoff_base_s, backoff_max_s)
     {
     }
@@ -212,6 +240,7 @@ class HqSession
         state_ = State::Backoff;
     }
     /// @brief Transition on HQ backpressure (pause) or release (drain).
+/// @param pause True to pause (Backpressured); false to drain.
     void on_backpressure(bool pause)
     {
         state_ = pause ? State::Backpressured : State::Draining;
@@ -232,6 +261,7 @@ class HqSession
         return backoff_.attempts();
     }
     /// @brief Deterministic jitter for tests; production uses the seeded RNG.
+/// @param rng01 Uniform [0,1) sampler for deterministic tests.
     void set_backoff_rng(std::function<double()> rng01)
     {
         backoff_.set_rng(std::move(rng01));
