@@ -254,6 +254,14 @@ Error SimulatedFileSystem::rename(const std::string& from, const std::string& to
   if (fit != files_.end()) {
     files_[to] = fit->second;
     files_.erase(fit);
+    // A rename preserves the modification time on a real filesystem, and
+    // log rotation relies on that: a rotated file must keep the age it had,
+    // or retention-by-age would treat every rotation as fresh content.
+    auto mit = mtimes_.find(from);
+    if (mit != mtimes_.end()) {
+      mtimes_[to] = mit->second;
+      mtimes_.erase(mit);
+    }
     size_t pos = to.find_last_of('/');
     if (pos != std::string::npos && pos > 0) dirs_[to.substr(0, pos)] = true;
     return Error::none();
@@ -263,7 +271,13 @@ Error SimulatedFileSystem::rename(const std::string& from, const std::string& to
     std::string prefix = from + "/";
     for (auto it = files_.begin(); it != files_.end();) {
       if (it->first.rfind(prefix, 0) == 0) {
-        files_[to + "/" + it->first.substr(prefix.size())] = it->second;
+        const std::string dest = to + "/" + it->first.substr(prefix.size());
+        files_[dest] = it->second;
+        auto mit = mtimes_.find(it->first);
+        if (mit != mtimes_.end()) {
+          mtimes_[dest] = mit->second;
+          mtimes_.erase(mit);
+        }
         it = files_.erase(it);
       } else ++it;
     }

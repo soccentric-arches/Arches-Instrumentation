@@ -7,15 +7,46 @@ HOMEPAGE = "https://arches.example"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=3b83ef96387f14655fc854ddc3c6bd57"
 
-SRC_URI = "git://git.arches.example/instrumentation.git;protocol=https;branch=main"
+SRC_URI = "git://github.com/soccentric-arches/Arches-Instrumentation.git;protocol=ssh;branch=develop"
 SRCREV = "${AUTOREV}"
-PV = "1.0.0"
+# One version for the whole suite (REQ §2): read it from the VERSION file
+# rather than restating it here, where it would drift.
+PV = "${@open(d.getVar('S') + '/VERSION').read().strip() if os.path.exists(d.getVar('S') + '/VERSION') else '0.0.0'}"
 S = "${WORKDIR}/git"
 
-inherit cmake systemd pkgconfig
+inherit cmake systemd pkgconfig useradd
 
-DEPENDS = "grpc protobuf grpc protobuf-native grpc-native yaml-cpp gtest-native"
-RDEPENDS:${PN} = "wireguard-tools chrony ptp4l gpsd swupdate"
+# One unprivileged system user per daemon (§10, §13). sysusers.d covers a
+# running system; this covers the rootfs at build time so file ownership is
+# right before anything starts.
+USERADD_PACKAGES = "${PN}"
+GROUPADD_PARAM:${PN} = "--system instr"
+USERADD_PARAM:${PN} = "--system --no-create-home --shell /sbin/nologin -g instr instr-istate; \
+    --system --no-create-home --shell /sbin/nologin -g instr instr-networkd; \
+    --system --no-create-home --shell /sbin/nologin -g instr instr-monitord; \
+    --system --no-create-home --shell /sbin/nologin -g instr instr-hardware; \
+    --system --no-create-home --shell /sbin/nologin -g instr instr-faults; \
+    --system --no-create-home --shell /sbin/nologin -g instr instr-alarms; \
+    --system --no-create-home --shell /sbin/nologin -g instr instr-logmanager; \
+    --system --no-create-home --shell /sbin/nologin -g instr instr-telemetry; \
+    --system --no-create-home --shell /sbin/nologin -g instr instr-ota; \
+    --system --no-create-home --shell /sbin/nologin -g instr instr-backup; \
+    --system --no-create-home --shell /sbin/nologin -g instr instr-configuration"
+
+DEPENDS = "grpc grpc-native protobuf protobuf-native yaml-cpp openssl"
+# Runtime tools networkd and ota actually invoke (see the platform layer):
+# iproute2 for interfaces and routes, nftables for firewall and NAT,
+# wpa-supplicant/hostapd for wireless client and AP mode, wireguard-tools
+# for the tunnel, the time daemons istate's policy drives, and SWUpdate as
+# the update engine.
+RDEPENDS:${PN} = "\
+    iproute2 nftables \
+    wireguard-tools \
+    wpa-supplicant hostapd \
+    chrony linuxptp gpsd \
+    swupdate \
+    openssh-sshd \
+"
 
 EXTRA_OECMAKE = " \
     -DCMAKE_BUILD_TYPE=Release \
@@ -49,22 +80,42 @@ do_install() {
     install -d ${D}${systemd_unitdir}/system
     install -m 0644 ${S}/system/systemd/*.service ${D}${systemd_unitdir}/system/
     install -d ${D}${sysconfdir}/sysusers.d
-    install -m 0644 ${S}/system/sysusers.d/instrumentation.conf ${D}${sysusers.d}/
+    install -m 0644 ${S}/system/sysusers.d/instrumentation.conf ${D}${sysconfdir}/sysusers.d/
     install -d ${D}${nonarch_libdir}/tmpfiles.d
     install -m 0644 ${S}/system/tmpfiles.d/instrumentation.conf ${D}${nonarch_libdir}/tmpfiles.d/
     install -d ${D}${sysconfdir}/udev/rules.d
     install -m 0644 ${S}/system/udev/70-instrumentation.rules ${D}${sysconfdir}/udev/rules.d/
+    # Descriptors: install this MACHINE's set under the plain names the
+    # daemons open. Shipping every board's file and expecting the daemon to
+    # guess which one applies is how "devices.yaml not found" happens on a
+    # real image — the daemons read devices.yaml, capabilities.yaml and
+    # resource-profile.yaml, so that is what has to be there.
     install -d ${D}${sysconfdir}/instrumentation
-    install -m 0644 ${S}/descriptors/devices-*.yaml ${D}${sysconfdir}/instrumentation/
-    install -m 0644 ${S}/descriptors/capabilities-*.yaml ${D}${sysconfdir}/instrumentation/
-    install -m 0644 ${S}/descriptors/resource-profile.yaml ${D}${sysconfdir}/instrumentation/
-    install -d ${D}${sysconfdir}/instrumentation/catalog
-    install -m 0644 ${S}/catalog/alarms.yaml ${D}${sysconfdir}/instrumentation/catalog/
-    install -m 0644 ${S}/catalog/fault-rules.yaml ${D}${sysconfdir}/instrumentation/
+    install -m 0644 ${S}/descriptors/devices-${INSTR_BOARD}.yaml \
+        ${D}${sysconfdir}/instrumentation/devices.yaml
+    install -m 0644 ${S}/descriptors/capabilities-${INSTR_BOARD}.yaml \
+        ${D}${sysconfdir}/instrumentation/capabilities.yaml
+    install -m 0644 ${S}/descriptors/resource-profile-${INSTR_BOARD}.yaml \
+        ${D}${sysconfdir}/instrumentation/resource-profile.yaml
+    # Fault rules: the board's own signature set where one exists, otherwise
+    # the shared default (§5.1: rule sets are data).
+    if [ -f ${S}/descriptors/fault-rules-${INSTR_BOARD}.yaml ]; then
+        install -m 0644 ${S}/descriptors/fault-rules-${INSTR_BOARD}.yaml \
+            ${D}${sysconfdir}/instrumentation/fault-rules.yaml
+    else
+        install -m 0644 ${S}/catalog/fault-rules.yaml \
+            ${D}${sysconfdir}/instrumentation/fault-rules.yaml
+    fi
+    install -d ${D}${datadir}/instrumentation/catalog
+    install -m 0644 ${S}/catalog/alarms.yaml ${D}${datadir}/instrumentation/catalog/
+    # The default YAML set that seeds /pst on first boot and after a system
+    # reset (§6.1, §9). Each daemon folder carries its config.yaml plus any
+    # catalogs or rule sets that daemon owns in /pst.
     install -d ${D}${datadir}/instrumentation/defaults
     for d in ${S}/system/defaults/*/; do
-        install -d ${D}${datadir}/instrumentation/defaults/$(basename ${d})
-        install -m 0644 ${d}/config.yaml ${D}${datadir}/instrumentation/defaults/$(basename ${d})/
+        name=$(basename ${d})
+        install -d ${D}${datadir}/instrumentation/defaults/${name}
+        install -m 0644 ${d}/*.yaml ${D}${datadir}/instrumentation/defaults/${name}/
     done
     install -d ${D}${datadir}/instrumentation/schemas
     install -m 0644 ${S}/schemas/*.json ${D}${datadir}/instrumentation/schemas/
@@ -73,5 +124,17 @@ do_install() {
 SYSTEMD_PACKAGES = "${PN}"
 SYSTEMD_SERVICE:${PN} = "instr-istate.service instr-networkd.service instr-monitord.service instr-hardware.service instr-faults.service instr-alarms.service instr-logmanager.service instr-telemetry.service instr-ota.service instr-backup.service"
 SYSTEMD_AUTO_ENABLE = "enable"
+
+# Which board's descriptors go into this image. Set per MACHINE in the layer;
+# the default keeps a generic build working rather than failing obscurely.
+INSTR_BOARD ?= "x86-64"
+INSTR_BOARD:jetson-orin-nano = "jetson-orin-nano"
+INSTR_BOARD:jetson-agx-orin = "jetson-agx-orin"
+INSTR_BOARD:zynq-ultrascale = "zynq-ultrascale"
+INSTR_BOARD:zynq-7000 = "zynq-7000"
+INSTR_BOARD:imx8m-plus = "imx8m-plus"
+INSTR_BOARD:sitara-am62 = "sitara-am62"
+INSTR_BOARD:raspberrypi4-64 = "rpi-4b"
+INSTR_BOARD:raspberrypi5 = "rpi-5"
 
 FILES:${PN} += "${sysusersdir} ${nonarch_libdir}/tmpfiles.d ${datadir}/instrumentation"
