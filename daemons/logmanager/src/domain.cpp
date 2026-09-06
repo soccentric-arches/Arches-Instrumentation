@@ -124,9 +124,27 @@ LogStore::PruneStats LogStore::enforce_retention(uint64_t now_mono_ns) {
         }
       }
     }
-    // Retention by age: rotate files carry timestamps in content; use file
-    // mtime surrogate — the simulated FS has no mtime, so age pruning applies
-    // to the file list order (oldest name suffix first).
+    // Retention by age (§7.7: "retention per source" is expressed in time as
+    // well as in count). A rotated file older than the source's max_age is
+    // removed regardless of how few there are — an appliance that logs
+    // rarely should not keep last year's entries forever.
+    if (spec.max_age_s > 0) {
+      auto now = fs_.file_mtime_s(fs_.join(base_, spec.name + ".log"));
+      const int64_t reference = now.ok() ? *now : 0;
+      if (reference > 0) {
+        for (const auto& f : files_for(spec.name)) {
+          if (f == spec.name + ".log") continue;  // the active file never ages out
+          auto mtime = fs_.file_mtime_s(fs_.join(base_, f));
+          if (!mtime.ok()) continue;
+          if (reference - *mtime <= int64_t(spec.max_age_s)) continue;
+          auto sz = fs_.file_size(fs_.join(base_, f));
+          if (fs_.remove(fs_.join(base_, f), false).ok()) {
+            ++st.files_removed;
+            if (sz.ok()) st.bytes_freed += *sz;
+          }
+        }
+      }
+    }
     (void)now_mono_ns;
   }
   // Budget enforcement per resource class: drop oldest rotated files until

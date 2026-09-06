@@ -30,6 +30,8 @@
  */
 
 
+#include <openssl/evp.h>
+
 #include <gtest/gtest.h>
 
 #include "instr/common/filesystem.h"
@@ -237,4 +239,85 @@ TEST(OtaPipeline, SwupdateBinaryIsConfigurable) {
   EXPECT_EQ(f.eng->swupdate_binary(), "/usr/bin/swupdate");
   f.eng->set_swupdate_binary("/opt/swupdate/bin/swupdate");
   EXPECT_EQ(f.eng->swupdate_binary(), "/opt/swupdate/bin/swupdate");
+}
+
+// §7.9: "Signature verification before staging". The check must run for
+// every artifact — an unverifiable one is refused, not waved through.
+TEST(OtaSigning, UnsignedArtifactIsRefusedOnAnUnenrolledDevice) {
+  SimulatedFileSystem fs;
+  platform::SimulatedPlatform plat;
+  ManualTimeSource ts;
+  OtaConfig cfg;
+  OtaEngine eng(fs, plat, ts, cfg);
+  eng.set_install_fn([](const std::string&, const std::string&, const ArtifactManifest&) {
+    return Result<int>::good(0);
+  });
+  const std::string body = "PAYLOAD";
+  ASSERT_TRUE(eng.receive_chunk(body, 0).ok());
+  ArtifactManifest m;
+  m.version = "2.0.0";
+  m.sha256 = crypto::sha256(body).hex();
+  // No release key, no enrollment secret: the origin cannot be established.
+  Error e = eng.verify(m, "", "1.0.0");
+  EXPECT_FALSE(e.ok());
+  EXPECT_EQ(e.code, Errc::SignatureInvalid);
+}
+
+TEST(OtaSigning, Ed25519SignedArtifactVerifiesAndTamperingIsCaught) {
+  // Generate a release keypair; the device gets the public half only.
+  EVP_PKEY* key = nullptr;
+  EVP_PKEY_CTX* kctx = EVP_PKEY_CTX_new_id(EVP_PKEY_ED25519, nullptr);
+  EVP_PKEY_keygen_init(kctx);
+  EVP_PKEY_keygen(kctx, &key);
+  EVP_PKEY_CTX_free(kctx);
+  unsigned char raw[32];
+  size_t rawlen = 32;
+  EVP_PKEY_get_raw_public_key(key, raw, &rawlen);
+  const std::string pub(reinterpret_cast<char*>(raw), rawlen);
+
+  auto sign = [&](const std::string& msg) {
+    EVP_MD_CTX* c = EVP_MD_CTX_new();
+    EVP_DigestSignInit(c, nullptr, nullptr, nullptr, key);
+    size_t n = 0;
+    EVP_DigestSign(c, nullptr, &n, reinterpret_cast<const unsigned char*>(msg.data()), msg.size());
+    std::string sig(n, '\0');
+    EVP_DigestSign(c, reinterpret_cast<unsigned char*>(&sig[0]), &n,
+                   reinterpret_cast<const unsigned char*>(msg.data()), msg.size());
+    sig.resize(n);
+    EVP_MD_CTX_free(c);
+    return sig;
+  };
+
+  SimulatedFileSystem fs;
+  platform::SimulatedPlatform plat;
+  ManualTimeSource ts;
+  OtaConfig cfg;
+  OtaEngine eng(fs, plat, ts, cfg);
+  eng.add_release_key("rel-2026", pub);
+  eng.set_install_fn([](const std::string&, const std::string&, const ArtifactManifest&) {
+    return Result<int>::good(0);
+  });
+
+  const std::string body = "PAYLOAD-IMAGE";
+  ASSERT_TRUE(eng.receive_chunk(body, 0).ok());
+  ArtifactManifest m;
+  m.version = "2.0.0";
+  m.sha256 = crypto::sha256(body).hex();
+  m.key_id = "rel-2026";
+  m.signature = sign(m.version + "|" + m.sha256);
+  EXPECT_TRUE(eng.verify(m, "", "1.0.0").ok());
+
+  // A manifest claiming a different version no longer matches its signature.
+  ArtifactManifest tampered = m;
+  tampered.version = "9.9.9";
+  Error e = eng.verify(tampered, "", "1.0.0");
+  EXPECT_FALSE(e.ok());
+  EXPECT_EQ(e.code, Errc::SignatureInvalid);
+
+  // An unknown key id is refused even with a structurally valid signature.
+  ArtifactManifest wrong_id = m;
+  wrong_id.key_id = "rel-2019";
+  EXPECT_FALSE(eng.verify(wrong_id, "", "1.0.0").ok());
+
+  EVP_PKEY_free(key);
 }

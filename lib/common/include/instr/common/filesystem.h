@@ -55,6 +55,10 @@ class IFileSystem {
   virtual Error rename(const std::string& from, const std::string& to) = 0;
   virtual Result<std::vector<std::string>> list_dir(const std::string& path) = 0;
   virtual Result<uint64_t> file_size(const std::string& path) = 0;
+  // Last-modification time, unix seconds. Age-based retention (§7.7) needs
+  // it, and a store that cannot tell how old a file is cannot honour a
+  // retention policy expressed in days.
+  virtual Result<int64_t> file_mtime_s(const std::string& path) = 0;
   virtual Result<uint64_t> free_space(const std::string& path) = 0;
   virtual Error fsync_path(const std::string& path) = 0;
   virtual std::string join(const std::string& a, const std::string& b) const {
@@ -74,6 +78,7 @@ class NativeFileSystem : public IFileSystem {
   Error rename(const std::string& from, const std::string& to) override;
   Result<std::vector<std::string>> list_dir(const std::string& path) override;
   Result<uint64_t> file_size(const std::string& path) override;
+  Result<int64_t> file_mtime_s(const std::string& path) override;
   Result<uint64_t> free_space(const std::string& path) override;
   Error fsync_path(const std::string& path) override;
 };
@@ -90,6 +95,7 @@ class SimulatedFileSystem : public IFileSystem {
   Error rename(const std::string& from, const std::string& to) override;
   Result<std::vector<std::string>> list_dir(const std::string& path) override;
   Result<uint64_t> file_size(const std::string& path) override;
+  Result<int64_t> file_mtime_s(const std::string& path) override;
   Result<uint64_t> free_space(const std::string& path) override;
   Error fsync_path(const std::string& path) override;
 
@@ -103,6 +109,11 @@ class SimulatedFileSystem : public IFileSystem {
   }
   // Clamp reported free space (simulates a filling / full partition).
   void set_free_space(uint64_t bytes) { free_space_ = bytes; }
+  // Simulated clock for file timestamps: tests advance it to age files
+  // without waiting, so retention-by-age is testable in milliseconds.
+  void set_now_unix_s(int64_t t) { now_unix_s_ = t; }
+  int64_t now_unix_s() const { return now_unix_s_; }
+  void set_file_mtime_s(const std::string& path, int64_t t) { mtimes_[path] = t; }
   void fail_renames(bool v) { fail_renames_ = v; }
   void fail_mkdirs(bool v) { fail_mkdirs_ = v; }
   void reset_injections() {
@@ -124,6 +135,8 @@ class SimulatedFileSystem : public IFileSystem {
   int write_count_ = 0;
   std::map<std::string, int> corrupt_;
   std::map<std::string, int> read_count_;
+  std::map<std::string, int64_t> mtimes_;
+  int64_t now_unix_s_ = 1'700'000'000;
   uint64_t free_space_ = 1ull << 40;
   bool fail_renames_ = false;
   bool fail_mkdirs_ = false;

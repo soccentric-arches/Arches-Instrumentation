@@ -26,6 +26,8 @@
  */
 
 
+#include <algorithm>
+
 #include <gtest/gtest.h>
 
 #include "instr/common/filesystem.h"
@@ -169,4 +171,77 @@ TEST(LogForensics, CapturesBoundedCoredumpAndTail) {
   for (const auto& fl : f.core.forensics().captured_files())
     if (fl.find("istate.tail.log") != std::string::npos) saw_tail = true;
   EXPECT_TRUE(saw_tail);
+}
+// §7.7: "rotation by size and age, retention per source". Retention by count
+// was implemented; retention by age was a comment saying the simulated
+// filesystem had no mtime. It has one now, so the policy is real.
+TEST(LogStore, RetainsByAgeNotOnlyByCount) {
+  SimulatedFileSystem fs;
+  LogStore store(fs, "/logs");
+  SourceSpec s;
+  s.name = "app";
+  s.kind = "file";
+  s.rotate_size_bytes = 64;      // rotate often so we accumulate files
+  s.retention_files = 100;       // count retention must not be what prunes
+  s.max_age_s = 7 * 24 * 3600;   // a week
+  store.configure({s});
+
+  auto append = [&](const std::string& text) {
+    LogLine l;
+    l.source = "app";
+    l.level = "INFO";
+    l.message = text;
+    (void)store.append("app", l);
+  };
+
+  // Write enough to rotate a few times, at a point in time eight days ago.
+  fs.set_now_unix_s(1'700'000'000);
+  for (int i = 0; i < 12; ++i) append("old entry number " + std::to_string(i));
+  const size_t after_old = store.files_for("app").size();
+  ASSERT_GT(after_old, 1u) << "expected rotation to have produced archived files";
+
+  // Move the clock forward eight days and write again, so the active file is
+  // recent while the rotated ones are stale.
+  fs.set_now_unix_s(1'700'000'000 + 8 * 24 * 3600);
+  for (int i = 0; i < 12; ++i) append("new entry number " + std::to_string(i));
+
+  auto st = store.enforce_retention(0);
+  EXPECT_GT(st.files_removed, 0u) << "nothing was pruned by age";
+
+  // Everything left is within the window, and the active file survives.
+  const auto remaining = store.files_for("app");
+  EXPECT_NE(std::find(remaining.begin(), remaining.end(), std::string("app.log")),
+            remaining.end())
+      << "the active file must never be aged out";
+  for (const auto& f : remaining) {
+    if (f == "app.log") continue;
+    auto m = fs.file_mtime_s(fs.join("/logs", f));
+    ASSERT_TRUE(m.ok());
+    EXPECT_LE(1'700'000'000 + 8 * 24 * 3600 - *m, int64_t(s.max_age_s))
+        << f << " is older than the retention window and survived";
+  }
+}
+
+TEST(LogStore, AgeRetentionIsDisabledWhenMaxAgeIsZero) {
+  SimulatedFileSystem fs;
+  LogStore store(fs, "/logs");
+  SourceSpec s;
+  s.name = "app";
+  s.kind = "file";
+  s.rotate_size_bytes = 64;
+  s.retention_files = 100;
+  s.max_age_s = 0;  // keep regardless of age
+  store.configure({s});
+  fs.set_now_unix_s(1'700'000'000);
+  for (int i = 0; i < 12; ++i) {
+    LogLine l;
+    l.source = "app";
+    l.level = "INFO";
+    l.message = "entry " + std::to_string(i);
+    (void)store.append("app", l);
+  }
+  const size_t before = store.files_for("app").size();
+  fs.set_now_unix_s(1'700'000'000 + 3650 * 24 * 3600);  // ten years later
+  store.enforce_retention(0);
+  EXPECT_EQ(store.files_for("app").size(), before);
 }

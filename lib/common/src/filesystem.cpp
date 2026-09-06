@@ -200,6 +200,7 @@ Error SimulatedFileSystem::write(const std::string& path, const std::string& dat
       break;
     }
   }
+  mtimes_[path] = now_unix_s_;
   return Error::none();
 }
 
@@ -317,6 +318,28 @@ uint64_t SimulatedFileSystem::used_bytes() const {
   uint64_t total = 0;
   for (const auto& f : files_) total += f.second.size();
   return total;
+}
+
+}  // namespace instr
+namespace instr {
+
+// ---- file timestamps (age-based retention, §7.7) ----
+
+Result<int64_t> NativeFileSystem::file_mtime_s(const std::string& path) {
+  struct stat st;
+  if (::stat(path.c_str(), &st) != 0)
+    return Result<int64_t>::fail(Errc::NotFound, "cannot stat", path);
+  return Result<int64_t>::good(int64_t(st.st_mtime));
+}
+
+Result<int64_t> SimulatedFileSystem::file_mtime_s(const std::string& path) {
+  auto it = mtimes_.find(path);
+  if (it == mtimes_.end()) {
+    if (files_.find(path) == files_.end())
+      return Result<int64_t>::fail(Errc::NotFound, "no such file", path);
+    return Result<int64_t>::good(now_unix_s_);
+  }
+  return Result<int64_t>::good(it->second);
 }
 
 }  // namespace instr
