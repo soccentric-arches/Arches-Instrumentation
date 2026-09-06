@@ -100,6 +100,28 @@ add_subdirectory(daemons/backup)
 # ---- tools: one _ctrl per daemon (§3.2) ----
 add_subdirectory(tools)
 
+# ---- static analysis (§14) ----
+# The Jenkins pipeline builds this target, so it has to exist: a pipeline
+# stage that silently does nothing is worse than no stage at all.
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+find_program(CLANG_TIDY_BIN NAMES run-clang-tidy run-clang-tidy-18 run-clang-tidy-17)
+if(CLANG_TIDY_BIN)
+  add_custom_target(run-clang-tidy
+    COMMAND ${CLANG_TIDY_BIN} -p "${CMAKE_BINARY_DIR}"
+            -quiet
+            "${CMAKE_SOURCE_DIR}/lib" "${CMAKE_SOURCE_DIR}/daemons" "${CMAKE_SOURCE_DIR}/tools"
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    COMMENT "clang-tidy over lib/, daemons/ and tools/"
+    VERBATIM)
+else()
+  add_custom_target(run-clang-tidy
+    COMMAND ${CMAKE_COMMAND} -E echo
+            "run-clang-tidy not found: install clang-tidy to run static analysis"
+    COMMAND ${CMAKE_COMMAND} -E false
+    COMMENT "clang-tidy unavailable"
+    VERBATIM)
+endif()
+
 # ---- tests (§12) ----
 enable_testing()
 # ---- docs (§14: generated so it cannot drift) ----

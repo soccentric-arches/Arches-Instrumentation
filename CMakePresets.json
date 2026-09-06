@@ -67,6 +67,7 @@
   ],
   "testPresets": [
     {"name": "host-debug", "configurePreset": "host-debug", "output": {"outputOnFailure": true}},
+    {"name": "coverage", "configurePreset": "coverage", "output": {"outputOnFailure": true}},
     {"name": "asan", "configurePreset": "asan", "output": {"outputOnFailure": true}},
     {"name": "tsan", "configurePreset": "tsan", "output": {"outputOnFailure": true}},
     {"name": "jenkins", "configurePreset": "jenkins", "output": {"outputOnFailure": true}}
