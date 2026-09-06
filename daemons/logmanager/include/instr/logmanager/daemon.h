@@ -47,82 +47,102 @@ namespace logmanager
 using namespace domain;
 using namespace instr::transport;
 
+/// @brief Logmanager domain core: store, bundles, forensics, config and the log sink.
 class LogCore
 {
   public:
+    /// @brief Bind the core to storage, a clock and its sub-stores.
+    /// @param fs Storage backend.
+    /// @param base_dir Base directory (store, bundles and crash dirs derive from it).
+    /// @param ts Clock for line timestamps.
     LogCore(IFileSystem& fs, const std::string& base_dir, TimeSource& ts) : store_(fs, base_dir), bundles_(fs, base_dir + "-bundles"), forensics_(fs, base_dir + "-crash"), ts_(ts)
     {
         bundles_.set_log_base_dir(base_dir);
     }
 
-    // Configuration delivered by istate (§7.7, §9): which logs to collect,
-    // rotation, retention and the storage budget for this resource class.
+    /// @brief Configuration delivered by istate (§7.7, §9).
     struct Config
     {
-        bool enabled = true;
-        uint64_t budget_bytes = 128ull * 1024 * 1024;
-        double prune_interval_s = 300.0;
-        uint32_t tail_max_rate_per_s = 50;
-        uint64_t coredump_max_bytes = 32ull * 1024 * 1024;
-        std::vector<SourceSpec> sources;
+        bool enabled = true;                       ///< Master switch for collection.
+        uint64_t budget_bytes = 128ull * 1024 * 1024;   ///< Storage budget for this resource class.
+        double prune_interval_s = 300.0;           ///< Retention pass cadence.
+        uint32_t tail_max_rate_per_s = 50;         ///< Live-tail rate cap.
+        uint64_t coredump_max_bytes = 32ull * 1024 * 1024;   ///< Coredump capture cap.
+        std::vector<SourceSpec> sources;            ///< Configured log sources.
     };
+    /// @brief Current configuration.
     const Config& config() const
     {
         return cfg_;
     }
+    /// @brief Apply an istate-delivered config document (validated by the spoke's sink).
+    /// @param doc Parsed, schema-validated document.
+    /// @return ok(), or an error describing why the values were refused.
     Error apply_config(const ConfigDocument& doc);
+    /// @brief Install a callback fired whenever a new config is accepted.
     void set_config_listener(std::function<void(const Config&)> f)
     {
         on_config_ = std::move(f);
     }
 
-    // Where the bulk payload socket lives, reported to callers by bundle-fetch.
+    /// @brief Where the bulk payload socket lives, reported to callers by bundle-fetch.
     void set_bulk_socket_path(std::string p)
     {
         bulk_socket_path_ = std::move(p);
     }
+    /// @brief Current bulk socket path.
     const std::string& bulk_socket_path() const
     {
         return bulk_socket_path_;
     }
 
+    /// @brief Log store access.
     LogStore& store()
     {
         return store_;
     }
+    /// @brief Bundle store access.
     BundleStore& bundles()
     {
         return bundles_;
     }
+    /// @brief Crash-forensics access.
     CrashForensics& forensics()
     {
         return forensics_;
     }
+    /// @brief Clock access.
     TimeSource& clock()
     {
         return ts_;
     }
 
-    // Crash forensics (§7.7). istate notices an abnormal exit and asks for a
-    // capture without knowing where coredumps land — that is platform
-    // knowledge. The resolver is injected from main so LogCore stays free of
-    // the platform layer and the domain stays testable.
+    /// @brief Inject the platform's coredump resolver (§7.7).
+    ///
+    /// istate notices an abnormal exit and asks for a capture without knowing
+    /// where coredumps land — that is platform knowledge. The resolver is
+    /// injected from main so LogCore stays free of the platform layer and the
+    /// domain stays testable.
     void set_coredump_resolver(std::function<std::string(const std::string& daemon)> f)
     {
         std::lock_guard<std::mutex> lk(mu_);
         coredump_resolver_ = std::move(f);
     }
+    /// @brief Resolve a daemon's coredump location via the injected resolver.
+    /// @return Path, or empty when unknown.
     std::string resolve_coredump(const std::string& daemon)
     {
         std::lock_guard<std::mutex> lk(mu_);
         return coredump_resolver_ ? coredump_resolver_(daemon) : std::string();
     }
 
+    /// @brief Install the live log-line sink (feeds the collector's tail stream).
     void set_sink(std::function<void(const LogLine&)> f)
     {
         std::lock_guard<std::mutex> lk(mu_);
         sink_ = std::move(f);
     }
+    /// @brief Emit one line to the installed sink.
     void emit(const LogLine& l)
     {
         std::lock_guard<std::mutex> lk(mu_);
@@ -130,54 +150,64 @@ class LogCore
     }
 
   private:
-    LogStore store_;
-    BundleStore bundles_;
-    CrashForensics forensics_;
-    TimeSource& ts_;
-    std::function<void(const LogLine&)> sink_;
-    std::function<std::string(const std::string&)> coredump_resolver_;
-    std::mutex mu_;
-    Config cfg_;
-    std::function<void(const Config&)> on_config_;
-    std::string bulk_socket_path_ = "/run/instrumentation/logmanager-bulk.sock";
+    LogStore store_;                        ///< Per-source log files.
+    BundleStore bundles_;                   ///< Support bundles.
+    CrashForensics forensics_;              ///< Crash captures.
+    TimeSource& ts_;                         ///< Clock for timestamps.
+    std::function<void(const LogLine&)> sink_;   ///< Live line sink (guarded by mu_).
+    std::function<std::string(const std::string&)> coredump_resolver_;   ///< Platform resolver (guarded by mu_).
+    std::mutex mu_;                         ///< Guards sink_ and coredump_resolver_.
+    Config cfg_;                            ///< Current configuration.
+    std::function<void(const Config&)> on_config_;   ///< Config-accepted listener.
+    std::string bulk_socket_path_ = "/run/instrumentation/logmanager-bulk.sock";   ///< Bulk socket advertised by bundle-fetch.
 };
 
-// ---- collection (§7.7: "Collects from the journal and from application log
-// sinks") ----
-//
-// Same shape as the Faults daemon's FaultFollower: a periodic poll that
-// feeds the store, kept out of the transport so it is testable against a
-// simulated platform and an in-memory filesystem with no sockets.
-//
-// Without this the daemon rotates, prunes, tails and bundles a store that
-// nothing ever writes to — which is what it did before this existed.
+/// @brief Periodic collection pass over every configured source (§7.7).
+///
+/// Same shape as the Faults daemon's FaultFollower: a periodic poll that
+/// feeds the store, kept out of the transport so it is testable against a
+/// simulated platform and an in-memory filesystem with no sockets. Without
+/// this the daemon rotates, prunes, tails and bundles a store that nothing
+/// ever writes to.
 class LogCollector
 {
   public:
+    /// @brief Construct a collector over a core, platform, filesystem, clock and logger.
     LogCollector(LogCore* core, platform::IPlatform* plat, IFileSystem* fs, TimeSource* ts, Logger* log);
 
-    // One collection pass over every configured source. Returns the number of
-    // lines appended. Sources are re-read from the core's config each pass, so
-    // a delivery from istate takes effect without a restart.
+    /// @brief One collection pass over every configured source.
+    ///
+    /// Sources are re-read from the core's config each pass, so a delivery
+    /// from istate takes effect without a restart.
+    ///
+    /// @return Number of lines appended.
     size_t poll();
+    /// @brief Start the periodic worker.
     void start();
+    /// @brief Stop the periodic worker.
     void stop();
+    /// @brief Override the pass cadence.
     void set_interval_s(double s)
     {
         worker_.set_interval_s(s);
     }
+    /// @brief Passes completed so far.
     uint64_t polls() const
     {
         return worker_.ticks();
     }
+    /// @brief Lines collected since construction.
     uint64_t lines_collected() const
     {
         return lines_.load();
     }
 
   private:
+    /// @brief Collect one pass from a journal source.
     size_t collect_journal(const SourceSpec& spec);
+    /// @brief Collect one pass from a file source.
     size_t collect_file(const SourceSpec& spec);
+    /// @brief Split raw text into lines, emit and store them.
     size_t emit(const SourceSpec& spec, const std::string& raw);
 
     // Per-source follow position. The journal has no cursor API, so dedup is
@@ -185,51 +215,62 @@ class LogCollector
     // offset and restarts at 0 when the file shrinks (rotation or truncation).
     struct Cursor
     {
-        std::string last_line;
-        uint64_t offset = 0;
+        std::string last_line;   ///< Journal: last line seen (dedup key).
+        uint64_t offset = 0;     ///< File: byte offset (restarts at 0 on shrink).
     };
-    std::map<std::string, Cursor> cursors_;
+    std::map<std::string, Cursor> cursors_;   ///< Follow positions per source.
 
-    LogCore* core_;
-    platform::IPlatform* plat_;
-    IFileSystem* fs_;
-    TimeSource* ts_;
-    Logger* log_;
-    std::atomic<uint64_t> lines_{0};
-    PeriodicWorker worker_;
+    LogCore* core_;                 ///< Domain core (not owned).
+    platform::IPlatform* plat_;     ///< Journal/kmsg access (not owned).
+    IFileSystem* fs_;               ///< File-sink access (not owned).
+    TimeSource* ts_;                ///< Clock (not owned).
+    Logger* log_;                   ///< Logger (not owned).
+    std::atomic<uint64_t> lines_{0};     ///< Lifetime lines collected.
+    PeriodicWorker worker_;         ///< Polling scheduler.
 };
 
+/// @brief Build the logmanager ctrl command table (sources, tail, bundles, forensics).
 CommandTable build_log_table(LogCore* core);
+/// @brief Public helper ranking a level name (used by table handlers and tests).
 int level_index_public(const std::string& level);
+/// @brief First configured source name, or a default when none are configured.
 std::string first_source(LogCore* core);
 
+/// @brief Spoke: transport to istate plus the schema-validated config sink.
 class LogSpoke
 {
   public:
+    /// @brief Construct the spoke over the core's command table and hub target.
     LogSpoke(LogCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version);
+    /// @brief Start the channel.
     void start();
+    /// @brief Stop the channel.
     void stop();
+    /// @brief True while registered with istate.
     bool registered() const
     {
         return channel_->registered();
     }
-    // Configuration is delivered by istate over the channel and validated
-    // against this schema before it can change behaviour (R4, §9).
+    /// @brief Install the schema every config delivery must satisfy (R4, §9).
     void set_schema(JValue schema);
+    /// @brief Revision of the last config applied.
     uint64_t config_revision() const
     {
         return channel_->config_revision();
     }
+    /// @brief Queue a collected log line to istate.
     void send_line(const LogLine& l);
+    /// @brief Queue a bundle announcement to istate.
     void send_bundle(const BundleMeta& m);
+    /// @brief Queue a crash-forensics report to istate.
     void send_crash(const std::string& daemon, const std::string& coredump, uint32_t tail_lines);
 
   private:
-    LogCore* core_;
-    Logger* log_;
-    const CommandTable* table_;
-    std::unique_ptr<ConfigSink> config_sink_;
-    std::unique_ptr<SpokeChannel<logmanager::LogHub, logmanager::LogSpokeFrame, logmanager::LogHubFrame>> channel_;
+    LogCore* core_;                        ///< Domain core (not owned).
+    Logger* log_;                          ///< Logger (not owned).
+    const CommandTable* table_;            ///< Command table (not owned).
+    std::unique_ptr<ConfigSink> config_sink_;    ///< Validates and applies config deliveries.
+    std::unique_ptr<SpokeChannel<logmanager::LogHub, logmanager::LogSpokeFrame, logmanager::LogHubFrame>> channel_;   ///< gRPC channel to istate.
 };
 
 } // namespace logmanager

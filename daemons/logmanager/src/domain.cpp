@@ -42,6 +42,7 @@ namespace domain
 {
 
 static const char* kLevels[] = {"TRACE", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"};
+/// @brief Rank a level name (TRACE=0 .. CRITICAL=5) for filtering.
 static int level_index(const std::string& l)
 {
     for (int i = 0; i < 6; ++i)
@@ -49,6 +50,7 @@ static int level_index(const std::string& l)
     return 2; // INFO
 }
 
+/// @brief Look up a configured source by name.
 Result<const SourceSpec*> LogStore::find(const std::string& name) const
 {
     for (const auto& s : sources_)
@@ -56,6 +58,7 @@ Result<const SourceSpec*> LogStore::find(const std::string& name) const
     return Result<const SourceSpec*>::fail(Errc::NotFound, "unknown log source: " + name, "logmanager");
 }
 
+/// @brief Append one line, rotating the active file when oversized.
 Error LogStore::append(const std::string& source, const LogLine& line)
 {
     const SourceSpec* spec = nullptr;
@@ -91,6 +94,7 @@ Error LogStore::append(const std::string& source, const LogLine& line)
     return Error::none();
 }
 
+/// @brief File names belonging to a source, active first.
 std::vector<std::string> LogStore::files_for(const std::string& source) const
 {
     std::vector<std::string> out;
@@ -104,6 +108,7 @@ std::vector<std::string> LogStore::files_for(const std::string& source) const
     return out;
 }
 
+/// @brief Total bytes stored across all sources.
 uint64_t LogStore::total_bytes() const
 {
     uint64_t total = 0;
@@ -117,6 +122,7 @@ uint64_t LogStore::total_bytes() const
     return total;
 }
 
+/// @brief Enforce retention (count + age) and the storage budget.
 LogStore::PruneStats LogStore::enforce_retention(uint64_t now_mono_ns)
 {
     PruneStats st;
@@ -196,6 +202,7 @@ LogStore::PruneStats LogStore::enforce_retention(uint64_t now_mono_ns)
     return st;
 }
 
+/// @brief Read the bounded tail of a source's active file.
 Result<std::vector<LogLine>> LogStore::read_tail(const std::string& source, size_t max_lines) const
 {
     auto txt = fs_.read(active_path(source));
@@ -227,11 +234,13 @@ Result<std::vector<LogLine>> LogStore::read_tail(const std::string& source, size
     return Result<std::vector<LogLine>>::good(std::move(out));
 }
 
+/// @brief Set a runtime level override for a source.
 void LogStore::set_runtime_level(const std::string& source, const std::string& level)
 {
     runtime_levels_[source] = level;
 }
 
+/// @brief Effective runtime level of a source.
 std::string LogStore::runtime_level(const std::string& source) const
 {
     auto it = runtime_levels_.find(source);
@@ -241,6 +250,7 @@ std::string LogStore::runtime_level(const std::string& source) const
     return "INFO";
 }
 
+/// @brief Decide whether a line passes the session filter.
 bool TailSession::matches(const LogLine& line) const
 {
     if (!filter_.sources.empty())
@@ -255,6 +265,7 @@ bool TailSession::matches(const LogLine& line) const
     return true;
 }
 
+/// @brief Decide whether a line is emitted, enforcing the rate limit.
 bool TailSession::accept(const LogLine& line, uint64_t now_mono_ns)
 {
     if (expired(now_mono_ns)) return false;
@@ -277,11 +288,13 @@ bool TailSession::accept(const LogLine& line, uint64_t now_mono_ns)
     return true;
 }
 
+/// @brief True when the session timeout has elapsed.
 bool TailSession::expired(uint64_t now_mono_ns) const
 {
     return now_mono_ns - started_mono_ns_ >= uint64_t(filter_.timeout_s) * 1'000'000'000ull;
 }
 
+/// @brief Tar the requested sources into a bundle with checksum metadata.
 Result<BundleMeta> BundleStore::create(LogStore& store, const std::vector<std::string>& sources, uint64_t now_mono_ns)
 {
     (void)now_mono_ns;
@@ -324,6 +337,7 @@ Result<BundleMeta> BundleStore::create(LogStore& store, const std::vector<std::s
     return Result<BundleMeta>::good(m);
 }
 
+/// @brief Load metadata for a handle.
 Result<BundleMeta> BundleStore::meta(const std::string& handle) const
 {
     auto txt = fs_.read(meta_path(handle));
@@ -345,6 +359,7 @@ Result<BundleMeta> BundleStore::meta(const std::string& handle) const
     return Result<BundleMeta>::good(m);
 }
 
+/// @brief Read a bundle payload (used by the small-payload path).
 Result<std::string> BundleStore::payload(const std::string& handle) const
 {
     auto txt = fs_.read(handle_path(handle));
@@ -355,6 +370,7 @@ Result<std::string> BundleStore::payload(const std::string& handle) const
     return txt;
 }
 
+/// @brief Resolve a handle to its payload file path (bulk socket only).
 Result<std::string> BundleStore::payload_path(const std::string& handle) const
 {
     // A handle is minted by this store and is hex, so it cannot contain path
@@ -366,6 +382,7 @@ Result<std::string> BundleStore::payload_path(const std::string& handle) const
     return Result<std::string>::good(p);
 }
 
+/// @brief List all stored bundles.
 std::vector<BundleMeta> BundleStore::list() const
 {
     std::vector<BundleMeta> out;
@@ -383,6 +400,7 @@ std::vector<BundleMeta> BundleStore::list() const
     return out;
 }
 
+/// @brief Truncate-store a coredump and fold in the daemon's last log lines.
 Result<CrashForensics::Capture> CrashForensics::capture(const std::string& daemon, const std::string& coredump_path, const std::vector<std::string>& last_lines, uint64_t max_coredump_bytes)
 {
     Capture c;
@@ -414,6 +432,7 @@ Result<CrashForensics::Capture> CrashForensics::capture(const std::string& daemo
     return Result<Capture>::good(c);
 }
 
+/// @brief Files stored so far.
 std::vector<std::string> CrashForensics::captured_files() const
 {
     auto files = fs_.list_dir(dir_);
