@@ -73,6 +73,7 @@ static JValue yaml_scalar(const YAML::Node& n)
     return obj;
 }
 
+/// @brief Recursively project a YAML node tree to JSON.
 static JValue yaml_to_json(const YAML::Node& n)
 {
     return yaml_scalar(n);
