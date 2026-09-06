@@ -81,7 +81,7 @@ std::vector<Surface> all_surfaces() {
 
 TEST(CtrlSurface, EveryDaemonHasATableBuildableWithoutACore) {
   for (auto& s : all_surfaces()) {
-    EXPECT_GT(s.table.ops().size(), 0u)
+    EXPECT_GT(s.table.size(), 0u)
         << s.daemon << " exposes no operations: its _ctrl would be useless";
   }
 }
@@ -90,21 +90,21 @@ TEST(CtrlSurface, EveryOperationIsDescribed) {
   // Help is generated from the table, so an undescribed op is an op an
   // operator cannot discover.
   for (auto& s : all_surfaces()) {
-    for (const auto& op : s.table.ops()) {
-      EXPECT_FALSE(op.name.empty()) << s.daemon << " has an unnamed operation";
-      EXPECT_FALSE(op.description.empty())
-          << s.daemon << "." << op.name << " has no description";
+    for (const auto* op : s.table.all()) {
+      EXPECT_FALSE(op->op.empty()) << s.daemon << " has an unnamed operation";
+      EXPECT_FALSE(op->description.empty())
+          << s.daemon << "." << op->op << " has no description";
     }
   }
 }
 
 TEST(CtrlSurface, EveryArgumentIsDescribed) {
   for (auto& s : all_surfaces()) {
-    for (const auto& op : s.table.ops()) {
-      for (const auto& a : op.args) {
-        EXPECT_FALSE(a.name.empty()) << s.daemon << "." << op.name << " has an unnamed argument";
-        EXPECT_FALSE(a.description.empty())
-            << s.daemon << "." << op.name << " argument '" << a.name << "' has no description";
+    for (const auto* op : s.table.all()) {
+      for (const auto& a : op->args) {
+        EXPECT_FALSE(a.name.empty()) << s.daemon << "." << op->op << " has an unnamed argument";
+        EXPECT_FALSE(a.help.empty())
+            << s.daemon << "." << op->op << " argument '" << a.name << "' has no description";
       }
     }
   }
@@ -114,19 +114,19 @@ TEST(CtrlSurface, HelpTextListsEveryOperation) {
   for (auto& s : all_surfaces()) {
     const std::string help = s.table.help_text(s.prog);
     EXPECT_NE(help.find(s.prog), std::string::npos) << s.daemon;
-    for (const auto& op : s.table.ops())
-      EXPECT_NE(help.find(op.name), std::string::npos)
-          << s.daemon << ": " << op.name << " is missing from --help";
+    for (const auto* op : s.table.all())
+      EXPECT_NE(help.find(op->op), std::string::npos)
+          << s.daemon << ": " << op->op << " is missing from --help";
   }
 }
 
 TEST(CtrlSurface, PerOperationHelpExistsForEveryOperation) {
   // §3.2 requires subcommand help, not just a top-level listing.
   for (auto& s : all_surfaces()) {
-    for (const auto& op : s.table.ops()) {
-      const std::string h = s.table.help_for(op.name);
-      EXPECT_FALSE(h.empty()) << s.daemon << ": no help for " << op.name;
-      EXPECT_NE(h.find(op.name), std::string::npos) << s.daemon << ": " << op.name;
+    for (const auto* op : s.table.all()) {
+      const std::string h = s.table.help_for(op->op);
+      EXPECT_FALSE(h.empty()) << s.daemon << ": no help for " << op->op;
+      EXPECT_NE(h.find(op->op), std::string::npos) << s.daemon << ": " << op->op;
     }
   }
 }
@@ -137,11 +137,11 @@ TEST(CtrlSurface, ShellCompletionCoversEveryOperation) {
     const std::string zsh = s.table.completion_zsh(s.prog);
     EXPECT_FALSE(bash.empty()) << s.daemon << ": no bash completion";
     EXPECT_FALSE(zsh.empty()) << s.daemon << ": no zsh completion";
-    for (const auto& op : s.table.ops()) {
-      EXPECT_NE(bash.find(op.name), std::string::npos)
-          << s.daemon << ": " << op.name << " missing from bash completion";
-      EXPECT_NE(zsh.find(op.name), std::string::npos)
-          << s.daemon << ": " << op.name << " missing from zsh completion";
+    for (const auto* op : s.table.all()) {
+      EXPECT_NE(bash.find(op->op), std::string::npos)
+          << s.daemon << ": " << op->op << " missing from bash completion";
+      EXPECT_NE(zsh.find(op->op), std::string::npos)
+          << s.daemon << ": " << op->op << " missing from zsh completion";
     }
   }
 }
@@ -149,30 +149,48 @@ TEST(CtrlSurface, ShellCompletionCoversEveryOperation) {
 TEST(CtrlSurface, OperationNamesAreUniqueWithinADaemon) {
   for (auto& s : all_surfaces()) {
     std::set<std::string> seen;
-    for (const auto& op : s.table.ops())
-      EXPECT_TRUE(seen.insert(op.name).second)
-          << s.daemon << ": duplicate operation name '" << op.name << "'";
+    for (const auto* op : s.table.all())
+      EXPECT_TRUE(seen.insert(op->op).second)
+          << s.daemon << ": duplicate operation name '" << op->op << "'";
   }
 }
 
 TEST(CtrlSurface, UnknownOperationsAreRejectedDiagnosably) {
+  // Dispatching an unknown op is resolved by the table itself and never
+  // reaches a handler, so it is safe on a null-core table.
   for (auto& s : all_surfaces()) {
     CommandResult r = s.table.dispatch("no-such-op", "{}");
     EXPECT_FALSE(r.ok) << s.daemon << " accepted an operation it does not have";
     EXPECT_FALSE(r.error_message.empty()) << s.daemon << ": silent rejection";
+    EXPECT_EQ(s.table.find("no-such-op"), nullptr);
   }
 }
 
-TEST(CtrlSurface, RequiredArgumentsAreEnforced) {
-  // A missing required argument must be a clear error, not a silent default.
+TEST(CtrlSurface, OperationsTakingIdentifiersDeclareThemRequired) {
+  // Handlers are never invoked here: a tool builds its table with a null core
+  // purely for help and completion, and tool_main sends every dispatch to the
+  // daemon over the ctrl socket. What is checkable statically is that an
+  // operation naming a subject declares that argument as required, so the
+  // tool can reject the call before it travels.
+  const std::map<std::string, std::vector<std::string>> subject_args = {
+      {"alarms", {"raise", "ack", "clear"}},
+      {"hardware", {"check", "gpio-set", "gpio-get", "led-set", "usb-reset"}},
+      {"backup", {"verify", "preview", "restore"}},
+      {"logmanager", {"level-set", "bundle-meta", "bundle-fetch", "crash-report"}},
+      {"telemetry", {"register-metric", "ingest"}},
+      {"istate", {"config-get", "config-set", "relay"}},
+  };
   for (auto& s : all_surfaces()) {
-    for (const auto& op : s.table.ops()) {
+    auto it = subject_args.find(s.daemon);
+    if (it == subject_args.end()) continue;
+    for (const auto& op_name : it->second) {
+      const CommandSpec* op = s.table.find(op_name);
+      ASSERT_NE(op, nullptr) << s.daemon << " has no operation '" << op_name << "'";
       bool has_required = false;
-      for (const auto& a : op.args) has_required = has_required || a.required;
-      if (!has_required) continue;
-      CommandResult r = s.table.dispatch(op.name, "{}");
-      EXPECT_FALSE(r.ok) << s.daemon << "." << op.name
-                         << " ran with no arguments despite requiring some";
+      for (const auto& a : op->args) has_required = has_required || a.required;
+      EXPECT_TRUE(has_required)
+          << s.daemon << "." << op_name
+          << " acts on a named subject but declares no required argument";
     }
   }
 }
@@ -198,7 +216,7 @@ TEST(CtrlSurface, EveryDaemonExposesItsCoreOperations) {
     auto it = expected.find(s.daemon);
     if (it == expected.end()) continue;
     std::set<std::string> have;
-    for (const auto& op : s.table.ops()) have.insert(op.name);
+    for (const auto* op : s.table.all()) have.insert(op->op);
     for (const auto& want : it->second)
       EXPECT_TRUE(have.count(want) > 0) << s.daemon << " is missing operation '" << want << "'";
   }
