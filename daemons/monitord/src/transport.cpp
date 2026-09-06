@@ -31,10 +31,12 @@
 
 namespace instr
 {
+/// @brief monitord: passive resource sampling and wear projection (§7.3).
 namespace monitord
 {
 
 /// @brief Apply a resource profile to the sampler intervals.
+/// @param p Resource profile to apply.
 void MonitorCore::configure(const platform::ResourceProfile& p)
 {
     sampler_.set_default_interval_s(p.sample_interval_default_s);
@@ -43,6 +45,7 @@ void MonitorCore::configure(const platform::ResourceProfile& p)
 }
 
 /// @brief One sampling pass: sample, retain locally and emit.
+/// @return Samples produced by this pass.
 std::vector<MonitorSample> MonitorCore::sample_once()
 {
     auto samples = sampler_.tick();
@@ -64,6 +67,8 @@ std::vector<MonitorSample> MonitorCore::sample_once()
 }
 
 /// @brief Wear projections for every storage device.
+/// @param age_days Device age so far in days.
+/// @return Wear projections for every storage device.
 std::vector<WearProjector::Projection> MonitorCore::wear_projections(uint64_t age_days) const
 {
     std::vector<WearProjector::Projection> out;
@@ -72,6 +77,7 @@ std::vector<WearProjector::Projection> MonitorCore::wear_projections(uint64_t ag
 }
 
 /// @brief Render the current status as JSON.
+/// @return The current status as JSON.
 std::string MonitorCore::status_json() const
 {
     JValue v = JValue::object();
@@ -87,6 +93,8 @@ std::string MonitorCore::status_json() const
 // ---------------- command table ----------------
 
 /// @brief Apply an istate-delivered config document.
+/// @param doc Parsed, schema-validated document.
+/// @return ok(), or an error describing why the values were refused.
 Error MonitorCore::apply_config(const ConfigDocument& doc)
 {
     Config c;
@@ -121,6 +129,8 @@ Error MonitorCore::apply_config(const ConfigDocument& doc)
 }
 
 /// @brief Build the monitord ctrl command table.
+/// @param core Domain core the table reads from.
+/// @return The command table.
 CommandTable build_monitor_table(MonitorCore* core)
 {
     CommandTable t;

@@ -31,14 +31,21 @@
 
 namespace instr
 {
+/// @brief monitord: passive resource sampling and wear projection (§7.3).
 namespace monitord
 {
+/// @brief Pure domain logic for this daemon: no transport, no sockets, fully unit-testable.
 namespace domain
 {
 
 using ChannelT = SpokeChannel<monitord::MonitorHub, monitord::MonitorSpokeFrame, monitord::MonitorHubFrame>;
 
 /// @brief Wire the channel, config sink and handlers together.
+/// @param core Domain core.
+/// @param log Logger.
+/// @param table Command table.
+/// @param hub_target istate gRPC target.
+/// @param build_version Build version to advertise.
 MonitorSpoke::MonitorSpoke(MonitorCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version) : core_(core), log_(log), table_(table)
 {
     ChannelT::Options o;
@@ -70,6 +77,7 @@ MonitorSpoke::MonitorSpoke(MonitorCore* core, Logger* log, const CommandTable* t
 }
 
 /// @brief Install the schema every config delivery must satisfy.
+/// @param schema Schema every config delivery must satisfy.
 void MonitorSpoke::set_schema(JValue schema)
 {
     config_sink_ = std::make_unique<ConfigSink>("monitord", std::move(schema), [this](const ConfigDocument& doc) { return core_->apply_config(doc); });

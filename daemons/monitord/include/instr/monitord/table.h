@@ -33,12 +33,15 @@
 
 namespace instr
 {
+/// @brief monitord: passive resource sampling and wear projection (§7.3).
 namespace monitord
 {
 
 class MonitorCore; ///< domain+state facade, defined in transport.h
 
 /// @brief Build the monitord ctrl command table (status, samples, wear).
+/// @param core Domain core the table reads from.
+/// @return The command table.
 CommandTable build_monitor_table(MonitorCore* core);
 
 } // namespace monitord

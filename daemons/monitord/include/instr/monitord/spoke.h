@@ -42,10 +42,12 @@
 
 namespace instr
 {
+/// @brief monitord: passive resource sampling and wear projection (§7.3).
 namespace monitord
 {
 using namespace domain;
 using namespace instr::transport;
+/// @brief Pure domain logic for this daemon: no transport, no sockets, fully unit-testable.
 namespace domain
 {
 
@@ -54,6 +56,11 @@ class MonitorSpoke
 {
   public:
     /// @brief Wire the channel, config sink and handlers together.
+/// @param core Domain core.
+/// @param log Logger.
+/// @param table Command table.
+/// @param hub_target istate gRPC target.
+/// @param build_version Build version to advertise.
     MonitorSpoke(MonitorCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version);
 
     /// @brief Start the channel and the sampling thread.
@@ -66,6 +73,7 @@ class MonitorSpoke
         return channel_->registered();
     }
     /// @brief Install the schema every config delivery must satisfy (R4, §9).
+/// @param schema Schema every config delivery must satisfy.
     void set_schema(JValue schema);
     /// @brief Revision of the last config applied.
     uint64_t config_revision() const

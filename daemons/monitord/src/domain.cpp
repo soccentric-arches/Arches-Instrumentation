@@ -29,12 +29,16 @@
 
 namespace instr
 {
+/// @brief monitord: passive resource sampling and wear projection (§7.3).
 namespace monitord
 {
+/// @brief Pure domain logic for this daemon: no transport, no sockets, fully unit-testable.
 namespace domain
 {
 
 /// @brief Effective sampling interval for a resource class.
+/// @param resource_class Resource class to query.
+/// @return The effective interval in seconds.
 double Sampler::interval_for(const std::string& resource_class) const
 {
     auto it = intervals_.find(resource_class);
@@ -42,12 +46,15 @@ double Sampler::interval_for(const std::string& resource_class) const
 }
 
 /// @brief Append a sample and bump the produced counter.
+/// @param v Vector to append to.
+/// @param s Sample to append.
 static void push(std::vector<MonitorSample>* v, const MonitorSample& s)
 {
     v->push_back(s);
 }
 
 /// @brief One sampling pass: rate deltas, gauges and wear indicators.
+/// @return Samples produced this tick.
 std::vector<MonitorSample> Sampler::tick()
 {
     std::vector<MonitorSample> out;
@@ -218,6 +225,8 @@ std::vector<MonitorSample> Sampler::tick()
 }
 
 /// @brief Append a sample and evict entries older than the window.
+/// @param mono_ns Sample time.
+/// @param s Sample to append.
 void RollingWindow::push(uint64_t mono_ns, const MonitorSample& s)
 {
     buf_.push_back(Entry{mono_ns, s});
@@ -226,6 +235,7 @@ void RollingWindow::push(uint64_t mono_ns, const MonitorSample& s)
 }
 
 /// @brief Samples within the window, oldest first.
+/// @return Samples within the window, oldest first.
 std::vector<MonitorSample> RollingWindow::window() const
 {
     std::vector<MonitorSample> out;
@@ -234,6 +244,9 @@ std::vector<MonitorSample> RollingWindow::window() const
 }
 
 /// @brief Project remaining life from wear indicators.
+/// @param d Device with wear indicators.
+/// @param age_days Device age so far in days.
+/// @return The wear projection.
 WearProjector::Projection WearProjector::project(const platform::StorageDevice& d, uint64_t age_days)
 {
     Projection p;
