@@ -165,6 +165,46 @@ else()
     VERBATIM)
 endif()
 
+# ---- application SDK install (§7.6 R5, Task.md E-03) ----
+#
+# A colocated application declares alarms and reports metrics over
+# ApplicationApi, which means it has to compile a gRPC client. Nothing was
+# installed for that: no .proto files, no package config, no -dev package. An
+# application could be given the right group (E-01) and still have nothing to
+# build against, which is why no leaf links one today.
+#
+# What ships is the .proto files plus a package config with a codegen helper —
+# NOT a prebuilt stub library. Generated protobuf/gRPC sources must be compiled
+# by the same toolchain and against the same protobuf runtime as the consumer;
+# handing a static archive across a sysroot boundary is how ODR and ABI
+# mismatches happen. See cmake/instrumentationConfig.cmake.in.
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+
+set(INSTR_PROTO_INSTALL_DIR "${CMAKE_INSTALL_DATADIR}/instrumentation/proto")
+install(DIRECTORY "${PROTO_DIR}/" DESTINATION "${INSTR_PROTO_INSTALL_DIR}"
+        FILES_MATCHING PATTERN "*.proto")
+
+configure_package_config_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/cmake/instrumentationConfig.cmake.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/instrumentationConfig.cmake"
+  INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/instrumentation"
+  PATH_VARS INSTR_PROTO_INSTALL_DIR)
+
+write_basic_package_version_file(
+  "${CMAKE_CURRENT_BINARY_DIR}/instrumentationConfigVersion.cmake"
+  # INSTR_VERSION (from the VERSION file), not PROJECT_VERSION: project() is
+  # declared 0.0.0 as a placeholder and the real version is read from VERSION
+  # a few lines later. Using PROJECT_VERSION here would publish a package that
+  # advertises 0.0.0 and fails every consumer's version check.
+  VERSION "${INSTR_VERSION}"
+  COMPATIBILITY SameMajorVersion)
+
+install(FILES
+  "${CMAKE_CURRENT_BINARY_DIR}/instrumentationConfig.cmake"
+  "${CMAKE_CURRENT_BINARY_DIR}/instrumentationConfigVersion.cmake"
+  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/instrumentation")
+
 # ---- tests (§12) ----
 enable_testing()
 # ---- docs (§14: generated so it cannot drift) ----

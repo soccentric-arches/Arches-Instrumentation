@@ -142,6 +142,20 @@ do_install() {
     done
     install -d ${D}${datadir}/instrumentation/schemas
     install -m 0644 ${S}/schemas/*.json ${D}${datadir}/instrumentation/schemas/
+
+    # Application SDK (Task.md E-03): the .proto files an application compiles
+    # a client from, plus the CMake package config that generates the stubs.
+    #
+    # Installed explicitly rather than by cmake_do_install: this recipe
+    # overrides do_install() wholesale, so the upstream CMake install() rules
+    # never run. They still exist and are what `cmake --install` uses for a
+    # host build; this keeps the two in step.
+    install -d ${D}${datadir}/instrumentation/proto
+    install -m 0644 ${S}/proto/*.proto ${D}${datadir}/instrumentation/proto/
+    install -d ${D}${libdir}/cmake/instrumentation
+    install -m 0644 ${B}/instrumentationConfig.cmake \
+        ${B}/instrumentationConfigVersion.cmake \
+        ${D}${libdir}/cmake/instrumentation/
 }
 
 SYSTEMD_PACKAGES = "${PN}"
@@ -203,3 +217,31 @@ python __anonymous() {
 }
 
 FILES:${PN} += "${sysusersdir} ${nonarch_libdir}/tmpfiles.d ${datadir}/instrumentation"
+
+# ---- application SDK (-dev) (Task.md E-03) ----
+#
+# A colocated application declares alarms and reports metrics over
+# ApplicationApi, so it has to compile a gRPC client. Before this, do_install
+# placed binaries, units, sysusers, tmpfiles, udev rules, descriptors,
+# catalogs, defaults and schemas -- and no .proto files, no CMake package
+# config, nothing to build a client against. An application could be given the
+# right group (E-01) and still have nothing to compile, which is why no leaf
+# links one today.
+#
+# The upstream CMake install rules place proto/*.proto under
+# ${datadir}/instrumentation/proto and a package config under
+# ${libdir}/cmake/instrumentation. cmake_do_install already runs them; this
+# just routes them into ${PN}-dev.
+#
+# Note there is no stub *library* here, deliberately: generated protobuf/gRPC
+# sources must be compiled by the consumer's own toolchain against its own
+# protobuf runtime. The package ships the .proto files and a codegen helper
+# instead. See cmake/instrumentationConfig.cmake.in and docs/example-client/.
+FILES:${PN}-dev += " \
+    ${datadir}/instrumentation/proto \
+    ${libdir}/cmake/instrumentation \
+"
+RDEPENDS:${PN}-dev += "protobuf-dev grpc-dev"
+# The protos are the interface an application builds against; they belong in
+# -dev even though nothing else in this recipe produces a -dev package.
+ALLOW_EMPTY:${PN}-dev = "0"
