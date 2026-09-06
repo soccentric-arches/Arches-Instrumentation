@@ -125,16 +125,58 @@ SYSTEMD_PACKAGES = "${PN}"
 SYSTEMD_SERVICE:${PN} = "instr-istate.service instr-networkd.service instr-monitord.service instr-hardware.service instr-faults.service instr-alarms.service instr-logmanager.service instr-telemetry.service instr-ota.service instr-backup.service"
 SYSTEMD_AUTO_ENABLE = "enable"
 
-# Which board's descriptors go into this image. Set per MACHINE in the layer;
-# the default keeps a generic build working rather than failing obscurely.
-INSTR_BOARD ?= "x86-64"
-INSTR_BOARD:jetson-orin-nano = "jetson-orin-nano"
-INSTR_BOARD:jetson-agx-orin = "jetson-agx-orin"
+# Which board's descriptors go into this image.
+#
+# These overrides key on MACHINE, so they must spell MACHINE exactly. They
+# previously read `jetson-orin-nano` / `jetson-agx-orin`, which are descriptor
+# names, not machines -- no override ever matched, INSTR_BOARD kept its
+# `x86-64` default, and every Jetson image shipped x86-64 devices.yaml,
+# capabilities.yaml and resource-profile.yaml. That is exactly the failure the
+# comment in do_install says this mechanism exists to prevent. See Task.md D-02.
+#
+# The MACHINE list is Arches-OS/kas/boards/*.yaml. The p-numbers are NVIDIA
+# module/carrier part numbers: p3767 is the Orin Nano / Orin NX module and
+# p3701 is the AGX Orin module, so each maps to that module's descriptor set.
+INSTR_BOARD ?= ""
+
+# Orin Nano class (p3767 module).
+INSTR_BOARD:jetson-orin-nano-devkit = "jetson-orin-nano"
+INSTR_BOARD:jetson-orin-nano-devkit-nvme = "jetson-orin-nano"
+INSTR_BOARD:p3509-a02-p3767-0000 = "jetson-orin-nano"
+INSTR_BOARD:p3768-0000-p3767-0000 = "jetson-orin-nano"
+INSTR_BOARD:p3768-0000-p3767-0001 = "jetson-orin-nano"
+INSTR_BOARD:p3768-0000-p3767-0003 = "jetson-orin-nano"
+INSTR_BOARD:p3768-0000-p3767-0004 = "jetson-orin-nano"
+
+# AGX Orin class (p3701 module).
+INSTR_BOARD:jetson-agx-orin-devkit = "jetson-agx-orin"
+INSTR_BOARD:jetson-agx-orin-devkit-industrial = "jetson-agx-orin"
+INSTR_BOARD:p3737-0000-p3701-0004 = "jetson-agx-orin"
+INSTR_BOARD:p3737-0000-p3701-0005 = "jetson-agx-orin"
+
+# Non-Jetson targets the descriptor set covers, kept for the other fleet
+# boards and for host/emulator builds. These are explicit rather than a
+# catch-all default: an unmapped MACHINE must fail, not quietly pick one.
 INSTR_BOARD:zynq-ultrascale = "zynq-ultrascale"
 INSTR_BOARD:zynq-7000 = "zynq-7000"
 INSTR_BOARD:imx8m-plus = "imx8m-plus"
 INSTR_BOARD:sitara-am62 = "sitara-am62"
 INSTR_BOARD:raspberrypi4-64 = "rpi-4b"
 INSTR_BOARD:raspberrypi5 = "rpi-5"
+INSTR_BOARD:qemux86-64 = "x86-64"
+INSTR_BOARD:genericx86-64 = "x86-64"
+
+# Stop the build on an unmapped MACHINE rather than installing another board's
+# descriptors. A wrong descriptor set does not fail loudly at runtime -- the
+# daemons come up and describe hardware the board does not have -- so this is
+# the last point at which the mistake is cheap to catch.
+python __anonymous() {
+    board = d.getVar('INSTR_BOARD')
+    if not board:
+        bb.fatal("instrumentation: no INSTR_BOARD mapping for MACHINE '%s'. "
+                 "Add an INSTR_BOARD:%s override to instrumentation.bb naming "
+                 "the descriptor set this board should ship (see descriptors/)."
+                 % (d.getVar('MACHINE'), d.getVar('MACHINE')))
+}
 
 FILES:${PN} += "${sysusersdir} ${nonarch_libdir}/tmpfiles.d ${datadir}/instrumentation"
