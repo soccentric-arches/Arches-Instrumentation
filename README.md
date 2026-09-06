@@ -38,24 +38,221 @@ instrumentation/
   docs/         generated interface reference (docgen.py, cannot drift)
 ```
 
-## Build
+## Topology
 
-Requirements for the default workflow: nothing but Docker. The default
-build is aarch64 — the Jetson fleet — inside the arm64 container in
-`docker/` (Ubuntu 22.04 arm64, the JetPack 6 userland generation, so the
-binaries match the device glibc; on an x86_64 host the container runs
-under qemu via binfmt, installed automatically). There is no native x86
-build target.
+Everything below the `device` line runs on-box; HQ lives off-device behind
+the tunnel. istate is the hub and the only process with an external face
+(R2); the nine spokes, Configuration and colocated applications are all
+gRPC-over-UDS clients of istate and of nothing else (R1).
 
-```bash
-make               # aarch64 build for the fleet -> build-aarch64/
-make test          # the test suite, inside the arm64 container
-make check-format  # clang-format gate, inside the arm64 container
-make tidy          # clang-tidy, inside the arm64 container (slow under qemu)
-make shell         # interactive shell in the arm64 container
+```
+                                    ┌─────────────────────────────────────────────────────────────┐
+                                    │                    HQ — cloud fleet plane                   │
+                                    │fleet management · configuration · monitoring                │
+                                    │verifies enrollment vs manufacturing record                  │
+                                    │returns tunnel configuration (WireGuard)                     │
+                                    │signs config pushes · uploads OTA artifacts                  │
+                                    │ingests telemetry · faults · alarms · log bundles            │
+                                    │staged canary rollout · auto-halt on regression              │
+                                    │backpressure to devices · config-drift compare               │
+                                    └──────────────────────────────┬──────────────────────────────┘
+        gRPC · HqPeer.Session — ONE bidirectional stream           │
+        over the WireGuard tunnel — networkd brings it up,         │
+        istate owns the session · identity = WG keypair            │
+        generated on first boot · private key never leaves         │
+                                                                   │ ▲ north DeviceFrame:
+                                                                   │ │  telemetry · events · faults
+                                                                   │ │  log refs · canary · pong
+                                                                   │ ▼ south HqFrame:
+                                                                   │ │  signed config · OTA cmds ·
+                                                                   │ │  relay cmds · tunnel · bpress
+ ════════ device ══════════════════════════════════════════════════════════════════════════════════════════
+                                                                   │
+┌─────────────────────────────┐   ┌────────────────────────────────┴────────────────────────────────┐
+│ Configuration — local web UI│   │   istate · the hub — R1 hub-and-spoke · R2 sole external face   │
+│Rust · on-box · stateless    │   │gRPC-over-UDS server — one socket per peer:                      │
+│NO device state of its own:  │──►│  /run/instrumentation/<daemon>.sock · 0660 · instr:<d>          │
+│every read/write is an istate│   │  handshake: name · build ver · schema ver · capabilities        │
+│call — never touches systemd,│   │  schema mismatch → refuse + alarm (never degrade)               │
+│network stack, update system │   │  streams: samples · fault events · telemetry batches ·          │
+│or /pst directly (§3.3)      │   │           OTA progress · log tail → fan-out HQ + Config         │
+│pairing + enrollment live in │   │gRPC client → HQ: HqPeer.Session over the WG tunnel              │
+│istate; Config renders them  │   │northbound spool: disk-backed · bounded · drains on              │
+│ConfigurationApi (gRPC/UDS): │   │  reconnect · jittered backoff · honours HQ backpressure         │
+│GetSystemInfo · GetConfig ·  │   │  drop: oldest telemetry first — NEVER alarms/faults             │
+│SetConfig (origin-tracked)   │   │config service: per-key origin default/app/local/hq              │
+│ListSpokes · SpokeControl    │   │  HQ pushes signed + verified · resets consult origin            │
+│Reset · StreamEvents/Logs    │   │  → operator 'local' edits survive · config w/o OTA              │
+│GetHealthScore · Budgets     │   │orchestrator: liveness-checks spokes, restarts hung;             │
+│GetEnrollmentStatus ·        │   │  spokes survive istate crash, re-attach                         │
+│RotateKey · RelayCommand     │   │timeline/event fan-out · budgets · audit trail                   │
+└─────────────────────────────┘   │startup: faults/monitord/hw → alarms/logmgr/telemetry            │
+                                  │  → networkd → ota/backup → tunnel + HQ session LAST             │
+┌─────────────────────────────┐   │  (never a precondition for local operation, R10)                │
+│    colocated applications   │   │/pst: SOLE writer (R4) · atomic writes · redundancy              │
+│ApplicationApi (gRPC/UDS) on │──►│  corrupt → boot unprovisioned + report                          │
+│/run/.../application.sock    │   └───┬─────────────────────────────────────────────────────────────┘
+│0660 · group instr-apps      │       │
+│RaiseAlarm / ClearAlarm —    │ ┐─────┘
+│R5: only apps declare alarms;│ ├────────────────────┬─────────────────────────────────────┬
+│CRITICAL → needs_snapshot    │ │                    │                                     │
+│Register / ReportMetrics     │ │   ┌────────────────┴───────────────┐    ┌────────────────┴───────────────┐
+│(§7.8)                       │ │   │         networkd — R8          │    │            monitord            │
+│GetConfig / SetAppConfig —   │ │   │owns ALL network-adjacent:      │    │periodic resource sampling:     │
+│lands origin=app, never      │ │   │interfaces, wireless, routing,  │    │cpu, memory, disk, thermal,     │
+│overwrites operator 'local'  │ │   │DNS, firewall, SSH, port fwd    │    │power sources                   │
+│GetSystemInfo                │ │   │WireGuard tunnel bring-up;      │    │storage wear: eMMC lifetime,    │
+│logs → app.log → logmanager  │ │   │tunnel-loss guard: change that  │    │SD health, SMART                │
+└─────────────────────────────┘ │   │kills tunnel → auto-revert if   │    │samples stream to istate at a   │
+                                │   │HQ unreachable in the timeout   │    │configured interval → batches   │
+┌─────────────────────────────┐ │   │time: chrony·ptp4l·phc2sys·gpsd │    │northbound via istate           │
+│ _ctrl tools — one per daemon│ │   └────────────────────────────────┘    └────────────────────────────────┘
+│istate_ctrl · alarm_ctrl ·   │ │
+│ota_ctrl · backup_ctrl ·     │ ├────────────────────┬─────────────────────────────────────┬
+│network_ctrl · monitor_ctrl ·│ │                    │                                     │
+│hardware_ctrl · fault_ctrl · │ │   ┌────────────────┴───────────────┐    ┌────────────────┴───────────────┐
+│log_ctrl · telemetry_ctrl    │ │   │         hardware — R7          │    │          faults — R6           │
+│raw-UDS (not gRPC) · 0600,   │ │   │ONLY hardware writer (R7):      │    │kernel log observer, READ-ONLY  │
+│root-only, runtime-only —    │ │   │full control of board devices   │    │never configures hardware,      │
+│NEVER persists to /pst (§3.2)│ │   │GPIO, LED, USB, CAN, display    │    │never raises alarms (R6)        │
+│one shared command table:    │ │   │hardware watchdog · boot slot   │    │fault IDs share the 32-bit      │
+│gRPC + ctrl both dispatch →  │ │   │control, rollback, golden boot  │    │alarm scheme → HQ correlates    │
+│full coverage · --help ·     │ │   │thermal zones · power sources   │    │kernel fault ↔ app alarm        │
+│--json · completion          │ │   │driven by declarative per-      │    │rate-limited: token bucket,     │
+└─────────────────────────────┘ │   │board descriptors — no #ifdefs  │    │'suppressed N events' summary   │
+                                │   └────────────────────────────────┘    └────────────────────────────────┘
+                                │
+                                ├────────────────────┬─────────────────────────────────────┬
+                                │                    │                                     │
+                                │   ┌────────────────┴───────────────┐    ┌────────────────┴───────────────┐
+                                │   │          alarms — R5           │    │           logmanager           │
+                                │   │alarm state machine · declared  │    │collects journal + app.log      │
+                                │   │by apps ONLY, never inferred    │    │(instr-apps group, setgid)      │
+                                │   │(R5) · X.733 fields: probable   │    │rotation · retention · level    │
+                                │   │cause, specific problem,        │    │control · storage budgets       │
+                                │   │correlated notifications —      │    │bundles: tar on demand,         │
+                                │   │HQ groups across the fleet      │    │fetched via handle              │
+                                │   │escalation = config (HQ or      │    │live tail: filtered, rate-      │
+                                │   │local) · auto-clear policy      │    │limited, auto-stop on timeout   │
+                                │   └────────────────────────────────┘    └────────────────────────────────┘
+                                │
+                                ├────────────────────┬─────────────────────────────────────┬
+                                │                    │                                     │
+                                │   ┌────────────────┴───────────────┐    ┌────────────────┴───────────────┐
+                                │   │           telemetry            │    │              ota               │
+                                │   │metric registry: gauge/counter  │    │apply-artifact · confirm ·      │
+                                │   │app-registered (§7.8)           │    │rollback — unconfirmed update   │
+                                │   │health score                    │    │auto-rolls back                 │
+                                │   │collects per YAML config at a   │    │artifact streamed down via      │
+                                │   │configured interval → batches   │    │istate · lands on disk before   │
+                                │   │→ istate → spool → HQ + Config  │    │apply                           │
+                                │   │spool-full: drop oldest         │    │canary: fault rate, health,     │
+                                │   │telemetry first, report drop    │    │version → HQ staged rollout     │
+                                │   └────────────────────────────────┘    └────────────────────────────────┘
+                                │
+                                ├────────────────────┬─────────────────────────────────────┬
+                                                     │                                     │
+                                    ┌────────────────┴───────────────┐    ┌────────────────┴───────────────┐
+                                    │             backup             │    │    /pst — persistent store     │
+                                    │tar snapshot of /pst;           │    │istate is SOLE writer (R4);     │
+                                    │restore = untar under istate    │    │all others via istate's API     │
+                                    │direction (R4)                  │    │atomic: temp → fsync → rename   │
+                                    │excludes factory/, WG keys —    │    │checksum · redundant copy       │
+                                    │identity is NOT portable        │    │both copies corrupt → boot      │
+                                    │encrypted: local key derived    │    │unprovisioned + report alarm    │
+                                    │from device identity; to HQ     │    │config lives here → HQ can      │
+                                    │encrypted to HQ's public key    │    │reconfigure without an OTA      │
+                                    └────────────────────────────────┘    └────────────────────────────────┘
+
+
+        nine spokes — gRPC-over-UDS to istate and to nothing else (R1) · no daemon-to-daemon links
+        startup: istate → faults, monitord, hardware → alarms, logmanager, telemetry →
+        networkd → ota, backup → tunnel + HQ session LAST — never a precondition (R10)
 ```
 
-Manual CMake builds still work where a native toolchain exists:
+istate is the server on every spoke socket
+(`/run/instrumentation/<daemon>.sock`, 0660, owned `instr:<daemon>`). A
+spoke dials in on start and registers with its name, build version, proto
+schema version and capability list; on a schema mismatch istate refuses the
+registration and raises an alarm — it never silently degrades a mismatched
+peer. Streaming where the data is a stream (monitord samples, fault events,
+telemetry batches, OTA progress, log tail), unary otherwise.
+
+| Spoke | Owns |
+|---|---|
+| `networkd` | interfaces, wireless, routing, DNS, firewall, SSH, the WireGuard tunnel, time daemons (R8) |
+| `monitord` | resource sampling, storage wear |
+| `hardware` | the only hardware writer — GPIO, LED, USB, CAN, display (R7) |
+| `faults` | kernel log observation, read-only (R6) |
+| `alarms` | alarm state, escalation, X.733 fields; declared by applications, never inferred (R5) |
+| `logmanager` | journal and `app.log` collection, bundles, live tail |
+| `telemetry` | metrics, health score, northbound batches |
+| `ota` | update apply / confirm / rollback, canary |
+| `backup` | encrypted snapshot/restore of /pst, device identity excluded |
+
+### istate ↔ Configuration
+
+Configuration — the local Rust web UI running on the same box — is a
+gRPC-over-UDS client of istate, architecturally identical to a spoke (§3.3):
+
+- It holds no device state. Every read and write is an istate call; it never
+  touches systemd, the network stack, the update system, or /pst directly.
+- Pairing and enrollment live in istate; Configuration renders the flow.
+- Its surface is `ConfigurationApi` (`proto/istate.proto`): config read/write
+  with origin tracking, spoke status and control, reset, event and log
+  streaming, health score, enrollment status, key rotation, relayed commands
+  and storage budgets.
+
+### istate ↔ HQ
+
+gRPC over the WireGuard tunnel: networkd brings the tunnel up, istate owns
+the gRPC session over it (§3.4) — one bidirectional stream, `HqPeer.Session`:
+
+- **Identity.** The WireGuard keypair is generated on the device at first
+  boot; the public key is signed with the factory identity and enrolled with
+  HQ. The private key never leaves the device.
+- **Northbound** (`DeviceFrame`): telemetry batches, timeline events, fault
+  events, log bundle references, canary state (fault rate, health score,
+  version) and liveness pongs.
+- **Southbound** (`HqFrame`): signed config pushes, OTA commands
+  (apply-artifact / confirm / rollback), generic relayed commands, tunnel
+  configuration and backpressure signals.
+- **Spool.** Telemetry, faults and log references are spooled to disk first
+  and drained when the tunnel comes up — nothing northbound depends on the
+  tunnel being available at the moment it is produced. Spool full drops
+  oldest telemetry first, never alarms or faults.
+- **Flood control.** Jittered exponential backoff on reconnect and on drain,
+  honouring HQ backpressure, so a site of hundreds of devices powering up
+  together does not stampede HQ.
+- **Config from HQ.** Pushes are signed and verified on device, then land in
+  /pst with origin `hq`; origin decides what a push or reset may overwrite,
+  so an operator's `local` edits survive (R4, §6). No OTA is needed to
+  reconfigure any daemon.
+- **Degrade, don't block (R10).** Tunnel or HQ loss leaves the device fully
+  operational; a firewall change that kills the tunnel auto-reverts if HQ is
+  unreachable within the configured timeout.
+
+**Startup order:** istate → Faults, monitord, Hardware → Alarms, LogManager,
+Telemetry → networkd → OTA, Backup → tunnel and HQ session. The HQ session
+is last and is never a precondition for local operation (R10); observation
+daemons start early so boot-window anomalies are captured.
+
+## Build
+
+There are two build targets and they have different jobs. Confusing them is
+what made this section contradict itself for a while, so the split is stated
+first:
+
+| | Host-native (x86_64) | Container (aarch64) |
+|---|---|---|
+| Used for | **the gate** — every edit, every loop | release artifacts and CI |
+| Speed | seconds | slow: qemu-emulated on an x86_64 host |
+| Needs | a C++17 toolchain, CMake, protoc/grpc | Docker + binfmt |
+| Proves | the code is correct | the code is correct *for the device* |
+
+**Host-native is the default developer workflow and what `.claude/validate.sh`
+runs.** It is fast enough to run on every change, which is the only property
+that matters for a gate.
 
 ```bash
 cmake --preset host-debug
@@ -68,7 +265,24 @@ Presets: `host-debug`, `host-release`, `ninja-host-debug`,
 `jenkins` (CI), plus cross toolchains per target under `cmake/toolchains/`
 (`cross-jetson-orin-nano`, `cross-zynq-ultrascale`, …).
 
-Formatting is enforced in CI (`.clang-format`, Google-based, 100 columns):
+**The container build is aarch64** — the Jetson fleet — in `docker/`
+(Ubuntu 22.04 arm64, the JetPack 6 userland generation, so the binaries match
+the device glibc; on an x86_64 host it runs under qemu via binfmt, installed
+automatically). Use it to produce what ships, and before a release:
+
+```bash
+make               # aarch64 build for the fleet -> build-aarch64/
+make test          # the test suite, inside the arm64 container
+make check-format  # clang-format gate, inside the arm64 container
+make tidy          # clang-tidy, inside the arm64 container (slow under qemu)
+make shell         # interactive shell in the arm64 container
+```
+
+Both must pass before a release. Only the host-native one has to pass before
+every commit.
+
+Formatting is enforced in CI (`.clang-format`, Microsoft-based, effectively
+unwrapped — see the rationale in that file):
 
 ```bash
 make check-format                                        # verify (CI gate)
@@ -155,7 +369,7 @@ these is implemented and covered by the fault-injection suite.
 
 ```bash
 ctest --preset host-debug                 # unit + contract + integration + fault injection
-./build-host-debug/integration_harness    # full topology on a build host
+./build-host-debug/test/integration_harness   # full topology on a build host
 ```
 
 The integration harness runs the hub, all nine spokes and the simulated
