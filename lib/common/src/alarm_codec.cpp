@@ -33,7 +33,9 @@
 namespace instr
 {
 
-/// @brief Canonical lowercase name of an alarm domain.
+/// @brief Canonical lowercase name of an alarm domain ("hardware", ...).
+/// @param d Domain to name.
+/// @return Static string for the domain.
 const char* alarm_domain_name(AlarmDomain d)
 {
     switch (d)
@@ -48,6 +50,8 @@ const char* alarm_domain_name(AlarmDomain d)
 }
 
 /// @brief Canonical lowercase name of an X.733 type.
+/// @param t Type to name.
+/// @return Static string for the type.
 const char* x733_type_name(X733Type t)
 {
     switch (t)
@@ -61,7 +65,10 @@ const char* x733_type_name(X733Type t)
     return "unknown";
 }
 
-/// @brief Parse an alarm domain name; unknown names map to Hardware.
+/// @brief Parse an alarm domain name ("hardware" etc.).
+/// @param s Name as produced by alarm_domain_name().
+/// @param n Name to parse.
+/// @return The parsed domain; Hardware when unknown.
 AlarmDomain alarm_domain_from_name(const std::string& n)
 {
     if (n == "hardware") return AlarmDomain::Hardware;
@@ -72,7 +79,10 @@ AlarmDomain alarm_domain_from_name(const std::string& n)
     return AlarmDomain::Software; // caller validates via catalog schema
 }
 
-/// @brief Parse an X.733 type name; unknown names map to Equipment.
+/// @brief Parse an X.733 type name.
+/// @param s Name as produced by x733_type_name().
+/// @param n Name to parse.
+/// @return The parsed type; Equipment when unknown.
 X733Type x733_type_from_name(const std::string& n)
 {
     if (n == "equipment") return X733Type::Equipment;
@@ -83,7 +93,11 @@ X733Type x733_type_from_name(const std::string& n)
     return X733Type::ProcessingError;
 }
 
-/// @brief Shared module-number → display-name map (daemons then application modules).
+/// @brief Module numbering: 0x01..0x0A are the ten daemons, 0x10.. are application modules.
+///
+/// HQ renders via the shared catalog without hardcoding.
+///
+/// @return Shared module-number → display-name map.
 const std::map<uint8_t, std::string>& module_names()
 {
     static const std::map<uint8_t, std::string> m = {
@@ -92,7 +106,10 @@ const std::map<uint8_t, std::string>& module_names()
     return m;
 }
 
-/// @brief Parse a module name to its number; 0 when unknown.
+/// @brief Parse a module name to its number.
+/// @param s Module name as listed by module_names().
+/// @param name Module name as listed by module_names().
+/// @return Module number; 0 when the name is unknown.
 uint8_t module_from_name(const std::string& name)
 {
     for (const auto& kv : module_names())
@@ -100,7 +117,9 @@ uint8_t module_from_name(const std::string& name)
     return 0;
 }
 
-/// @brief Unpack a 32-bit alarm ID into its four fields.
+/// @brief Unpack a 32-bit alarm ID.
+/// @param id Packed identity.
+/// @return The unpacked AlarmId, or an InvalidArgument error for reserved domain values.
 Result<AlarmId> decode_alarm_id(uint32_t id)
 {
     AlarmId a;
@@ -112,7 +131,9 @@ Result<AlarmId> decode_alarm_id(uint32_t id)
     return Result<AlarmId>::good(a);
 }
 
-/// @brief Canonical text form of a packed ID: 0x<d>_<mod>_<t>_<idx>.
+/// @brief Canonical text form of a packed ID: 0x<domain>_<module>_<type>_<index:04x>.
+/// @param id Packed identity.
+/// @return Text such as "0x1_4_1_0007".
 std::string alarm_id_string(uint32_t id)
 {
     char buf[32];

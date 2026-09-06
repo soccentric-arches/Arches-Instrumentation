@@ -37,6 +37,7 @@
 
 namespace instr
 {
+/// @brief Length-prefixed framing for the ctrl unix sockets (§3.2).
 namespace frames
 {
 

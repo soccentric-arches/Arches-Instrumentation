@@ -32,7 +32,8 @@
 namespace instr
 {
 
-/// @brief Render the wire envelope: {"ok":true,...} / {"ok":false,...}.
+/// @brief Render the wire envelope: {"ok":true,"data":...} / {"ok":false,"error":{...}}.
+/// @return The envelope JSON text.
 std::string CommandResult::envelope() const
 {
     if (ok)
@@ -54,7 +55,9 @@ std::string CommandResult::envelope() const
     return v.dump();
 }
 
-/// @brief Parse command arguments into a JValue object (empty string → "{}").
+/// @brief Parse command arguments into a JValue object.
+/// @param json_args Raw JSON text; "{}" is substituted for an empty string.
+/// @return Parsed object, or a Corrupt error for malformed JSON.
 Result<JValue> args_object(const std::string& json_args)
 {
     if (json_args.empty()) return Result<JValue>::good(JValue::object());
@@ -65,6 +68,8 @@ Result<JValue> args_object(const std::string& json_args)
 }
 
 /// @brief --help output listing every command.
+/// @param prog Tool name used in the usage line.
+/// @return The help text.
 std::string CommandTable::help_text(const std::string& prog) const
 {
     std::ostringstream o;
@@ -85,7 +90,9 @@ std::string CommandTable::help_text(const std::string& prog) const
     return o.str();
 }
 
-/// @brief Help for a single command.
+/// @brief Help for a single command ("help <op>" output).
+/// @param op Operation name to describe.
+/// @return Help text, or a NotFound error message when unknown.
 std::string CommandTable::help_for(const std::string& op) const
 {
     const CommandSpec* s = find(op);
@@ -96,7 +103,9 @@ std::string CommandTable::help_for(const std::string& op) const
     return o.str();
 }
 
-/// @brief Generate a bash completion script for @p prog.
+/// @brief Generate a bash completion script for @p prog from the registered ops.
+/// @param prog Tool name to complete.
+/// @return The completion script.
 std::string CommandTable::completion_bash(const std::string& prog) const
 {
     std::ostringstream o;
@@ -152,7 +161,9 @@ std::string CommandTable::completion_bash(const std::string& prog) const
     return o.str();
 }
 
-/// @brief Generate a zsh completion script for @p prog.
+/// @brief Generate a zsh completion script for @p prog from the registered ops.
+/// @param prog Tool name to complete.
+/// @return The completion script.
 std::string CommandTable::completion_zsh(const std::string& prog) const
 {
     std::ostringstream o;

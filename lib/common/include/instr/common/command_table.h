@@ -53,6 +53,8 @@ struct CommandResult
     std::string json_data; ///< JSON object/string payload on success.
 
     /// @brief Construct a success result carrying a JSON payload.
+/// @param json JSON payload text.
+/// @return The success result.
     static CommandResult good(std::string json)
     {
         CommandResult r;
@@ -60,11 +62,16 @@ struct CommandResult
         return r;
     }
     /// @brief Construct a success result carrying a serialised JValue.
+/// @param v Value to serialise.
+/// @return The success result.
     static CommandResult good(JValue v)
     {
         return good(v.dump());
     }
     /// @brief Construct a failure result from an Errc code and message.
+/// @param c Failure category.
+/// @param msg Diagnosable failure text.
+/// @return The failure result.
     static CommandResult err(Errc c, const std::string& msg)
     {
         CommandResult r;
@@ -74,16 +81,22 @@ struct CommandResult
         return r;
     }
     /// @brief Construct a failure result (extra context argument kept for ABI compatibility).
+/// @param c Failure category.
+/// @param msg Diagnosable failure text.
+/// @return The failure result.
     static CommandResult err(Errc c, const std::string& msg, const std::string&)
     {
         return err(c, msg);
     }
     /// @brief Convert a generic Error into a result (success maps to an empty JSON object).
+/// @param e Error to convert.
+/// @return The result (success maps to an empty JSON object).
     static CommandResult from_error(const Error& e)
     {
         return e.ok() ? good(std::string("{}")) : err(e.code, e.str());
     }
     /// @brief Render the wire envelope: {"ok":true,"data":...} / {"ok":false,"error":{...}}.
+    /// @return The envelope JSON text.
     std::string envelope() const;
 };
 
@@ -109,18 +122,22 @@ class CommandTable
 {
   public:
     /// @brief Register a command (replaces any existing spec with the same op).
+/// @param spec Command to register.
     void add(CommandSpec spec)
     {
         ops_[spec.op] = std::move(spec);
     }
     /// @brief Look up a command by operation name.
     /// @return Pointer to the spec, or nullptr when unknown.
+/// @param op Operation name.
+/// @return Pointer to the spec, or nullptr when unknown.
     const CommandSpec* find(const std::string& op) const
     {
         auto it = ops_.find(op);
         return it == ops_.end() ? nullptr : &it->second;
     }
     /// @brief All registered commands, in op order.
+/// @return All registered commands, in op order.
     std::vector<const CommandSpec*> all() const
     {
         std::vector<const CommandSpec*> out;
@@ -144,7 +161,9 @@ class CommandTable
         return spec->handler(json_args);
     }
 
-    /// @brief --help output listing every command; @p prog names the tool for the usage line.
+    /// @brief --help output listing every command.
+    /// @param prog Tool name used in the usage line.
+    /// @return The help text.
     std::string help_text(const std::string& prog) const;
     /// @brief Help for a single command ("help <op>" output).
     /// @param op Operation name to describe.
@@ -152,8 +171,12 @@ class CommandTable
     std::string help_for(const std::string& op) const;
 
     /// @brief Generate a bash completion script for @p prog from the registered ops.
+    /// @param prog Tool name to complete.
+    /// @return The completion script.
     std::string completion_bash(const std::string& prog) const;
     /// @brief Generate a zsh completion script for @p prog from the registered ops.
+    /// @param prog Tool name to complete.
+    /// @return The completion script.
     std::string completion_zsh(const std::string& prog) const;
 
   private:

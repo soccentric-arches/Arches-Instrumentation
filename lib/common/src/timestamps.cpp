@@ -32,21 +32,22 @@
 namespace instr
 {
 
-/// @copydoc TimeSource::mono_ns
+/// @brief Monotonic clock reading in nanoseconds (resets per boot).
 uint64_t SystemTimeSource::mono_ns()
 {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return static_cast<uint64_t>(ts.tv_sec) * 1'000'000'000ull + static_cast<uint64_t>(ts.tv_nsec);
 }
-/// @copydoc TimeSource::wall_ns
+/// @brief Wall-clock reading in nanoseconds since the epoch; may be wrong before a lock.
 int64_t SystemTimeSource::wall_ns()
 {
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
     return static_cast<int64_t>(ts.tv_sec) * 1'000'000'000ll + ts.tv_nsec;
 }
-/// @copydoc TimeSource::boot_id
+/// @brief Boot identifier distinguishing monotonic timelines across reboots.
+/// @return The boot id string.
 std::string SystemTimeSource::boot_id()
 {
     FILE* f = std::fopen("/proc/sys/kernel/random/boot_id", "r");
@@ -58,7 +59,7 @@ std::string SystemTimeSource::boot_id()
     while (!s.empty() && (s.back() == '\n' || s.back() == '\r' || s.back() == ' ')) s.pop_back();
     return s;
 }
-/// @copydoc TimeSource::next_seq
+/// @brief Next process-wide arrival-order sequence number (strictly increasing).
 uint64_t SystemTimeSource::next_seq()
 {
     static uint64_t counter = 0;
@@ -66,6 +67,8 @@ uint64_t SystemTimeSource::next_seq()
 }
 
 /// @brief Build a Stamp from any TimeSource (seq assigned by the source).
+/// @param ts Source to read from.
+/// @return Fully populated Stamp with wall_valid set.
 Stamp make_stamp(TimeSource& ts)
 {
     Stamp s;
@@ -78,12 +81,23 @@ Stamp make_stamp(TimeSource& ts)
 }
 
 /// @brief Record a monotonic-only observation awaiting wall-clock stamping.
+///
+/// Used for spooled data produced while the clock was unavailable.
+///
+/// @param mono_ns Monotonic reading of the observation.
 void TimeReconciler::record_pending(uint64_t mono_ns)
 {
     pending_.push_back(Pending{ts_.next_seq(), mono_ns});
 }
 
-/// @brief Re-stamp all pending records in seq order with non-decreasing wall time.
+/// @brief On lock: re-stamp all pending records.
+///
+/// History is never reordered: stamps materialise in seq order with
+/// non-decreasing wall time.
+///
+/// @param offset_ns Wall-clock correction reported by the time source.
+/// @param source Identifier of the lock source (e.g. "gnss", "ntp").
+/// @return Number of pending records re-stamped.
 size_t TimeReconciler::reconcile(int64_t offset_ns, const std::string& source)
 {
     // Establish the mapping monotonic → wall with the correction applied.
@@ -115,6 +129,7 @@ size_t TimeReconciler::reconcile(int64_t offset_ns, const std::string& source)
 }
 
 /// @brief Remove and return the stamps produced by reconcile(), ordered by seq.
+/// @return The stamps drained from the reconciler.
 std::vector<Stamp> TimeReconciler::take_stamped()
 {
     std::vector<Stamp> out;
@@ -123,6 +138,7 @@ std::vector<Stamp> TimeReconciler::take_stamped()
 }
 
 /// @brief Stamp an observation made *now*.
+/// @return Stamp with wall_valid set only if a lock has been acquired.
 Stamp TimeReconciler::stamp_now()
 {
     Stamp s;
@@ -134,7 +150,14 @@ Stamp TimeReconciler::stamp_now()
     return s;
 }
 
-/// @brief Project a historical monotonic sample onto the locked wall timeline.
+/// @brief Wall time for a historical monotonic sample under the reconciler's locked mapping.
+///
+/// For re-stamping historical monotonic samples:
+/// wall(mono) = base_wall + (mono - base_mono).
+///
+/// @param rec Reconciler owning the locked timeline.
+/// @param mono_ns Monotonic reading to project.
+/// @return Projected wall time; 0 when no lock has been acquired.
 int64_t project_wall_ns(const TimeReconciler& rec, uint64_t mono_ns)
 {
     // Re-stamping spooled data: wall(mono) = base_wall + (mono - base_mono)

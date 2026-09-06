@@ -49,39 +49,65 @@ namespace instr
 class IFileSystem
 {
   public:
+    /// @brief Default destructor.
     virtual ~IFileSystem() = default;
 
     /// @brief Test whether a path exists.
+    /// @param path Path to test.
+    /// @return True when it exists.
     virtual bool exists(const std::string& path) = 0;
     /// @brief Read a whole file.
+    /// @param path File to read.
     /// @return File contents, or an Io/NotFound error.
     virtual Result<std::string> read(const std::string& path) = 0;
     /// @brief Plain write (not atomic); callers needing atomicity use AtomicFile.
+    /// @param path Destination file.
+    /// @param data Complete contents to write.
     /// @param append Append instead of truncate when true.
+    /// @return ok(), or the underlying I/O error.
     virtual Error write(const std::string& path, const std::string& data, bool append = false) = 0;
     /// @brief Create a directory and any missing parents.
+    /// @param path Directory to create.
+    /// @return ok(), or the underlying I/O error.
     virtual Error mkdirs(const std::string& path) = 0;
     /// @brief Remove a file or directory (recursively when @p recursive).
+    /// @param path Path to remove.
+    /// @param recursive Remove directory contents when true.
+    /// @return ok(), or the underlying I/O error.
     virtual Error remove(const std::string& path, bool recursive = false) = 0;
     /// @brief Rename/move a path within the same filesystem.
+    /// @param from Source path.
+    /// @param to Destination path.
+    /// @return ok(), or the underlying I/O error.
     virtual Error rename(const std::string& from, const std::string& to) = 0;
     /// @brief List entry names in a directory.
+    /// @param path Directory to list.
+    /// @return Entry names, or an Io/NotFound error.
     virtual Result<std::vector<std::string>> list_dir(const std::string& path) = 0;
     /// @brief Size of a file in bytes.
+    /// @param path File to measure.
+    /// @return Size in bytes, or an error.
     virtual Result<uint64_t> file_size(const std::string& path) = 0;
     /// @brief Last-modification time, unix seconds.
     ///
     /// Age-based retention (§7.7) needs it, and a store that cannot tell how
     /// old a file is cannot honour a retention policy expressed in days.
     ///
-    /// @return Mtime in unix seconds.
+    /// @param path File to query.
+    /// @return Mtime in unix seconds, or an error.
     virtual Result<int64_t> file_mtime_s(const std::string& path) = 0;
     /// @brief Free space on the filesystem containing @p path.
-    /// @return Bytes available.
+    /// @param path Any path on the filesystem of interest.
+    /// @return Bytes available, or an error.
     virtual Result<uint64_t> free_space(const std::string& path) = 0;
     /// @brief Flush a file or directory to stable storage.
+    /// @param path Path to flush.
+    /// @return ok(), or the underlying I/O error.
     virtual Error fsync_path(const std::string& path) = 0;
     /// @brief Join two path components with a single separator.
+/// @param a Left component.
+/// @param b Right component.
+/// @return The joined path.
     virtual std::string join(const std::string& a, const std::string& b) const
     {
         return a.empty() ? b : (a.back() == '/' ? a + b : a + "/" + b);
@@ -92,27 +118,57 @@ class IFileSystem
 class NativeFileSystem : public IFileSystem
 {
   public:
-    /// @copydoc IFileSystem::exists
+    /// @brief Test whether a path exists.
+    /// @param path Path to test.
+    /// @return True when it exists.
     bool exists(const std::string& path) override;
-    /// @copydoc IFileSystem::read
+    /// @brief Read a whole file.
+    /// @param path File to read.
+    /// @return File contents, or an Io/NotFound error.
     Result<std::string> read(const std::string& path) override;
-    /// @copydoc IFileSystem::write
+    /// @brief Plain write (not atomic); callers needing atomicity use AtomicFile.
+    /// @param path Destination file.
+    /// @param data Complete contents to write.
+    /// @param append Append instead of truncate when true.
+    /// @return ok(), or the underlying I/O error.
     Error write(const std::string& path, const std::string& data, bool append = false) override;
-    /// @copydoc IFileSystem::mkdirs
+    /// @brief Create a directory and any missing parents.
+    /// @param path Directory to create.
+    /// @return ok(), or the underlying I/O error.
     Error mkdirs(const std::string& path) override;
-    /// @copydoc IFileSystem::remove
+    /// @brief Remove a file or directory (recursively when @p recursive).
+    /// @param path Path to remove.
+    /// @param recursive Remove directory contents when true.
+    /// @return ok(), or the underlying I/O error.
     Error remove(const std::string& path, bool recursive) override;
-    /// @copydoc IFileSystem::rename
+    /// @brief Rename/move a path within the same filesystem.
+    /// @param from Source path.
+    /// @param to Destination path.
+    /// @return ok(), or the underlying I/O error.
     Error rename(const std::string& from, const std::string& to) override;
-    /// @copydoc IFileSystem::list_dir
+    /// @brief List entry names in a directory.
+    /// @param path Directory to list.
+    /// @return Entry names, or an Io/NotFound error.
     Result<std::vector<std::string>> list_dir(const std::string& path) override;
-    /// @copydoc IFileSystem::file_size
+    /// @brief Size of a file in bytes.
+    /// @param path File to measure.
+    /// @return Size in bytes, or an error.
     Result<uint64_t> file_size(const std::string& path) override;
-    /// @copydoc IFileSystem::file_mtime_s
+    /// @brief Last-modification time, unix seconds.
+    ///
+    /// Age-based retention (§7.7) needs it, and a store that cannot tell how
+    /// old a file is cannot honour a retention policy expressed in days.
+    ///
+    /// @param path File to query.
+    /// @return Mtime in unix seconds, or an error.
     Result<int64_t> file_mtime_s(const std::string& path) override;
-    /// @copydoc IFileSystem::free_space
+    /// @brief Free space on the filesystem containing @p path.
+    /// @param path Any path on the filesystem of interest.
+    /// @return Bytes available, or an error.
     Result<uint64_t> free_space(const std::string& path) override;
-    /// @copydoc IFileSystem::fsync_path
+    /// @brief Flush a file or directory to stable storage.
+    /// @param path Path to flush.
+    /// @return ok(), or the underlying I/O error.
     Error fsync_path(const std::string& path) override;
 };
 
@@ -120,45 +176,80 @@ class NativeFileSystem : public IFileSystem
 class SimulatedFileSystem : public IFileSystem
 {
   public:
-    /// @copydoc IFileSystem::exists
+    /// @brief Test whether a path exists.
+    /// @param path Path to test.
+    /// @return True when it exists.
     bool exists(const std::string& path) override;
-    /// @copydoc IFileSystem::read
+    /// @brief Read a whole file.
+    /// @param path File to read.
+    /// @return File contents, or an Io/NotFound error.
     Result<std::string> read(const std::string& path) override;
-    /// @copydoc IFileSystem::write
+    /// @brief Plain write (not atomic); callers needing atomicity use AtomicFile.
+    /// @param path Destination file.
+    /// @param data Complete contents to write.
+    /// @param append Append instead of truncate when true.
+    /// @return ok(), or the underlying I/O error.
     Error write(const std::string& path, const std::string& data, bool append = false) override;
-    /// @copydoc IFileSystem::mkdirs
+    /// @brief Create a directory and any missing parents.
+    /// @param path Directory to create.
+    /// @return ok(), or the underlying I/O error.
     Error mkdirs(const std::string& path) override;
-    /// @copydoc IFileSystem::remove
+    /// @brief Remove a file or directory (recursively when @p recursive).
+    /// @param path Path to remove.
+    /// @param recursive Remove directory contents when true.
+    /// @return ok(), or the underlying I/O error.
     Error remove(const std::string& path, bool recursive) override;
-    /// @copydoc IFileSystem::rename
+    /// @brief Rename/move a path within the same filesystem.
+    /// @param from Source path.
+    /// @param to Destination path.
+    /// @return ok(), or the underlying I/O error.
     Error rename(const std::string& from, const std::string& to) override;
-    /// @copydoc IFileSystem::list_dir
+    /// @brief List entry names in a directory.
+    /// @param path Directory to list.
+    /// @return Entry names, or an Io/NotFound error.
     Result<std::vector<std::string>> list_dir(const std::string& path) override;
-    /// @copydoc IFileSystem::file_size
+    /// @brief Size of a file in bytes.
+    /// @param path File to measure.
+    /// @return Size in bytes, or an error.
     Result<uint64_t> file_size(const std::string& path) override;
-    /// @copydoc IFileSystem::file_mtime_s
+    /// @brief Last-modification time, unix seconds.
+    ///
+    /// Age-based retention (§7.7) needs it, and a store that cannot tell how
+    /// old a file is cannot honour a retention policy expressed in days.
+    ///
+    /// @param path File to query.
+    /// @return Mtime in unix seconds, or an error.
     Result<int64_t> file_mtime_s(const std::string& path) override;
-    /// @copydoc IFileSystem::free_space
+    /// @brief Free space on the filesystem containing @p path.
+    /// @param path Any path on the filesystem of interest.
+    /// @return Bytes available, or an error.
     Result<uint64_t> free_space(const std::string& path) override;
-    /// @copydoc IFileSystem::fsync_path
+    /// @brief Flush a file or directory to stable storage.
+    /// @param path Path to flush.
+    /// @return ok(), or the underlying I/O error.
     Error fsync_path(const std::string& path) override;
 
     /// @brief Fail writes from the n-th write onwards (1-based; 0 disables).
+/// @param n Write number to fail from (1-based; 0 disables).
     void fail_writes_after(int n)
     {
         fail_writes_after_ = n;
     }
     /// @brief Corrupt data returned by reads of @p path from the n-th read onwards (simulates bit rot / torn sector).
+/// @param path Path whose reads are corrupted.
+/// @param from_read Read number to corrupt from (1-based).
     void corrupt_reads_of(const std::string& path, int from_read)
     {
         corrupt_[path] = from_read;
     }
     /// @brief Clamp reported free space (simulates a filling / full partition).
+/// @param bytes Free space to report.
     void set_free_space(uint64_t bytes)
     {
         free_space_ = bytes;
     }
     /// @brief Set the simulated clock; tests advance it to age files without waiting.
+/// @param t Simulated unix time in seconds.
     void set_now_unix_s(int64_t t)
     {
         now_unix_s_ = t;
@@ -169,16 +260,20 @@ class SimulatedFileSystem : public IFileSystem
         return now_unix_s_;
     }
     /// @brief Force the mtime of a file (ageing without waiting).
+/// @param path File to stamp.
+/// @param t Mtime in unix seconds.
     void set_file_mtime_s(const std::string& path, int64_t t)
     {
         mtimes_[path] = t;
     }
     /// @brief Make every rename fail (simulates cross-device or ro-remount errors).
+/// @param v True to fail every rename.
     void fail_renames(bool v)
     {
         fail_renames_ = v;
     }
     /// @brief Make every mkdirs fail (simulates read-only storage).
+/// @param v True to fail every mkdirs.
     void fail_mkdirs(bool v)
     {
         fail_mkdirs_ = v;
@@ -193,6 +288,7 @@ class SimulatedFileSystem : public IFileSystem
     }
 
     /// @brief View of the raw file contents (test introspection).
+/// @return View of the raw file contents (test introspection).
     const std::map<std::string, std::string>& raw() const
     {
         return files_;
@@ -202,6 +298,7 @@ class SimulatedFileSystem : public IFileSystem
 
   private:
     /// @brief Internal helper deciding whether a key denotes a directory.
+    /// @param p Path to test.
     bool is_dir(const std::string& p) const;
     std::map<std::string, std::string> files_; ///< Files only: path → contents.
     std::map<std::string, bool> dirs_; ///< Directories: path → recursive-creation flag.

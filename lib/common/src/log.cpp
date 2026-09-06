@@ -35,6 +35,8 @@ namespace instr
 {
 
 /// @brief Canonical uppercase name of a level ("INFO", "ERROR", ...).
+/// @param l Level to name.
+/// @return Static string for the level; "INFO" when out of range.
 const char* log_level_name(LogLevel l)
 {
     switch (l)
@@ -49,7 +51,9 @@ const char* log_level_name(LogLevel l)
     return "?";
 }
 
-/// @brief Parse a level name (case-insensitive); unknown names map to Info.
+/// @brief Parse a level name (case-insensitive, e.g. "INFO" -> Info).
+/// @param n Name as produced by log_level_name().
+/// @return The parsed level; Info when the name is unknown.
 LogLevel log_level_from_name(const std::string& n)
 {
     std::string u;
@@ -64,7 +68,8 @@ LogLevel log_level_from_name(const std::string& n)
 
 // ---------------- sinks ----------------
 
-/// @copydoc ISink::write
+/// @brief Consume one accepted log record.
+/// @param r Record to write; the sink must not retain a reference past the call.
 void StderrSink::write(const LogRecord& r)
 {
     char tbuf[32];
@@ -77,7 +82,8 @@ void StderrSink::write(const LogRecord& r)
     std::fprintf(stderr, "\n");
 }
 
-/// @copydoc ISink::write
+/// @brief Consume one accepted log record.
+/// @param r Record to write; the sink must not retain a reference past the call.
 void MemorySink::write(const LogRecord& r)
 {
     buf_.push_back(r);
@@ -87,6 +93,7 @@ void MemorySink::write(const LogRecord& r)
 // ---------------- redaction ----------------
 
 /// @brief The credential-like key names that are always redacted.
+/// @return Static list, e.g. contains password, token, psk and friends.
 const std::vector<std::string>& Redactor::secret_key_names()
 {
     static const std::vector<std::string> names = {
@@ -96,6 +103,8 @@ const std::vector<std::string>& Redactor::secret_key_names()
 }
 
 /// @brief Lowercase helper for case-insensitive name matching.
+/// @param s Text to lowercase.
+/// @return The lowercased text.
 static std::string lower(const std::string& s)
 {
     std::string o;
@@ -104,6 +113,8 @@ static std::string lower(const std::string& s)
 }
 
 /// @brief Decide whether a field key refers to credential material.
+/// @param key Field key to test.
+/// @return True when the key must be redacted.
 bool Redactor::is_secret_key(const std::string& key)
 {
     const std::string k = lower(key);
@@ -113,6 +124,9 @@ bool Redactor::is_secret_key(const std::string& key)
 }
 
 /// @brief Redact a field value under a credential-like key.
+/// @param key Field key (drives redaction shape, e.g. partial reveal).
+/// @param value Raw value that must not reach a sink verbatim.
+/// @return Safe replacement text for the value.
 std::string Redactor::redact_value(const std::string& key, const std::string& value)
 {
     if (is_secret_key(key)) return "[REDACTED]";
@@ -124,12 +138,16 @@ namespace
 
 // Characters that may appear inside a key token ("wg-private.key", "api_key").
 /// @brief Decide whether a character may appear inside a log field key.
+/// @param c Character to test.
+/// @return True when valid in a key.
 inline bool is_key_char(char c)
 {
     return std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '-' || c == '.';
 }
 // A value ends at the first structural delimiter.
 /// @brief Decide whether a character terminates a log value token.
+/// @param c Character to test.
+/// @return True when it terminates a value.
 inline bool ends_value(char c)
 {
     return std::isspace(static_cast<unsigned char>(c)) || c == ',' || c == '"' || c == '\'' || c == '}' || c == ']' || c == ')' || c == ';';
@@ -138,6 +156,8 @@ inline bool ends_value(char c)
 } // namespace
 
 /// @brief Mask raw credential material appearing inside free-form text.
+/// @param text Message body to scrub.
+/// @return Text with any recognised credential substrings masked.
 std::string Redactor::redact_text(const std::string& text)
 {
     const std::string lowered = lower(text);
@@ -204,12 +224,18 @@ double Logger::now_s()
 }
 
 /// @brief Rate-limit one source: max N messages/s, surplus dropped and summarised.
+/// @param source Source name to limit.
+/// @param max_per_s Allowed message rate; surplus is suppressed.
 void Logger::set_rate_limit(const std::string& source, double max_per_s)
 {
     rate_limits_[source] = RateBucket{max_per_s, now_s(), max_per_s};
 }
 
 /// @brief Emit a record: level-filtered, rate-limited, secret-redacted, then written to the sink.
+/// @param lvl Severity of the record.
+/// @param source Emitting component name.
+/// @param msg Event text (credential material is masked before writing).
+/// @param fields Optional structured key=value pairs (secret keys redacted).
 void Logger::log(LogLevel lvl, const std::string& source, const std::string& msg, const std::map<std::string, std::string>& fields)
 {
     // Effective level: per-source override, else global.

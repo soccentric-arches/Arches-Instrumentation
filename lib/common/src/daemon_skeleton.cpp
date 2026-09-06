@@ -41,7 +41,11 @@
 namespace instr
 {
 
-/// @brief Parse the shared daemon command-line arguments.
+/// @brief Parse the shared daemon arguments (@p daemon_name fills DaemonArgs::name).
+/// @param argc Argc from main().
+/// @param argv Argv from main().
+/// @param daemon_name Identity used for the usage line.
+/// @return Parsed arguments; help=true when --help was present.
 DaemonArgs parse_daemon_args(int argc, char** argv, const std::string& daemon_name)
 {
     DaemonArgs a;
@@ -69,7 +73,11 @@ static void on_signal(int)
     if (g_stop) g_stop->store(true);
 }
 
-/// @brief Install SIGINT/SIGTERM handlers setting @p stop_flag; ignore SIGPIPE.
+/// @brief Install SIGINT/SIGTERM handlers that set @p stop_flag (graceful shutdown).
+///
+/// SIGPIPE is ignored (write errors are handled via Result).
+///
+/// @param stop_flag Atomic set on SIGINT/SIGTERM.
 void install_signal_handlers(std::atomic<bool>& stop_flag)
 {
     g_stop = &stop_flag;
@@ -81,7 +89,9 @@ void install_signal_handlers(std::atomic<bool>& stop_flag)
     signal(SIGPIPE, SIG_IGN);
 }
 
-/// @brief Send a datagram NOTIFY_SOCKET notification when supervised.
+/// @brief systemd readiness notification via NOTIFY_SOCKET (datagram, no libsystemd dependency).
+/// @param status e.g. "READY=1".
+/// @return False when NOTIFY_SOCKET is unset (running unsupervised).
 bool sd_notify(const std::string& status)
 {
     const char* path = ::getenv("NOTIFY_SOCKET");
@@ -105,7 +115,14 @@ bool sd_notify(const std::string& status)
     return n >= 0;
 }
 
-/// @brief Run the heartbeat loop until stop is signalled or heartbeat fails.
+/// @brief Block until @p stop_flag is set or @p heartbeat returns false.
+///
+/// The heartbeat runs every @p poll_ms and normally performs periodic work;
+/// returning false ends the loop early.
+///
+/// @param stop_flag Atomic watched for shutdown.
+/// @param heartbeat Periodic work callback.
+/// @param poll_ms Sleep between heartbeat invocations.
 void run_until_stop(const std::atomic<bool>& stop_flag, const std::function<bool()>& heartbeat, int poll_ms)
 {
     while (!stop_flag.load())

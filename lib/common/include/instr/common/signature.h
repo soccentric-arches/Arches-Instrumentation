@@ -50,6 +50,7 @@
 
 namespace instr
 {
+/// @brief Self-contained cryptographic primitives (hashes, AEAD, X25519) and signature verification.
 namespace crypto
 {
 
@@ -60,6 +61,10 @@ namespace crypto
 /// raw bytes. Returns ok() only on a good signature: every other outcome —
 /// malformed key, wrong length, unavailable backend — is an error, never a
 /// pass.
+/// @param public_key 32 raw Ed25519 public key bytes.
+/// @param message The exact bytes that were signed.
+/// @param signature 64 raw signature bytes.
+/// @return ok() only on a good signature; every other outcome is an error.
 Error verify_ed25519(const std::string& public_key, const std::string& message, const std::string& signature);
 
 /// @brief True when a signature backend is compiled in.
@@ -70,6 +75,10 @@ Error verify_ed25519(const std::string& public_key, const std::string& message, 
 bool signature_verification_available();
 
 /// @brief Convenience overload accepting a base64 key and signature (the wire form).
+/// @param public_key_b64 Base64-encoded 32-byte public key.
+/// @param message The exact bytes that were signed.
+/// @param signature_b64 Base64-encoded 64-byte signature.
+/// @return ok() only on a good signature.
 Error verify_ed25519_b64(const std::string& public_key_b64, const std::string& message, const std::string& signature_b64);
 
 } // namespace crypto

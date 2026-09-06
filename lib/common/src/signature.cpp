@@ -35,10 +35,15 @@
 
 namespace instr
 {
+/// @brief Self-contained cryptographic primitives (hashes, AEAD, X25519) and signature verification.
 namespace crypto
 {
 
 /// @brief True when a signature backend is compiled in.
+///
+/// Used to report the device's security posture northbound, not to decide
+/// whether to enforce: with no backend, verification fails and signed content
+/// is refused.
 bool signature_verification_available()
 {
 #ifdef INSTR_HAVE_OPENSSL
@@ -48,7 +53,17 @@ bool signature_verification_available()
 #endif
 }
 
-/// @brief Verify an Ed25519 signature; fails closed on every abnormal outcome.
+/// @brief Verify an Ed25519 signature over @p message.
+///
+/// @p public_key is 32 raw bytes (the HQ/release signing key, provisioned in
+/// the image or at enrollment — never a device secret); @p signature is 64
+/// raw bytes. Returns ok() only on a good signature: every other outcome —
+/// malformed key, wrong length, unavailable backend — is an error, never a
+/// pass.
+/// @param public_key 32 raw Ed25519 public key bytes.
+/// @param message The exact bytes that were signed.
+/// @param signature 64 raw signature bytes.
+/// @return ok() only on a good signature; every other outcome is an error.
 Error verify_ed25519(const std::string& public_key, const std::string& message, const std::string& signature)
 {
     if (public_key.size() != 32) return Error::make(Errc::InvalidArgument, "Ed25519 public key must be 32 bytes, got " + std::to_string(public_key.size()), "signature");
@@ -81,7 +96,11 @@ Error verify_ed25519(const std::string& public_key, const std::string& message, 
 #endif
 }
 
-/// @brief Base64 convenience overload of verify_ed25519().
+/// @brief Convenience overload accepting a base64 key and signature (the wire form).
+/// @param public_key_b64 Base64-encoded 32-byte public key.
+/// @param message The exact bytes that were signed.
+/// @param signature_b64 Base64-encoded 64-byte signature.
+/// @return ok() only on a good signature.
 Error verify_ed25519_b64(const std::string& public_key_b64, const std::string& message, const std::string& signature_b64)
 {
     auto key = base64_decode(public_key_b64);

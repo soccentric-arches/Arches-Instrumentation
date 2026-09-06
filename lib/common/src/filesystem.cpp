@@ -41,14 +41,18 @@ namespace instr
 
 // ---------------- NativeFileSystem ----------------
 
-/// @copydoc IFileSystem::exists
+/// @brief Test whether a path exists.
+/// @param path Path to test.
+/// @return True when it exists.
 bool NativeFileSystem::exists(const std::string& path)
 {
     struct stat st;
     return ::stat(path.c_str(), &st) == 0;
 }
 
-/// @copydoc IFileSystem::read
+/// @brief Read a whole file.
+/// @param path File to read.
+/// @return File contents, or an Io/NotFound error.
 Result<std::string> NativeFileSystem::read(const std::string& path)
 {
     int fd = ::open(path.c_str(), O_RDONLY);
@@ -63,7 +67,11 @@ Result<std::string> NativeFileSystem::read(const std::string& path)
     return Result<std::string>::good(std::move(out));
 }
 
-/// @copydoc IFileSystem::write
+/// @brief Plain write (not atomic); callers needing atomicity use AtomicFile.
+/// @param path Destination file.
+/// @param data Complete contents to write.
+/// @param append Append instead of truncate when true.
+/// @return ok(), or the underlying I/O error.
 Error NativeFileSystem::write(const std::string& path, const std::string& data, bool append)
 {
     int flags = O_WRONLY | O_CREAT | (append ? O_APPEND : O_TRUNC);
@@ -86,7 +94,9 @@ Error NativeFileSystem::write(const std::string& path, const std::string& data, 
     return Error::none();
 }
 
-/// @copydoc IFileSystem::mkdirs
+/// @brief Create a directory and any missing parents.
+/// @param path Directory to create.
+/// @return ok(), or the underlying I/O error.
 Error NativeFileSystem::mkdirs(const std::string& path)
 {
     std::string cur;
@@ -99,7 +109,10 @@ Error NativeFileSystem::mkdirs(const std::string& path)
     return Error::none();
 }
 
-/// @copydoc IFileSystem::remove
+/// @brief Remove a file or directory (recursively when @p recursive).
+/// @param path Path to remove.
+/// @param recursive Remove directory contents when true.
+/// @return ok(), or the underlying I/O error.
 Error NativeFileSystem::remove(const std::string& path, bool recursive)
 {
     struct stat st;
@@ -125,14 +138,19 @@ Error NativeFileSystem::remove(const std::string& path, bool recursive)
     return Error::none();
 }
 
-/// @copydoc IFileSystem::rename
+/// @brief Rename/move a path within the same filesystem.
+/// @param from Source path.
+/// @param to Destination path.
+/// @return ok(), or the underlying I/O error.
 Error NativeFileSystem::rename(const std::string& from, const std::string& to)
 {
     if (::rename(from.c_str(), to.c_str()) != 0) return Error::make(Errc::Io, "rename failed: " + std::string(strerror(errno)), from + " -> " + to);
     return Error::none();
 }
 
-/// @copydoc IFileSystem::list_dir
+/// @brief List entry names in a directory.
+/// @param path Directory to list.
+/// @return Entry names, or an Io/NotFound error.
 Result<std::vector<std::string>> NativeFileSystem::list_dir(const std::string& path)
 {
     DIR* d = ::opendir(path.c_str());
@@ -150,7 +168,9 @@ Result<std::vector<std::string>> NativeFileSystem::list_dir(const std::string& p
     return Result<std::vector<std::string>>::good(std::move(out));
 }
 
-/// @copydoc IFileSystem::file_size
+/// @brief Size of a file in bytes.
+/// @param path File to measure.
+/// @return Size in bytes, or an error.
 Result<uint64_t> NativeFileSystem::file_size(const std::string& path)
 {
     struct stat st;
@@ -158,7 +178,9 @@ Result<uint64_t> NativeFileSystem::file_size(const std::string& path)
     return Result<uint64_t>::good(uint64_t(st.st_size));
 }
 
-/// @copydoc IFileSystem::free_space
+/// @brief Free space on the filesystem containing @p path.
+/// @param path Any path on the filesystem of interest.
+/// @return Bytes available, or an error.
 Result<uint64_t> NativeFileSystem::free_space(const std::string& path)
 {
     struct statvfs v;
@@ -166,7 +188,9 @@ Result<uint64_t> NativeFileSystem::free_space(const std::string& path)
     return Result<uint64_t>::good(uint64_t(v.f_bavail) * uint64_t(v.f_frsize));
 }
 
-/// @copydoc IFileSystem::fsync_path
+/// @brief Flush a file or directory to stable storage.
+/// @param path Path to flush.
+/// @return ok(), or the underlying I/O error.
 Error NativeFileSystem::fsync_path(const std::string& path)
 {
     int fd = ::open(path.c_str(), O_RDONLY);
@@ -179,18 +203,23 @@ Error NativeFileSystem::fsync_path(const std::string& path)
 // ---------------- SimulatedFileSystem ----------------
 
 /// @brief Internal helper deciding whether a key denotes a directory.
+/// @param p Path to test.
 bool SimulatedFileSystem::is_dir(const std::string& p) const
 {
     return dirs_.count(p) > 0;
 }
 
-/// @copydoc IFileSystem::exists
+/// @brief Test whether a path exists.
+/// @param path Path to test.
+/// @return True when it exists.
 bool SimulatedFileSystem::exists(const std::string& path)
 {
     return files_.count(path) > 0 || is_dir(path);
 }
 
-/// @copydoc IFileSystem::read
+/// @brief Read a whole file.
+/// @param path File to read.
+/// @return File contents, or an Io/NotFound error.
 Result<std::string> SimulatedFileSystem::read(const std::string& path)
 {
     auto it = files_.find(path);
@@ -206,7 +235,11 @@ Result<std::string> SimulatedFileSystem::read(const std::string& path)
     return Result<std::string>::good(std::move(data));
 }
 
-/// @copydoc IFileSystem::write
+/// @brief Plain write (not atomic); callers needing atomicity use AtomicFile.
+/// @param path Destination file.
+/// @param data Complete contents to write.
+/// @param append Append instead of truncate when true.
+/// @return ok(), or the underlying I/O error.
 Error SimulatedFileSystem::write(const std::string& path, const std::string& data, bool append)
 {
     ++write_count_;
@@ -230,7 +263,9 @@ Error SimulatedFileSystem::write(const std::string& path, const std::string& dat
     return Error::none();
 }
 
-/// @copydoc IFileSystem::mkdirs
+/// @brief Create a directory and any missing parents.
+/// @param path Directory to create.
+/// @return ok(), or the underlying I/O error.
 Error SimulatedFileSystem::mkdirs(const std::string& path)
 {
     if (fail_mkdirs_) return Error::make(Errc::Io, "simulated mkdir failure", path);
@@ -252,7 +287,10 @@ Error SimulatedFileSystem::mkdirs(const std::string& path)
     return Error::none();
 }
 
-/// @copydoc IFileSystem::remove
+/// @brief Remove a file or directory (recursively when @p recursive).
+/// @param path Path to remove.
+/// @param recursive Remove directory contents when true.
+/// @return ok(), or the underlying I/O error.
 Error SimulatedFileSystem::remove(const std::string& path, bool recursive)
 {
     if (files_.erase(path) > 0) return Error::none();
@@ -289,7 +327,10 @@ Error SimulatedFileSystem::remove(const std::string& path, bool recursive)
     return Error::make(Errc::NotFound, "not found", path);
 }
 
-/// @copydoc IFileSystem::rename
+/// @brief Rename/move a path within the same filesystem.
+/// @param from Source path.
+/// @param to Destination path.
+/// @return ok(), or the underlying I/O error.
 Error SimulatedFileSystem::rename(const std::string& from, const std::string& to)
 {
     if (fail_renames_) return Error::make(Errc::Io, "simulated rename failure", from);
@@ -349,7 +390,9 @@ Error SimulatedFileSystem::rename(const std::string& from, const std::string& to
     return Error::make(Errc::NotFound, "rename source not found", from);
 }
 
-/// @copydoc IFileSystem::list_dir
+/// @brief List entry names in a directory.
+/// @param path Directory to list.
+/// @return Entry names, or an Io/NotFound error.
 Result<std::vector<std::string>> SimulatedFileSystem::list_dir(const std::string& path)
 {
     if (!is_dir(path)) return Result<std::vector<std::string>>::fail(Errc::NotFound, "not a directory", path);
@@ -375,7 +418,9 @@ Result<std::vector<std::string>> SimulatedFileSystem::list_dir(const std::string
     return Result<std::vector<std::string>>::good(std::move(out));
 }
 
-/// @copydoc IFileSystem::file_size
+/// @brief Size of a file in bytes.
+/// @param path File to measure.
+/// @return Size in bytes, or an error.
 Result<uint64_t> SimulatedFileSystem::file_size(const std::string& path)
 {
     auto it = files_.find(path);
@@ -383,13 +428,17 @@ Result<uint64_t> SimulatedFileSystem::file_size(const std::string& path)
     return Result<uint64_t>::good(it->second.size());
 }
 
-/// @copydoc IFileSystem::free_space
+/// @brief Free space on the filesystem containing @p path.
+/// @param path Any path on the filesystem of interest.
+/// @return Bytes available, or an error.
 Result<uint64_t> SimulatedFileSystem::free_space(const std::string&)
 {
     return Result<uint64_t>::good(free_space_);
 }
 
-/// @copydoc IFileSystem::fsync_path
+/// @brief Flush a file or directory to stable storage.
+/// @param path Path to flush.
+/// @return ok(), or the underlying I/O error.
 Error SimulatedFileSystem::fsync_path(const std::string&)
 {
     return Error::none();
@@ -409,7 +458,13 @@ namespace instr
 
 // ---- file timestamps (age-based retention, §7.7) ----
 
-/// @copydoc IFileSystem::file_mtime_s
+/// @brief Last-modification time, unix seconds.
+///
+/// Age-based retention (§7.7) needs it, and a store that cannot tell how
+/// old a file is cannot honour a retention policy expressed in days.
+///
+/// @param path File to query.
+/// @return Mtime in unix seconds, or an error.
 Result<int64_t> NativeFileSystem::file_mtime_s(const std::string& path)
 {
     struct stat st;
@@ -417,7 +472,13 @@ Result<int64_t> NativeFileSystem::file_mtime_s(const std::string& path)
     return Result<int64_t>::good(int64_t(st.st_mtime));
 }
 
-/// @copydoc IFileSystem::file_mtime_s
+/// @brief Last-modification time, unix seconds.
+///
+/// Age-based retention (§7.7) needs it, and a store that cannot tell how
+/// old a file is cannot honour a retention policy expressed in days.
+///
+/// @param path File to query.
+/// @return Mtime in unix seconds, or an error.
 Result<int64_t> SimulatedFileSystem::file_mtime_s(const std::string& path)
 {
     auto it = mtimes_.find(path);

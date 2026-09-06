@@ -34,7 +34,11 @@
 namespace instr
 {
 
-/// @brief Plain atomic write: temp → fsync → rename → fsync dir.
+/// @brief Plain atomic write (no checksum sidecars); temp = path + ".tmp-<pid>".
+/// @param fs Filesystem to write through.
+/// @param path Final destination path.
+/// @param data Complete contents to write.
+/// @return ok() on success, or the underlying I/O error.
 Error AtomicFile::write(IFileSystem& fs, const std::string& path, const std::string& data)
 {
     std::string tmp = path + ".tmp-" + std::to_string(::getpid());
@@ -59,6 +63,10 @@ Error AtomicFile::write(IFileSystem& fs, const std::string& path, const std::str
 }
 
 /// @brief Atomic write with .checksum and .bak redundant copy.
+/// @param fs Filesystem to write through.
+/// @param path Final destination path.
+/// @param data Complete contents to write.
+/// @return ok() on success, or the underlying I/O error.
 Error AtomicFile::write_protected(IFileSystem& fs, const std::string& path, const std::string& data)
 {
     // Redundant copy per level (REQ §4/§6): the .bak copy holds the same new
@@ -75,7 +83,15 @@ Error AtomicFile::write_protected(IFileSystem& fs, const std::string& path, cons
     return write(fs, backup_path(path) + ".checksum", sum);
 }
 
-/// @brief Read a protected file with fallback to the .bak copy on corruption.
+/// @brief Read a protected file, falling back to the .bak copy on checksum mismatch.
+///
+/// Returns Corrupt only when both primary and backup fail (REQ §11: /pst
+/// corrupt → fall back to the redundant copy; if both fail, boot
+/// unprovisioned).
+///
+/// @param fs Filesystem to read through.
+/// @param path Protected file path.
+/// @return Verified contents, or a Corrupt/Io error.
 Result<std::string> AtomicFile::read_protected(IFileSystem& fs, const std::string& path)
 {
     auto primary = fs.read(path);

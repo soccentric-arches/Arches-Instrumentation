@@ -161,9 +161,13 @@ template <typename T> struct Result
         r.value = std::move(v);
         return r;
     }
-    /// @brief Construct a failure result carrying @p e.
-    /// @param e Failure details.
-    /// @return Result whose error() is @p e.
+/// @brief Construct a failure Status from parts.
+/// @param c Failure category.
+/// @param msg Human-readable description.
+/// @param ctx Optional origin context.
+/// @param e Failure details.
+/// @return Status whose error() is built from the given parts.
+/// @return The failure Status.
     static Result fail(Error e)
     {
         Result r;
@@ -194,9 +198,13 @@ inline Status good()
 {
     return Status::good(Unit{});
 }
-/// @brief Construct a failure Status carrying @p e.
+/// @brief Construct a failure Status from parts.
+/// @param c Failure category.
+/// @param msg Human-readable description.
+/// @param ctx Optional origin context.
 /// @param e Failure details.
-/// @return Status whose error() is @p e.
+/// @return Status whose error() is built from the given parts.
+/// @return The failure Result.
 inline Status fail(Error e)
 {
     return Status::fail(std::move(e));

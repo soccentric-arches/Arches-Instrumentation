@@ -63,21 +63,22 @@ enum class X733Type : uint8_t
 /// @brief Canonical lowercase name of an alarm domain ("hardware", ...).
 /// @param d Domain to name.
 /// @return Static string for the domain.
-const char* alarm_domain_name(AlarmDomain);
+const char* alarm_domain_name(AlarmDomain d);
 
 /// @brief Canonical lowercase name of an X.733 type.
 /// @param t Type to name.
 /// @return Static string for the type.
-const char* x733_type_name(X733Type);
+const char* x733_type_name(X733Type t);
 
 /// @brief Parse an alarm domain name ("hardware" etc.).
-/// @param s Name to parse.
-/// @return The parsed domain; Hardware when unknown (matching the default value).
+/// @param s Name as produced by alarm_domain_name().
+/// @return The parsed domain; Hardware when unknown.
+AlarmDomain alarm_domain_from_name(const std::string& s);
+
 /// @brief Parse an X.733 type name.
-/// @param s Name to parse.
+/// @param s Name as produced by x733_type_name().
 /// @return The parsed type; Equipment when unknown.
-AlarmDomain alarm_domain_from_name(const std::string&);
-X733Type x733_type_from_name(const std::string&);
+X733Type x733_type_from_name(const std::string& s);
 
 /// @brief Module numbering: 0x01..0x0A are the ten daemons, 0x10.. are application modules.
 ///

@@ -73,11 +73,15 @@ class AtomicFile
     static Result<std::string> read_protected(IFileSystem& fs, const std::string& path);
 
     /// @brief Sidecar path holding the SHA-256 checksum of @p path.
+/// @param path Original file path.
+/// @return The "<path>.checksum" sidecar path.
     static std::string checksum_path(const std::string& path)
     {
         return path + ".checksum";
     }
     /// @brief Sidecar path holding the redundant copy of @p path.
+/// @param path Original file path.
+/// @return The "<path>.bak" sidecar path.
     static std::string backup_path(const std::string& path)
     {
         return path + ".bak";

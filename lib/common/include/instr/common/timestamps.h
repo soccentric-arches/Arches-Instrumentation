@@ -56,14 +56,19 @@ struct Stamp
 class TimeSource
 {
   public:
+    /// @brief Default destructor.
     virtual ~TimeSource() = default;
     /// @brief Monotonic clock reading in nanoseconds (resets per boot).
+    /// @return Nanoseconds on the monotonic timeline.
     virtual uint64_t mono_ns() = 0;
     /// @brief Wall-clock reading in nanoseconds since the epoch; may be wrong before a lock.
+    /// @return Nanoseconds since the epoch.
     virtual int64_t wall_ns() = 0;
     /// @brief Boot identifier distinguishing monotonic timelines across reboots.
+    /// @return The boot id string.
     virtual std::string boot_id() = 0;
     /// @brief Next process-wide arrival-order sequence number (strictly increasing).
+    /// @return The next sequence number.
     virtual uint64_t next_seq() = 0;
 };
 
@@ -71,13 +76,14 @@ class TimeSource
 class SystemTimeSource : public TimeSource
 {
   public:
-    /// @copydoc TimeSource::mono_ns
+    /// @brief Monotonic clock reading in nanoseconds (resets per boot).
     uint64_t mono_ns() override;
-    /// @copydoc TimeSource::wall_ns
+    /// @brief Wall-clock reading in nanoseconds since the epoch; may be wrong before a lock.
     int64_t wall_ns() override;
-    /// @copydoc TimeSource::boot_id
+    /// @brief Boot identifier distinguishing monotonic timelines across reboots.
+/// @return The boot id string.
     std::string boot_id() override;
-    /// @copydoc TimeSource::next_seq
+    /// @brief Next process-wide arrival-order sequence number (strictly increasing).
     uint64_t next_seq() override;
 };
 
@@ -89,22 +95,23 @@ class ManualTimeSource : public TimeSource
     int64_t wall = 1'700'000'000'000'000'000ll; ///< Fixed wall reading.
     std::string bid = "boot-1"; ///< Fixed boot id.
     uint64_t seq_counter = 0; ///< Running sequence counter.
-    /// @copydoc TimeSource::mono_ns
+    /// @brief Monotonic clock reading in nanoseconds (resets per boot).
     uint64_t mono_ns() override
     {
         return mono;
     }
-    /// @copydoc TimeSource::wall_ns
+    /// @brief Wall-clock reading in nanoseconds since the epoch; may be wrong before a lock.
     int64_t wall_ns() override
     {
         return wall;
     }
-    /// @copydoc TimeSource::boot_id
+    /// @brief Boot identifier distinguishing monotonic timelines across reboots.
+/// @return The boot id string.
     std::string boot_id() override
     {
         return bid;
     }
-    /// @copydoc TimeSource::next_seq
+    /// @brief Next process-wide arrival-order sequence number (strictly increasing).
     uint64_t next_seq() override
     {
         return ++seq_counter;
@@ -135,6 +142,7 @@ class TimeReconciler
         uint64_t mono_ns; ///< Monotonic reading taken before the lock.
     };
     /// @brief Queue of pending observations in arrival order.
+/// @return Queue of pending observations in arrival order.
     const std::deque<Pending>& pending() const
     {
         return pending_;
@@ -156,8 +164,10 @@ class TimeReconciler
     size_t reconcile(int64_t offset_ns, const std::string& source);
 
     /// @brief Remove and return the stamps produced by reconcile(), ordered by seq.
+    /// @return The stamps drained from the reconciler.
     std::vector<Stamp> take_stamped();
     /// @brief View of stamps produced by reconcile() so far, ordered by seq.
+/// @return View of stamps produced by reconcile() so far, ordered by seq.
     const std::vector<Stamp>& stamped() const
     {
         return stamped_;
@@ -187,6 +197,7 @@ class TimeReconciler
         return offset_ns_;
     }
     /// @brief Identifier of the source that produced the last lock.
+/// @return Identifier of the source that produced the last lock.
     const std::string& source() const
     {
         return source_;

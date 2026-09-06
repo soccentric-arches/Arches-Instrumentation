@@ -56,6 +56,8 @@ struct DaemonArgs
 };
 
 /// @brief True when the daemon was asked for the simulated platform.
+/// @param a Parsed daemon arguments.
+/// @return True when platform == "simulated".
 inline bool use_simulated_platform(const DaemonArgs& a)
 {
     return a.platform == "simulated";

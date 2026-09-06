@@ -31,10 +31,14 @@
 
 namespace instr
 {
+/// @brief Minimal POSIX ustar archive writer/reader (§7.10).
 namespace tar
 {
 
 /// @brief Render an integer as zero-padded octal into a fixed-width header field.
+/// @param out Header field buffer.
+/// @param width Field width.
+/// @param v Value to render.
 static void octal(char* out, size_t width, uint64_t v)
 {
     // width includes the terminating NUL; write octal right-aligned.
@@ -50,6 +54,8 @@ static void octal(char* out, size_t width, uint64_t v)
 }
 
 /// @brief Compute the ustar header checksum (checksum field treated as spaces).
+/// @param h 512-byte header block.
+/// @return The header checksum.
 static uint32_t header_checksum(const char* h)
 {
     uint32_t sum = 0;
@@ -57,7 +63,9 @@ static uint32_t header_checksum(const char* h)
     return sum;
 }
 
-/// @brief Serialise files into a POSIX ustar archive.
+/// @brief Write a POSIX ustar archive (no external tar binary; testable and deterministic).
+/// @param files Files to archive, in write order.
+/// @return The archive bytes.
 std::string write_ustar(const std::vector<FileEntry>& files)
 {
     std::string out;
@@ -94,7 +102,9 @@ std::string write_ustar(const std::vector<FileEntry>& files)
     return out;
 }
 
-/// @brief Parse a ustar archive; malformed archives are rejected as Corrupt.
+/// @brief Read a ustar archive back into entries.
+/// @param archive Archive bytes.
+/// @return The entries, or a Corrupt error for a malformed archive.
 Result<std::vector<FileEntry>> read_ustar(const std::string& archive)
 {
     std::vector<FileEntry> out;

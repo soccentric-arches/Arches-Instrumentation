@@ -119,6 +119,8 @@ class ConfigSink
         std::lock_guard<std::mutex> lk(mu_);
         return revision_ > 0;
     }
+/// @brief The daemon identity this hub accepts registrations from.
+/// @return The owning daemon name.
     const std::string& daemon() const
     {
         return daemon_;

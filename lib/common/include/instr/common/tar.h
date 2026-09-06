@@ -39,6 +39,7 @@
 
 namespace instr
 {
+/// @brief Minimal POSIX ustar archive writer/reader (§7.10).
 namespace tar
 {
 

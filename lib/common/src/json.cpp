@@ -40,6 +40,8 @@ namespace instr
 // ---------------- serialiser ----------------
 
 /// @brief Append @p s to @p out as a quoted, escaped JSON string.
+/// @param s String to escape.
+/// @param out Buffer to append to.
 static void dump_string(const std::string& s, std::string* out)
 {
     out->push_back('"');
@@ -66,6 +68,10 @@ static void dump_string(const std::string& s, std::string* out)
 }
 
 /// @brief Recursively serialise @p v into @p out with the given indent.
+/// @param v Value to serialise.
+/// @param indent Spaces per level.
+/// @param depth Current nesting depth.
+/// @param out Buffer to append to.
 static void dump_value(const JValue& v, int indent, int depth, std::string* out)
 {
     const std::string pad(depth * indent, ' ');
@@ -121,6 +127,8 @@ static void dump_value(const JValue& v, int indent, int depth, std::string* out)
 }
 
 /// @brief Serialise this value to JSON text.
+/// @param indent Spaces per level; 0 produces compact output.
+/// @return JSON text.
 std::string JValue::dump(int indent) const
 {
     std::string out;
@@ -139,24 +147,36 @@ struct Parser
     size_t i = 0;
     std::string err;
 
+    /// @brief Bind the parser to @p text.
+/// @param text JSON source text.
     explicit Parser(const std::string& text) : s(text)
     {
     }
 
+    /// @brief Fail the parse with @p msg plus the byte offset.
+    /// @param msg Description of the syntax error.
+/// @param msg Description of the syntax error.
     [[noreturn]] void fail(const std::string& msg)
     {
         throw std::runtime_error(msg + " at byte " + std::to_string(i));
     }
+    /// @brief Skip whitespace to the next token.
     void skip_ws()
     {
         while (i < s.size() && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r')) ++i;
     }
+    /// @brief Current character without consuming it.
+    /// @return The current character, or 0 at end of input.
     char peek()
     {
         skip_ws();
         if (i >= s.size()) fail("unexpected end of input");
         return s[i];
     }
+    /// @brief Consume @p c when it is the current character.
+    /// @return True when consumed.
+/// @param c Character to consume.
+/// @return True when consumed.
     bool consume(char c)
     {
         skip_ws();
@@ -167,11 +187,14 @@ struct Parser
         }
         return false;
     }
+    /// @brief Consume @p c or fail with a diagnosable error.
+/// @param c Character to consume.
     void expect(char c)
     {
         if (!consume(c)) fail(std::string("expected '") + c + "'");
     }
 
+    /// @brief Parse any JSON value (dispatches on the current character).
     JValue parse_value()
     {
         char c = peek();
@@ -195,6 +218,8 @@ struct Parser
         }
         return parse_number();
     }
+    /// @brief Consume the expected literal text or fail.
+/// @param l Expected literal text.
     void lit(const char* l)
     {
         for (const char* p = l; *p; ++p)
@@ -203,6 +228,8 @@ struct Parser
             ++i;
         }
     }
+    /// @brief Parse a JSON string literal with escapes.
+    /// @return The decoded string.
     std::string parse_string()
     {
         expect('"');
@@ -266,6 +293,8 @@ struct Parser
         }
         return out;
     }
+    /// @brief Parse a JSON number.
+    /// @return The number as a JValue.
     JValue parse_number()
     {
         size_t start = i;
@@ -281,6 +310,8 @@ struct Parser
             fail("bad number");
         }
     }
+    /// @brief Parse a JSON array.
+    /// @return The array as a JValue.
     JValue parse_array()
     {
         expect('[');
@@ -294,6 +325,8 @@ struct Parser
         }
         return arr;
     }
+    /// @brief Parse a JSON object.
+    /// @return The object as a JValue.
     JValue parse_object()
     {
         expect('{');
@@ -313,7 +346,9 @@ struct Parser
 
 } // namespace
 
-/// @brief Strict JSON parser; the error carries the byte offset of the failure.
+/// @brief Strict JSON parser.
+/// @param text JSON source text.
+/// @return Parsed value, or an Error carrying the byte offset of the failure.
 Result<JValue> json_parse(const std::string& text)
 {
     try
@@ -333,6 +368,8 @@ Result<JValue> json_parse(const std::string& text)
 // ---------------- YAML → JSON ----------------
 
 /// @brief Convert one YAML scalar node to the equivalent JValue.
+/// @param n YAML node to convert.
+/// @return The equivalent JValue.
 static JValue yaml_scalar_to_json(const YAML::Node& n)
 {
     if (n.IsNull()) return JValue();
@@ -375,7 +412,12 @@ static JValue yaml_scalar_to_json(const YAML::Node& n)
     }
 }
 
-/// @brief Project YAML text (scalars, maps, sequences) to an equivalent JSON value.
+/// @brief YAML → JSON projection (scalars, maps, sequences).
+///
+/// Used to validate YAML configuration against JSON Schemas.
+///
+/// @param yaml_text YAML source text.
+/// @return Equivalent JSON value, or an Error describing the YAML failure.
 Result<JValue> json_from_yaml_text(const std::string& yaml_text)
 {
     try
@@ -395,6 +437,9 @@ namespace
 {
 
 /// @brief Decide whether a value matches a schema "type" keyword value.
+/// @param t Type keyword value.
+/// @param v Value to test.
+/// @return True when the value matches.
 bool type_matches(const std::string& t, const JValue& v)
 {
     if (t == "object") return v.is_object();
@@ -411,12 +456,19 @@ bool type_matches(const std::string& t, const JValue& v)
 void check(const JValue& schema, const JValue& v, const std::string& path, std::vector<JsonValidator::Issue>* issues);
 
 /// @brief Append one validation issue for @p path to @p issues.
+/// @param issues Issue list to append to.
+/// @param path Location of the violation.
+/// @param msg Description.
 void add_issue(std::vector<JsonValidator::Issue>* issues, const std::string& path, const std::string& msg)
 {
     issues->push_back(JsonValidator::Issue{path, msg});
 }
 
 /// @brief Check scalar keywords (enum, minLength/maxLength, minimum/maximum, pattern).
+/// @param schema Schema keywords.
+/// @param v Value to check.
+/// @param path Current location.
+/// @param issues Issue list.
 void check_scalar_keywords(const JValue& schema, const JValue& v, const std::string& path, std::vector<JsonValidator::Issue>* issues)
 {
     if (const JValue* e = schema.find("enum"))
@@ -465,6 +517,10 @@ void check_scalar_keywords(const JValue& schema, const JValue& v, const std::str
 }
 
 /// @brief Recursively validate @p v against @p schema, recording pointer-style issues.
+/// @param schema Schema document.
+/// @param v Value to validate.
+/// @param path Current pointer path.
+/// @param issues Issue list.
 void check(const JValue& schema, const JValue& v, const std::string& path, std::vector<JsonValidator::Issue>* issues)
 {
     // type: string or list
@@ -537,7 +593,16 @@ void check(const JValue& schema, const JValue& v, const std::string& path, std::
 
 } // namespace
 
-/// @brief Validate @p instance against @p schema (see header for supported keywords).
+/// @brief Validate @p instance against @p schema.
+///
+/// Supported keywords: type, properties, required, additionalProperties
+/// (boolean or schema), enum, items, minItems, maxItems, minLength,
+/// maxLength, minimum, maximum, pattern, description (ignored).
+///
+/// @param schema Schema document.
+/// @param instance Document to validate.
+/// @param issues Receives one Issue per violation; may be nullptr to skip.
+/// @return True when the instance conforms; false with @p issues filled otherwise.
 bool JsonValidator::validate(const JValue& schema, const JValue& instance, std::vector<Issue>* issues)
 {
     std::vector<Issue> local;

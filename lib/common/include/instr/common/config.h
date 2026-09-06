@@ -54,7 +54,7 @@ enum class Origin
 /// @brief Stable lowercase name of an origin ("default", "app", "local", "hq").
 /// @param o Origin to name.
 /// @return Static string for the origin.
-const char* origin_name(Origin);
+const char* origin_name(Origin o);
 
 /// @brief Parse an origin name (case-insensitive).
 /// @param n Name as produced by origin_name().
@@ -82,19 +82,33 @@ class ConfigDocument
     static ConfigDocument empty();
 
     /// @brief True when the dot-path exists in this document.
+    /// @param dot_path Flattened key, e.g. "network.ifaces.0.mode".
+    /// @return True when present.
     bool has(const std::string& dot_path) const;
     /// @brief String value at @p dot_path with fallback.
     std::string get_string(const std::string& dot_path, const std::string& dflt = "") const;
     /// @brief Integer value at @p dot_path with fallback.
+    /// @param dot_path Flattened key.
+    /// @param dflt Value returned when the key is absent or not an integer.
+    /// @return The integer value.
     int64_t get_int(const std::string& dot_path, int64_t dflt = 0) const;
     /// @brief Floating-point value at @p dot_path with fallback.
+    /// @param dot_path Flattened key.
+    /// @param dflt Value returned when the key is absent or not numeric.
+    /// @return The numeric value.
     double get_double(const std::string& dot_path, double dflt = 0) const;
     /// @brief Boolean value at @p dot_path with fallback.
+    /// @param dot_path Flattened key.
+    /// @param dflt Value returned when the key is absent or not a bool.
+    /// @return The boolean value.
     bool get_bool(const std::string& dot_path, bool dflt = false) const;
     /// @brief List values (e.g. log sources); empty when absent.
+    /// @param dot_path Flattened key.
+    /// @return The list elements; empty when absent.
     std::vector<std::string> get_list(const std::string& dot_path) const;
 
     /// @brief Raw value as a YAML-ish scalar string.
+    /// @param dot_path Flattened key.
     /// @return The scalar text, or "" when the key is absent.
     std::string raw(const std::string& dot_path) const;
 
@@ -104,19 +118,28 @@ class ConfigDocument
     /// @param origin Who set this value.
     void set(const std::string& dot_path, const std::string& scalar, Origin origin);
     /// @brief Set a numeric value with its origin.
+    /// @param dot_path Flattened key.
+    /// @param v Value to store (rendered as text).
+    /// @param origin Who set this value.
     void set_number(const std::string& dot_path, double v, Origin origin);
     /// @brief Set a boolean value with its origin.
+    /// @param dot_path Flattened key.
+    /// @param v Value to store (rendered as text).
+    /// @param origin Who set this value.
     void set_bool(const std::string& dot_path, bool v, Origin origin);
 
     /// @brief Origin of a key.
+    /// @param dot_path Flattened key.
     /// @return The recorded origin; Origin::Default when the key is unset.
     Origin origin_of(const std::string& dot_path) const;
     /// @brief View of all flattened key → scalar-text values.
+/// @return View of all flattened key → scalar-text values.
     const std::map<std::string, std::string>& values() const
     {
         return values_;
     }
     /// @brief View of all key → origin assignments.
+/// @return View of all key → origin assignments.
     const std::map<std::string, Origin>& origins() const
     {
         return origins_;

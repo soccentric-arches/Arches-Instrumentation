@@ -41,6 +41,7 @@
 
 namespace instr
 {
+/// @brief Self-contained cryptographic primitives (hashes, AEAD, X25519) and signature verification.
 namespace crypto
 {
 
@@ -49,6 +50,7 @@ struct Digest32
 {
     std::array<uint8_t, 32> b{}; ///< Raw digest bytes.
     /// @brief Render the digest as 64 lowercase hex characters.
+    /// @return 64 lowercase hex characters.
     std::string hex() const;
 };
 
@@ -59,6 +61,8 @@ struct Digest32
 Digest32 sha256(const uint8_t* data, size_t len);
 
 /// @brief SHA-256 over a byte string (convenience overload).
+/// @param s Input bytes.
+/// @return 32-byte digest.
 inline Digest32 sha256(const std::string& s)
 {
     return sha256(reinterpret_cast<const uint8_t*>(s.data()), s.size());

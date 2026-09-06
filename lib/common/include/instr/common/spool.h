@@ -106,9 +106,13 @@ class DiskSpool
     Error append(SpoolPriority prio, const std::string& payload, uint64_t mono_ns, int* dropped = nullptr);
 
     /// @brief Oldest-first snapshot of up to @p max records (non-destructive).
+    /// @param max Maximum entries returned.
+    /// @return The snapshot, oldest first.
     std::vector<Entry> peek(size_t max) const;
 
     /// @brief Consume the oldest @p n records (after a successful drain/northbound send).
+    /// @param n Number of records to consume.
+    /// @return ok(), or an error when storage fails.
     Error pop_front(size_t n);
 
     /// @brief Lifetime counters, including per-priority drop counts.
@@ -122,6 +126,7 @@ class DiskSpool
         uint64_t refused_protected = 0; ///< Appends refused because only protected records fit.
     };
     /// @brief Current statistics snapshot.
+/// @return Current statistics snapshot.
     const Stats& stats() const
     {
         return stats_;
@@ -153,8 +158,12 @@ class DiskSpool
     /// @brief Evict the oldest droppable record (never protected classes).
     Error drop_one_oldest_droppable();
     /// @brief Remove index entry @p victim and its bytes from segment storage.
+    /// @param victim Index position to erase.
+    /// @return ok(), or an error when storage fails.
     Error erase_index_record(size_t victim);
     /// @brief Segment file path for a segment sequence number.
+/// @param seg_seq Segment sequence number.
+/// @return The segment file path.
     std::string segment_path(uint64_t seg_seq) const
     {
         return fs_.join(cfg_.dir, "spool-" + std::to_string(seg_seq) + ".seg");

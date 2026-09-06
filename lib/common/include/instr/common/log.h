@@ -55,12 +55,12 @@ enum class LogLevel
 /// @brief Canonical uppercase name of a level ("INFO", "ERROR", ...).
 /// @param l Level to name.
 /// @return Static string for the level; "INFO" when out of range.
-const char* log_level_name(LogLevel);
+const char* log_level_name(LogLevel l);
 
 /// @brief Parse a level name (case-insensitive, e.g. "INFO" -> Info).
 /// @param n Name as produced by log_level_name().
 /// @return The parsed level; Info when the name is unknown.
-LogLevel log_level_from_name(const std::string&);
+LogLevel log_level_from_name(const std::string& n);
 
 /// @brief One structured log event with timestamps and arbitrary key=value fields.
 struct LogRecord
@@ -78,17 +78,19 @@ struct LogRecord
 class ISink
 {
   public:
+    /// @brief Default destructor.
     virtual ~ISink() = default;
     /// @brief Consume one accepted log record.
     /// @param r Record to write; the sink must not retain a reference past the call.
-    virtual void write(const LogRecord&) = 0;
+    virtual void write(const LogRecord& r) = 0;
 };
 
 /// @brief Structured key=value line on stderr; journald picks it up verbatim on targets.
 class StderrSink : public ISink
 {
   public:
-    /// @copydoc ISink::write
+    /// @brief Consume one accepted log record.
+    /// @param r Record to write; the sink must not retain a reference past the call.
     void write(const LogRecord&) override;
 };
 
@@ -101,14 +103,17 @@ class MemorySink : public ISink
     explicit MemorySink(size_t capacity = 1024) : cap_(capacity)
     {
     }
-    /// @copydoc ISink::write
+    /// @brief Consume one accepted log record.
+    /// @param r Record to write; the sink must not retain a reference past the call.
     void write(const LogRecord&) override;
     /// @brief Live view of the retained records, oldest first.
+/// @return Live view of the retained records, oldest first.
     const std::deque<LogRecord>& records() const
     {
         return buf_;
     }
     /// @brief Copy of the retained records, oldest first.
+/// @return Copy of the retained records, oldest first.
     std::vector<LogRecord> snapshot() const
     {
         return {buf_.begin(), buf_.end()};
@@ -161,6 +166,7 @@ class Logger
     }
 
     /// @brief Set the global level; records below it are dropped.
+/// @param l New global level.
     void set_level(LogLevel l)
     {
         level_ = l;
@@ -202,26 +208,50 @@ class Logger
 
     /// @brief Convenience wrappers delegating to log() with a fixed level.
     /// @{
+    /// @brief Log at Trace level.
+/// @param s Source name.
+/// @param msg Event text.
+/// @param f Optional structured fields.
     void trace(const std::string& s, const std::string& msg, const std::map<std::string, std::string>& f = {})
     {
         log(LogLevel::Trace, s, msg, f);
     }
+    /// @brief Log at Debug level.
+/// @param s Source name.
+/// @param msg Event text.
+/// @param f Optional structured fields.
     void debug(const std::string& s, const std::string& msg, const std::map<std::string, std::string>& f = {})
     {
         log(LogLevel::Debug, s, msg, f);
     }
+    /// @brief Log at Info level.
+/// @param s Source name.
+/// @param msg Event text.
+/// @param f Optional structured fields.
     void info(const std::string& s, const std::string& msg, const std::map<std::string, std::string>& f = {})
     {
         log(LogLevel::Info, s, msg, f);
     }
+    /// @brief Log at Warning level.
+/// @param s Source name.
+/// @param msg Event text.
+/// @param f Optional structured fields.
     void warning(const std::string& s, const std::string& msg, const std::map<std::string, std::string>& f = {})
     {
         log(LogLevel::Warning, s, msg, f);
     }
+    /// @brief Log at Error level.
+/// @param s Source name.
+/// @param msg Event text.
+/// @param f Optional structured fields.
     void error(const std::string& s, const std::string& msg, const std::map<std::string, std::string>& f = {})
     {
         log(LogLevel::Error, s, msg, f);
     }
+    /// @brief Log at Critical level.
+/// @param s Source name.
+/// @param msg Event text.
+/// @param f Optional structured fields.
     void critical(const std::string& s, const std::string& msg, const std::map<std::string, std::string>& f = {})
     {
         log(LogLevel::Critical, s, msg, f);

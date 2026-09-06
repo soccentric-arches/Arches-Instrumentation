@@ -37,7 +37,9 @@
 namespace instr
 {
 
-/// @brief Stable lowercase name of an origin.
+/// @brief Stable lowercase name of an origin ("default", "app", "local", "hq").
+/// @param o Origin to name.
+/// @return Static string for the origin.
 const char* origin_name(Origin o)
 {
     switch (o)
@@ -50,7 +52,9 @@ const char* origin_name(Origin o)
     return "default";
 }
 
-/// @brief Parse an origin name (case-insensitive); unknown names are rejected.
+/// @brief Parse an origin name (case-insensitive).
+/// @param n Name as produced by origin_name().
+/// @return The parsed origin, or an InvalidArgument error when unknown.
 Result<Origin> origin_from_name(const std::string& n)
 {
     if (n == "default") return Result<Origin>::good(Origin::Default);
@@ -60,7 +64,9 @@ Result<Origin> origin_from_name(const std::string& n)
     return Result<Origin>::fail(Errc::InvalidArgument, "unknown origin: " + n, "origin_from_name");
 }
 
-/// @brief Load a JSON schema from text.
+/// @brief Load a JSON schema from text (for schemas/*.json at daemon startup).
+/// @param text Schema JSON text.
+/// @return Parsed schema, or an Error describing the parse failure.
 Result<JValue> load_schema_text(const std::string& text)
 {
     auto j = json_parse(text);
@@ -75,7 +81,14 @@ ConfigDocument ConfigDocument::empty()
     return ConfigDocument();
 }
 
-/// @brief Parse YAML, validate against the schema and flatten to dot-paths.
+/// @brief Parse YAML text, validate against the JSON Schema, flatten to dot-paths.
+///
+/// @p source_name appears in rejection errors for file-and-line diagnosability.
+///
+/// @param yaml_text YAML source text.
+/// @param schema JSON Schema the document must satisfy.
+/// @param source_name Human-readable origin of the text, used in errors.
+/// @return Parsed document, or a diagnosable Error listing every violation.
 Result<ConfigDocument> ConfigDocument::parse(const std::string& yaml_text, const JValue& schema, const std::string& source_name)
 {
     auto j = json_from_yaml_text(yaml_text);
@@ -92,6 +105,10 @@ Result<ConfigDocument> ConfigDocument::parse(const std::string& yaml_text, const
     // Lambda flattening object trees into dot-paths.
     struct Flatten
     {
+        /// @brief Recursively flatten a JSON document into dot-path → scalar-text pairs.
+/// @param v JSON node to flatten.
+/// @param prefix Dot-path prefix for nested keys.
+/// @param out Receives the flattened pairs.
         static void walk(const JValue& v, const std::string& prefix, std::map<std::string, std::string>* out)
         {
             if (v.is_object())
@@ -132,19 +149,26 @@ Result<ConfigDocument> ConfigDocument::parse(const std::string& yaml_text, const
 }
 
 /// @brief True when the dot-path exists in this document.
+/// @param dot_path Flattened key, e.g. "network.ifaces.0.mode".
+/// @return True when present.
 bool ConfigDocument::has(const std::string& dot_path) const
 {
     return values_.count(dot_path) > 0;
 }
 
-/// @brief Raw scalar text for a dot-path, "" when absent.
+/// @brief Raw value as a YAML-ish scalar string.
+/// @param dot_path Flattened key.
+/// @return The scalar text, or "" when the key is absent.
 std::string ConfigDocument::raw(const std::string& dot_path) const
 {
     auto it = values_.find(dot_path);
     return it == values_.end() ? std::string() : it->second;
 }
 
-/// @brief String value at a dot-path with fallback.
+/// @brief String value at @p dot_path with fallback.
+/// @param dot_path Flattened key.
+/// @param dflt Value returned when absent or not a string.
+/// @return The string value.
 std::string ConfigDocument::get_string(const std::string& dot_path, const std::string& dflt) const
 {
     std::string v = raw(dot_path);
@@ -152,7 +176,10 @@ std::string ConfigDocument::get_string(const std::string& dot_path, const std::s
     return v;
 }
 
-/// @brief Integer value at a dot-path with fallback.
+/// @brief Integer value at @p dot_path with fallback.
+/// @param dot_path Flattened key.
+/// @param dflt Value returned when the key is absent or not an integer.
+/// @return The integer value.
 int64_t ConfigDocument::get_int(const std::string& dot_path, int64_t dflt) const
 {
     std::string v = raw(dot_path);
@@ -167,7 +194,10 @@ int64_t ConfigDocument::get_int(const std::string& dot_path, int64_t dflt) const
     }
 }
 
-/// @brief Floating-point value at a dot-path with fallback.
+/// @brief Floating-point value at @p dot_path with fallback.
+/// @param dot_path Flattened key.
+/// @param dflt Value returned when the key is absent or not numeric.
+/// @return The numeric value.
 double ConfigDocument::get_double(const std::string& dot_path, double dflt) const
 {
     std::string v = raw(dot_path);
@@ -182,7 +212,10 @@ double ConfigDocument::get_double(const std::string& dot_path, double dflt) cons
     }
 }
 
-/// @brief Boolean value at a dot-path with fallback.
+/// @brief Boolean value at @p dot_path with fallback.
+/// @param dot_path Flattened key.
+/// @param dflt Value returned when the key is absent or not a bool.
+/// @return The boolean value.
 bool ConfigDocument::get_bool(const std::string& dot_path, bool dflt) const
 {
     std::string v = raw(dot_path);
@@ -191,6 +224,8 @@ bool ConfigDocument::get_bool(const std::string& dot_path, bool dflt) const
 }
 
 /// @brief List values (e.g. log sources); empty when absent.
+/// @param dot_path Flattened key.
+/// @return The list elements; empty when absent.
 std::vector<std::string> ConfigDocument::get_list(const std::string& dot_path) const
 {
     std::vector<std::string> out;
@@ -202,6 +237,9 @@ std::vector<std::string> ConfigDocument::get_list(const std::string& dot_path) c
 }
 
 /// @brief Set a scalar string value with its origin.
+/// @param dot_path Flattened key, e.g. "network.ifaces.0.mode".
+/// @param scalar Value as text.
+/// @param origin Who set this value.
 void ConfigDocument::set(const std::string& dot_path, const std::string& scalar, Origin origin)
 {
     values_[dot_path] = scalar;
@@ -211,6 +249,9 @@ void ConfigDocument::set(const std::string& dot_path, const std::string& scalar,
 }
 
 /// @brief Set a numeric value with its origin.
+/// @param dot_path Flattened key.
+/// @param v Value to store (rendered as text).
+/// @param origin Who set this value.
 void ConfigDocument::set_number(const std::string& dot_path, double v, Origin origin)
 {
     if (v == std::floor(v) && std::fabs(v) < 9.0e15)
@@ -220,19 +261,33 @@ void ConfigDocument::set_number(const std::string& dot_path, double v, Origin or
 }
 
 /// @brief Set a boolean value with its origin.
+/// @param dot_path Flattened key.
+/// @param v Value to store (rendered as text).
+/// @param origin Who set this value.
 void ConfigDocument::set_bool(const std::string& dot_path, bool v, Origin origin)
 {
     set(dot_path, v ? "true" : "false", origin);
 }
 
-/// @brief Origin of a key; Origin::Default when unset.
+/// @brief Origin of a key.
+/// @param dot_path Flattened key.
+/// @return The recorded origin; Origin::Default when the key is unset.
 Origin ConfigDocument::origin_of(const std::string& dot_path) const
 {
     auto it = origins_.find(dot_path);
     return it == origins_.end() ? Origin::Default : it->second;
 }
 
-/// @brief Merge incoming values honouring origin protection rules.
+/// @brief Merge @p incoming (origin @p in_origin) into this document.
+///
+/// HQ pushes overwrite default/app/hq keys; local (operator) keys are
+/// protected unless @p force. Merge semantics preserve operator edits
+/// when a release adds keys.
+///
+/// @param incoming Document to merge.
+/// @param in_origin Origin claimed for @p incoming.
+/// @param force When true, overwrite even protected local keys.
+/// @return The rejected dot-paths (protected keys not overwritten).
 std::vector<std::string> ConfigDocument::merge_from(const ConfigDocument& incoming, Origin in_origin, bool force)
 {
     std::vector<std::string> rejected;
@@ -256,7 +311,12 @@ std::vector<std::string> ConfigDocument::merge_from(const ConfigDocument& incomi
     return rejected;
 }
 
-/// @brief Release merge: add only keys that are missing entirely.
+/// @brief Release merge: add keys that are missing entirely (new defaults).
+///
+/// Every existing value is kept.
+///
+/// @param defaults Release defaults to merge in.
+/// @return The added dot-paths.
 std::vector<std::string> ConfigDocument::merge_release(const ConfigDocument& defaults)
 {
     std::vector<std::string> added;
@@ -272,7 +332,7 @@ std::vector<std::string> ConfigDocument::merge_release(const ConfigDocument& def
     return added;
 }
 
-/// @brief System reset: drop everything except origin=Default entries.
+/// @brief System reset: drop everything except origin=Default entries (REQ §6.1).
 void ConfigDocument::reset_to_defaults()
 {
     for (auto it = values_.begin(); it != values_.end();)
@@ -295,6 +355,7 @@ namespace
 // Escapes a scalar minimally: quote when it would otherwise parse as another
 // type or contain YAML specials.
 /// @brief Decide whether a scalar needs YAML quoting.
+/// @param s Scalar text to test.
 bool needs_quotes(const std::string& s)
 {
     // Quote only when the scalar would break YAML parsing: empty, leading or
@@ -309,6 +370,9 @@ bool needs_quotes(const std::string& s)
 }
 
 /// @brief Quote a scalar for YAML output when required.
+/// @param s Scalar text to quote.
+/// @param s Scalar text to quote.
+/// @return The quoted (or verbatim) text.
 std::string quote(const std::string& s)
 {
     std::string out = "\"";
@@ -322,6 +386,12 @@ std::string quote(const std::string& s)
 
 struct YamlWriter
 {
+    /// @brief Recursively rebuild nested YAML from flattened dot-path values.
+/// @param values Flattened values.
+/// @param origins Origin sidecar.
+/// @param prefix Current dot-path.
+/// @param indent Current indent level.
+/// @param out YAML buffer.
     static void walk(const std::map<std::string, std::string>& values, const std::map<std::string, Origin>& origins, const std::string& prefix, int indent, std::string* out)
     {
         // Collect direct children and list indices.
@@ -390,6 +460,11 @@ struct YamlWriter
         }
     }
 
+    /// @brief True when any value key lives under the dot-path prefix.
+/// @param values Flattened values.
+/// @param prefix Parent dot-path.
+/// @param head Child segment to test.
+/// @return True when a subtree exists.
     static bool subtree_exists(const std::map<std::string, std::string>& values, const std::string& prefix, const std::string& head)
     {
         std::string child = prefix.empty() ? head : prefix + "." + head;
@@ -403,6 +478,12 @@ struct YamlWriter
         return false;
     }
 
+    /// @brief Emit one YAML mapping item at the current indentation.
+/// @param values Flattened values.
+/// @param origins Origin sidecar.
+/// @param item Dot-path of the item.
+/// @param indent Current indent level.
+/// @param out YAML buffer.
     static void emit_item(const std::map<std::string, std::string>& values, const std::map<std::string, Origin>& origins, const std::string& item, int indent, std::string* out)
     {
         std::string pad(indent * 2, ' ');
@@ -438,11 +519,17 @@ struct YamlWriter
         }
     }
 
+    /// @brief Parent dot-path of a flattened key ("" at the root).
+/// @param p Flattened key.
+/// @return The parent path, or "" at the root.
     static std::string parent_of(const std::string& p)
     {
         size_t pos = p.find_last_of('.');
         return pos == std::string::npos ? std::string() : p.substr(0, pos);
     }
+    /// @brief Last path segment of a flattened key.
+/// @param p Flattened key.
+/// @return The last segment.
     static std::string last_of(const std::string& p)
     {
         size_t pos = p.find_last_of('.');
@@ -452,7 +539,8 @@ struct YamlWriter
 
 } // namespace
 
-/// @brief Serialise the document back to nested YAML.
+/// @brief Serialise back to YAML (nested maps; scalar strings preserved verbatim).
+/// @return YAML text for the values.
 std::string ConfigDocument::to_yaml() const
 {
     std::string out;
@@ -461,6 +549,7 @@ std::string ConfigDocument::to_yaml() const
 }
 
 /// @brief Serialise the origins sidecar (dot-path → origin name) as YAML.
+/// @return YAML text for the origins.
 std::string ConfigDocument::origins_to_yaml() const
 {
     std::string out;
@@ -469,6 +558,7 @@ std::string ConfigDocument::origins_to_yaml() const
 }
 
 /// @brief Load an origins sidecar produced by origins_to_yaml().
+/// @param text YAML text of the sidecar.
 void ConfigDocument::load_origins_yaml(const std::string& text)
 {
     try
@@ -492,7 +582,16 @@ void ConfigDocument::load_origins_yaml(const std::string& text)
 namespace instr
 {
 
-/// @brief Load a daemon's JSON Schema from the image; missing schemas are non-fatal.
+/// @brief Loads a daemon's JSON Schema from the image (installed into ${datadir}/instrumentation/schemas).
+///
+/// A missing schema is not fatal: the document is then accepted unvalidated
+/// and the caller warns, because a packaging slip must not stop the device
+/// booting (R10).
+///
+/// @param fs Filesystem abstraction for the load.
+/// @param sysroot Root to resolve the schema directory under.
+/// @param daemon Daemon name whose schema is wanted.
+/// @return Parsed schema, or an Error (typically NotFound) when unavailable.
 Result<JValue> load_daemon_schema(IFileSystem& fs, const std::string& sysroot, const std::string& daemon)
 {
     const std::string path = sysroot + "/usr/share/instrumentation/schemas/" + daemon + ".schema.json";
