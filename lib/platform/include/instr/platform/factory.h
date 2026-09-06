@@ -45,6 +45,7 @@
 
 namespace instr
 {
+/// @brief Platform abstraction: board and hardware access behind IPlatform (REQ §5).
 namespace platform
 {
 

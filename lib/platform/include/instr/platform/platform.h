@@ -45,6 +45,7 @@
 
 namespace instr
 {
+/// @brief Platform abstraction: board and hardware access behind IPlatform (REQ §5).
 namespace platform
 {
 
@@ -179,13 +180,16 @@ class IPlatform
     virtual ~IPlatform() = default;
 
     /// @brief Factory identity for first-boot key generation (REQ §6.2).
+/// @return The factory identity, or an error when the board carries none.
     virtual Result<FactoryIdentity> read_factory_identity() = 0;
     /// @brief True when the CSPRNG is seeded and safe for key generation.
     virtual bool entropy_available() = 0;
 
     /// @brief All storage devices with wear/health data.
+/// @return Storage devices with wear/health data.
     virtual std::vector<StorageDevice> storage_devices() = 0;
     /// @brief Partition topology including mount points and usage (§5).
+/// @return Partition topology.
     virtual std::vector<Partition> partitions() = 0;
     /// @brief Memory pressure snapshot.
     virtual MemInfo memory_info() = 0;
@@ -203,11 +207,14 @@ class IPlatform
     virtual bool last_shutdown_clean() = 0;
 
     /// @brief Thermal zone readings.
+/// @return Thermal zone readings.
     virtual std::vector<ThermalZone> thermal_zones() = 0;
     /// @brief Power source readings.
+/// @return Power source readings.
     virtual std::vector<PowerSource> power_sources() = 0;
 
     /// @brief Configure the hardware watchdog timeout (0 disarms where supported).
+/// @param seconds Watchdog timeout in seconds (0 disarms where supported).
     virtual Error watchdog_set_timeout_s(int seconds) = 0;
     /// @brief Pet the hardware watchdog.
     virtual Error watchdog_pet() = 0;
@@ -215,29 +222,47 @@ class IPlatform
     /// @brief True when a time source is currently disciplined.
     virtual bool time_locked() = 0;
     /// @brief Which time sources this board has, and their state (§5, §7.1).
+/// @return Time-source inventory with state.
     virtual std::vector<TimeSourceInfo> time_sources() = 0;
 
     /// @brief Enumerate network interfaces.
+/// @return Network interface states.
     virtual std::vector<IfaceInfo> interfaces() = 0;
 
     /// @brief Current A/B boot-slot state.
+/// @return The boot-slot state, or an error.
     virtual Result<BootSlotState> boot_slots() = 0;
     /// @brief Select a boot slot; @p trial marks it pending confirmation.
+/// @param slot Slot to select ("A"/"B").
+/// @param trial Mark the slot pending confirmation when true.
     virtual Error set_boot_slot(const std::string& slot, bool trial) = 0;
     /// @brief Confirm the currently pending slot as good.
     virtual Error confirm_boot_slot() = 0;
 
     /// @brief Drive a GPIO line (Hardware daemon only, R7).
+/// @param line GPIO line number.
+/// @param value Value to drive.
     virtual Error gpio_set(int line, bool value) = 0;
     /// @brief Read a GPIO line.
+/// @param line GPIO line number.
+/// @return The line state, or an error.
     virtual Result<bool> gpio_get(int line) = 0;
     /// @brief Set an LED steady on/off.
+/// @param name LED name.
+/// @param on True to light the LED.
     virtual Error led_set(const std::string& name, bool on) = 0;
     /// @brief Blink an LED with the given duty cycle.
+/// @param name LED name.
+/// @param on_ms On duration in ms.
+/// @param off_ms Off duration in ms.
+/// @param repeats Number of blinks.
     virtual Error led_blink(const std::string& name, int on_ms, int off_ms, int repeats) = 0;
     /// @brief Power-cycle a USB port.
+/// @param port USB port to power-cycle.
     virtual Error usb_reset(const std::string& port) = 0;
     /// @brief Run a CAN loopback health check on @p iface.
+/// @param iface CAN interface to test.
+/// @return True when the loopback passes, or an error.
     virtual Result<bool> can_loopback_test(const std::string& iface) = 0;
     // CAN send/receive primitives (§5). send returns Unavailable where the
     // board has no CAN controller; recv returns the frames buffered since the
@@ -249,21 +274,34 @@ class IPlatform
         std::vector<uint8_t> data; ///< Payload bytes (up to 8).
     };
     /// @brief Send one CAN frame on @p iface.
+/// @param iface CAN interface.
+/// @param frame Frame to send.
     virtual Error can_send(const std::string& iface, const CanFrame& frame) = 0;
     /// @brief Drain up to @p max_frames frames buffered since the previous call.
+/// @param iface CAN interface.
+/// @param max_frames Maximum frames returned.
+/// @return Buffered frames, or an error.
     virtual Result<std::vector<CanFrame>> can_recv(const std::string& iface, size_t max_frames) = 0;
     /// @brief Send a control command to a display.
+/// @param cmd Display command.
+/// @param arg Command argument.
     virtual Error display_control(const std::string& cmd, const std::string& arg) = 0;
     /// @brief Probe display presence/capability.
+/// @return Probe result text, or an error.
     virtual Result<std::string> display_probe() = 0;
 
     /// @brief Start a systemd unit (istate requests, REQ §7.1).
+/// @param unit systemd unit to start.
     virtual Error unit_start(const std::string& unit) = 0;
     /// @brief Stop a systemd unit.
+/// @param unit systemd unit to stop.
     virtual Error unit_stop(const std::string& unit) = 0;
     /// @brief Restart a systemd unit.
+/// @param unit systemd unit to restart.
     virtual Error unit_restart(const std::string& unit) = 0;
     /// @brief Query whether a unit is active.
+/// @param unit systemd unit to query.
+/// @return True when active, or an error.
     virtual Result<bool> unit_active(const std::string& unit) = 0;
 
     /// @brief Kernel log source (Faults daemon, R6).
@@ -272,14 +310,20 @@ class IPlatform
     //                      and position the follow cursor at the end.
     // from_start = false: follow — return only lines not yet returned, so a
     //                      poller never re-reports a fault it already saw.
+/// @param from_start True to read the full ring from the beginning and position the follow cursor at the end.
+/// @return Kernel log lines, or an error.
     virtual Result<std::vector<std::string>> kernel_log_lines(bool from_start) = 0;
     /// @brief Application log sink / journal access for LogManager.
+/// @param unit Unit whose journal to read.
+/// @param max_lines Maximum lines returned.
+/// @return Log lines, or an error.
     virtual Result<std::vector<std::string>> journal_lines(const std::string& unit, size_t max_lines) = 0;
 
     /// @brief Render/apply a network plan (interfaces, firewall, ssh windows, wg, time).
     ///
     /// The simulated platform records the plan; native shells out only when
     /// INSTR_APPLY_NETWORK=1 (never silently mutates a host).
+/// @param plan_json Rendered network plan (interfaces, firewall, ssh windows, wg, time).
     virtual Error apply_network_plan(const std::string& plan_json) = 0;
     /// @brief True when HQ is currently reachable.
     virtual bool hq_reachable() = 0;
@@ -288,8 +332,10 @@ class IPlatform
     virtual MeasuredBootState measured_boot() = 0;
 
     /// @brief Directory coredumps are written to.
+/// @return The coredump directory path.
     virtual std::string coredump_dir() = 0;
     /// @brief Human-readable platform name ("native" / "simulated" / board name).
+/// @return The platform name ("native" / "simulated" / board name).
     virtual std::string platform_name() = 0;
 };
 

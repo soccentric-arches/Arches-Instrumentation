@@ -38,6 +38,7 @@
 
 namespace instr
 {
+/// @brief Platform abstraction: board and hardware access behind IPlatform (REQ §5).
 namespace platform
 {
 
@@ -51,90 +52,137 @@ class NativePlatform : public IPlatform
     explicit NativePlatform(std::string sysroot = "/");
 
     /// @brief Test seam: redirect file reads to a fixture directory.
+/// @param root Directory to read files under.
     void set_sysroot(const std::string& root)
     {
         sysroot_ = root;
     }
 
-    /// @copydoc IPlatform::read_factory_identity
+/// @brief Factory identity for first-boot key generation (REQ §6.2).
+/// @return The factory identity, or an error when the board carries none.
     Result<FactoryIdentity> read_factory_identity() override;
-    /// @copydoc IPlatform::entropy_available
+    /// @brief True when the CSPRNG is seeded and safe for key generation.
     bool entropy_available() override;
-    /// @copydoc IPlatform::storage_devices
+/// @brief All storage devices with wear/health data.
+/// @return Storage devices with wear/health data.
     std::vector<StorageDevice> storage_devices() override;
-    /// @copydoc IPlatform::partitions
+/// @brief Partition topology including mount points and usage (§5).
+/// @return Partition topology.
     std::vector<Partition> partitions() override;
-    /// @copydoc IPlatform::memory_info
+    /// @brief Memory pressure snapshot.
     MemInfo memory_info() override;
-    /// @copydoc IPlatform::cpu_snapshot
+    /// @brief CPU utilisation and frequency snapshot.
     CpuSnapshot cpu_snapshot() override;
-    /// @copydoc IPlatform::load_average_1m
+    /// @brief One-minute load average.
     double load_average_1m() override;
-    /// @copydoc IPlatform::process_count
+    /// @brief Total process count.
     uint32_t process_count() override;
-    /// @copydoc IPlatform::uptime_s
+    /// @brief Uptime in seconds.
     uint64_t uptime_s() override;
-    /// @copydoc IPlatform::boot_count
+    /// @brief Number of boots recorded.
     uint32_t boot_count() override;
-    /// @copydoc IPlatform::last_shutdown_clean
+    /// @brief True when the previous shutdown was clean.
     bool last_shutdown_clean() override;
-    /// @copydoc IPlatform::thermal_zones
+/// @brief Thermal zone readings.
+/// @return Thermal zone readings.
     std::vector<ThermalZone> thermal_zones() override;
-    /// @copydoc IPlatform::power_sources
+/// @brief Power source readings.
+/// @return Power source readings.
     std::vector<PowerSource> power_sources() override;
-    /// @copydoc IPlatform::watchdog_set_timeout_s
+/// @brief Configure the hardware watchdog timeout (0 disarms where supported).
+/// @param seconds Watchdog timeout in seconds (0 disarms where supported).
     Error watchdog_set_timeout_s(int seconds) override;
-    /// @copydoc IPlatform::watchdog_pet
+    /// @brief Pet the hardware watchdog.
     Error watchdog_pet() override;
-    /// @copydoc IPlatform::time_locked
+    /// @brief True when a time source is currently disciplined.
     bool time_locked() override;
-    /// @copydoc IPlatform::time_sources
+/// @brief Which time sources this board has, and their state (§5, §7.1).
+/// @return Time-source inventory with state.
     std::vector<TimeSourceInfo> time_sources() override;
-    /// @copydoc IPlatform::interfaces
+/// @brief Enumerate network interfaces.
+/// @return Network interface states.
     std::vector<IfaceInfo> interfaces() override;
-    /// @copydoc IPlatform::boot_slots
+/// @brief Current A/B boot-slot state.
+/// @return The boot-slot state, or an error.
     Result<BootSlotState> boot_slots() override;
-    /// @copydoc IPlatform::set_boot_slot
+/// @brief Select a boot slot; @p trial marks it pending confirmation.
+/// @param slot Slot to select ("A"/"B").
+/// @param trial Mark the slot pending confirmation when true.
     Error set_boot_slot(const std::string& slot, bool trial) override;
-    /// @copydoc IPlatform::confirm_boot_slot
+    /// @brief Confirm the currently pending slot as good.
     Error confirm_boot_slot() override;
-    /// @copydoc IPlatform::gpio_set
+/// @brief Drive a GPIO line (Hardware daemon only, R7).
+/// @param line GPIO line number.
+/// @param value Value to drive.
     Error gpio_set(int line, bool value) override;
-    /// @copydoc IPlatform::gpio_get
+/// @brief Read a GPIO line.
+/// @param line GPIO line number.
+/// @return The line state, or an error.
     Result<bool> gpio_get(int line) override;
-    /// @copydoc IPlatform::led_set
+/// @brief Set an LED steady on/off.
+/// @param name LED name.
+/// @param on True to light the LED.
     Error led_set(const std::string& name, bool on) override;
-    /// @copydoc IPlatform::led_blink
+/// @brief Blink an LED with the given duty cycle.
+/// @param name LED name.
+/// @param on_ms On duration in ms.
+/// @param off_ms Off duration in ms.
+/// @param repeats Number of blinks.
     Error led_blink(const std::string& name, int on_ms, int off_ms, int repeats) override;
-    /// @copydoc IPlatform::usb_reset
+/// @brief Power-cycle a USB port.
+/// @param port USB port to power-cycle.
     Error usb_reset(const std::string& port) override;
-    /// @copydoc IPlatform::can_loopback_test
+/// @brief Run a CAN loopback health check on @p iface.
+/// @param iface CAN interface to test.
+/// @return True when the loopback passes, or an error.
     Result<bool> can_loopback_test(const std::string& iface) override;
-    /// @copydoc IPlatform::can_send
+/// @brief Send one CAN frame on @p iface.
+/// @param iface CAN interface.
+/// @param frame Frame to send.
     Error can_send(const std::string& iface, const CanFrame& frame) override;
-    /// @copydoc IPlatform::can_recv
+/// @brief Drain up to @p max_frames frames buffered since the previous call.
+/// @param iface CAN interface.
+/// @param max_frames Maximum frames returned.
+/// @return Buffered frames, or an error.
     Result<std::vector<CanFrame>> can_recv(const std::string& iface, size_t max_frames) override;
-    /// @copydoc IPlatform::display_control
+/// @brief Send a control command to a display.
+/// @param cmd Display command.
+/// @param arg Command argument.
     Error display_control(const std::string& cmd, const std::string& arg) override;
-    /// @copydoc IPlatform::display_probe
+/// @brief Probe display presence/capability.
+/// @return Probe result text, or an error.
     Result<std::string> display_probe() override;
-    /// @copydoc IPlatform::unit_start
+/// @brief Start a systemd unit (istate requests, REQ §7.1).
+/// @param unit systemd unit to start.
     Error unit_start(const std::string& unit) override;
-    /// @copydoc IPlatform::unit_stop
+/// @brief Stop a systemd unit.
+/// @param unit systemd unit to stop.
     Error unit_stop(const std::string& unit) override;
-    /// @copydoc IPlatform::unit_restart
+/// @brief Restart a systemd unit.
+/// @param unit systemd unit to restart.
     Error unit_restart(const std::string& unit) override;
-    /// @copydoc IPlatform::unit_active
+/// @brief Query whether a unit is active.
+/// @param unit systemd unit to query.
+/// @return True when active, or an error.
     Result<bool> unit_active(const std::string& unit) override;
     /// @copydoc IPlatform::kernel_log_lines
+/// @param from_start True for boot backfill; false to follow with new lines only.
+/// @return Kernel log lines, or an error.
     Result<std::vector<std::string>> kernel_log_lines(bool from_start) override;
-    /// @copydoc IPlatform::journal_lines
+/// @brief Application log sink / journal access for LogManager.
+/// @param unit Unit whose journal to read.
+/// @param max_lines Maximum lines returned.
+/// @return Log lines, or an error.
     Result<std::vector<std::string>> journal_lines(const std::string& unit, size_t max_lines) override;
-    /// @copydoc IPlatform::apply_network_plan
+/// @brief Render/apply a network plan (interfaces, firewall, ssh windows, wg, time).
+///
+/// The simulated platform records the plan; native shells out only when
+/// INSTR_APPLY_NETWORK=1 (never silently mutates a host).
+/// @param plan_json Rendered network plan (interfaces, firewall, ssh windows, wg, time).
     Error apply_network_plan(const std::string& plan_json) override;
-    /// @copydoc IPlatform::hq_reachable
+    /// @brief True when HQ is currently reachable.
     bool hq_reachable() override;
-    /// @copydoc IPlatform::measured_boot
+    /// @brief Measured-boot attestation state (§10).
     MeasuredBootState measured_boot() override;
     /// @brief Write the rendered supplicant / hostapd configuration for a plan.
     ///
@@ -145,16 +193,19 @@ class NativePlatform : public IPlatform
     /// @param text Rendered configuration text.
     Error write_wireless_conf(const std::string& mode, const std::string& iface, const std::string& text);
     /// @brief What the last apply_network_plan did (or would have done on a host).
+/// @return Log of executed or intended network commands.
     const std::vector<std::string>& applied_commands() const
     {
         return applied_commands_;
     }
-    /// @copydoc IPlatform::coredump_dir
+/// @brief Directory coredumps are written to.
+/// @return The coredump directory path.
     std::string coredump_dir() override
     {
         return "/var/lib/instrumentation/coredumps";
     }
-    /// @copydoc IPlatform::platform_name
+/// @brief Human-readable platform name ("native" / "simulated" / board name).
+/// @return The platform name ("native" / "simulated" / board name).
     std::string platform_name() override
     {
         return "native";
@@ -166,6 +217,9 @@ class NativePlatform : public IPlatform
     /// @brief Open the long-lived /dev/kmsg follow descriptor.
     bool open_follow_fd();
     /// @brief Read up to @p max_lines kernel messages from @p fd into @p out.
+/// @param fd Descriptor to read from.
+/// @param out Receives the lines.
+/// @param max_lines Maximum lines to read.
     static void read_kmsg_into(int fd, std::vector<std::string>* out, int max_lines);
     std::mutex kmsg_mu_; ///< Serialises /dev/kmsg follow access.
     int kmsg_follow_fd_ = -1; ///< Long-lived /dev/kmsg descriptor (-1 closed).
@@ -173,12 +227,18 @@ class NativePlatform : public IPlatform
     // Bootloader environment access (U-Boot fw_printenv/fw_setenv), with a
     // flag-file fallback for boards that have no U-Boot environment.
     /// @brief Read a U-Boot environment variable.
+/// @param var U-Boot variable to read.
+/// @return The variable value, or an error.
     Result<std::string> fw_getenv(const std::string& var);
     /// @brief Write a U-Boot environment variable.
+/// @param var U-Boot variable to write.
+/// @param value Value to write.
     Error fw_setenv(const std::string& var, const std::string& value);
     /// @brief Probe (once) whether the board has a U-Boot environment.
     bool have_fw_env();
     /// @brief Flag-file fallback for boards without U-Boot env.
+/// @param rel Flag-file relative path.
+/// @param value Value to record.
     Error write_boot_file(const std::string& rel, const std::string& value);
     bool fw_env_checked_ = false; ///< True after the first U-Boot env probe.
     bool fw_env_present_ = false; ///< Cached U-Boot env availability.
@@ -187,16 +247,24 @@ class NativePlatform : public IPlatform
     // write_conf, which record what they would do and only execute when
     // INSTR_APPLY_NETWORK=1 — so a build host is never reconfigured.
     /// @brief Record (and conditionally execute) a network command.
+/// @param cmd Command to record (and conditionally execute).
     Error run_cmd(const std::string& cmd);
     /// @brief Record (and conditionally execute) a config-file write.
+/// @param path Config file to write.
+/// @param text Configuration text.
     Error write_conf(const std::string& path, const std::string& text);
 
     /// @brief Enrich a device with SMART / NVMe health where it is exposed.
+/// @param d Device to enrich with SMART/NVMe health.
     void read_smart(StorageDevice* d);
 
     /// @brief Read a file under the sysroot.
+/// @param path File to read under the sysroot.
+/// @return File contents, or an error.
     Result<std::string> read_file(const std::string& path);
     /// @brief List a directory under the sysroot.
+/// @param path Directory to list under the sysroot.
+/// @return Entry names.
     std::vector<std::string> list_dir(const std::string& path);
     /// @brief True when INSTR_APPLY_NETWORK=1 (mutations allowed).
     bool apply_enabled() const;

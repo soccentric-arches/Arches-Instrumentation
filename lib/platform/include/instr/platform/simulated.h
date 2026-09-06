@@ -40,6 +40,7 @@
 
 namespace instr
 {
+/// @brief Platform abstraction: board and hardware access behind IPlatform (REQ §5).
 namespace platform
 {
 
@@ -54,8 +55,10 @@ class SimulatedPlatform : public IPlatform
     SimulatedPlatform();
 
     /// @brief Script the factory identity returned to the daemons.
+/// @param id Identity the daemons will read.
     void set_factory_identity(const FactoryIdentity& id);
     /// @brief Script entropy availability.
+/// @param v Entropy availability to script.
     void set_entropy_available(bool v)
     {
         entropy_ = v;
@@ -77,16 +80,19 @@ class SimulatedPlatform : public IPlatform
         mem_ = m;
     }
     /// @brief Script the CPU snapshot.
+/// @param c CPU snapshot to script.
     void set_cpu(const CpuSnapshot& c)
     {
         cpu_ = c;
     }
     /// @brief Script the load average.
+/// @param l Load average to script.
     void set_load(double l)
     {
         load_ = l;
     }
     /// @brief Script the process count.
+/// @param n Process count to script.
     void set_processes(uint32_t n)
     {
         processes_ = n;
@@ -96,60 +102,72 @@ class SimulatedPlatform : public IPlatform
         uptime_ = s;
     }
     /// @brief Script the boot count.
+/// @param n Boot count to script.
     void set_boot_count(uint32_t n)
     {
         boot_count_ = n;
     }
     /// @brief Script the last-shutdown-clean state.
+/// @param v Last-shutdown-clean state to script.
     void set_last_shutdown_clean(bool v)
     {
         clean_shutdown_ = v;
     }
 
     /// @brief Fault injection (REQ §12): watchdog failures.
+/// @param v True to fail watchdog operations.
     void fail_watchdog(bool v)
     {
         fail_watchdog_ = v;
     }
     /// @brief Fault injection: GPIO failures.
+/// @param v True to fail GPIO operations.
     void fail_gpio(bool v)
     {
         fail_gpio_ = v;
     }
     /// @brief Fault injection: USB reset failures.
+/// @param v True to fail USB reset operations.
     void fail_usb(bool v)
     {
         fail_usb_ = v;
     }
     /// @brief Fault injection: CAN failures.
+/// @param v True to fail CAN operations.
     void fail_can(bool v)
     {
         fail_can_ = v;
     }
     /// @brief Fault injection: display failures.
+/// @param v True to fail display operations.
     void fail_display(bool v)
     {
         fail_display_ = v;
     }
     /// @brief Fault injection: unit start failures.
+/// @param v True to fail unit starts.
     void fail_unit_start(bool v)
     {
         fail_unit_start_ = v;
     }
     /// @brief Fault injection: boot-slot operation failures.
+/// @param v True to fail boot-slot operations.
     void fail_boot_slot_ops(bool v)
     {
         fail_boot_slots_ = v;
     }
     /// @brief Replace the whole scripted kernel log.
+/// @param lines Kernel log lines to script.
     void set_kernel_log(const std::vector<std::string>& lines)
     {
         kernel_log_ = lines;
     }
     /// @brief Append one kernel log line (emits it to followers too).
+/// @param line Line to append.
     void append_kernel_line(const std::string& line);
 
     /// @brief Network plans applied (or recorded) so far — test observation.
+/// @return Network plans applied (or recorded) so far.
     const std::vector<std::string>& applied_plans() const
     {
         return applied_plans_;
@@ -165,89 +183,179 @@ class SimulatedPlatform : public IPlatform
         return watchdog_running_;
     }
     /// @brief Current LED states.
+/// @return Current LED states.
     const std::map<std::string, bool>& led_state() const
     {
         return leds_;
     }
     /// @brief Current GPIO states.
+/// @return Current GPIO states.
     const std::map<int, bool>& gpio_state() const
     {
         return gpios_;
     }
     /// @brief Units started so far.
+/// @return Units started so far.
     const std::vector<std::string>& started_units() const
     {
         return started_units_;
     }
     /// @brief Current unit states.
+/// @return Current unit states.
     const std::map<std::string, bool>& unit_states() const
     {
         return units_;
     }
     /// @brief USB ports reset so far.
+/// @return USB ports reset so far.
     const std::vector<std::string>& usb_resets() const
     {
         return usb_resets_;
     }
     /// @brief Display commands received so far.
+/// @return Display commands received so far.
     const std::vector<std::string>& display_commands() const
     {
         return display_cmds_;
     }
     /// @brief Units restarted so far.
+/// @return Units restarted so far.
     const std::vector<std::string>& unit_restarts() const
     {
         return restarts_;
     }
 
-    /// @brief IPlatform implementation (per-method docs live on IPlatform).
-    /// @{
+/// @brief Factory identity for first-boot key generation (REQ §6.2).
+/// @return The factory identity, or an error when the board carries none.
     Result<FactoryIdentity> read_factory_identity() override;
+/// @brief True when the CSPRNG is seeded and safe for key generation.
     bool entropy_available() override;
+/// @brief All storage devices with wear/health data.
+/// @return Storage devices with wear/health data.
     std::vector<StorageDevice> storage_devices() override;
+/// @brief Partition topology including mount points and usage (§5).
+/// @return Partition topology.
     std::vector<Partition> partitions() override;
+/// @brief Memory pressure snapshot.
     MemInfo memory_info() override;
+/// @brief CPU utilisation and frequency snapshot.
     CpuSnapshot cpu_snapshot() override;
+/// @brief One-minute load average.
     double load_average_1m() override;
+/// @brief Total process count.
     uint32_t process_count() override;
+/// @brief Uptime in seconds.
     uint64_t uptime_s() override;
+/// @brief Number of boots recorded.
     uint32_t boot_count() override;
+/// @brief True when the previous shutdown was clean.
     bool last_shutdown_clean() override;
+/// @brief Thermal zone readings.
+/// @return Thermal zone readings.
     std::vector<ThermalZone> thermal_zones() override;
+/// @brief Power source readings.
+/// @return Power source readings.
     std::vector<PowerSource> power_sources() override;
+/// @brief Configure the hardware watchdog timeout (0 disarms where supported).
+/// @param seconds Watchdog timeout in seconds (0 disarms where supported).
     Error watchdog_set_timeout_s(int seconds) override;
+/// @brief Pet the hardware watchdog.
     Error watchdog_pet() override;
+/// @brief True when a time source is currently disciplined.
     bool time_locked() override;
+/// @brief Which time sources this board has, and their state (§5, §7.1).
+/// @return Time-source inventory with state.
     std::vector<TimeSourceInfo> time_sources() override;
+/// @brief Enumerate network interfaces.
+/// @return Network interface states.
     std::vector<IfaceInfo> interfaces() override;
+/// @brief Current A/B boot-slot state.
+/// @return The boot-slot state, or an error.
     Result<BootSlotState> boot_slots() override;
+/// @brief Select a boot slot; @p trial marks it pending confirmation.
+/// @param slot Slot to select ("A"/"B").
+/// @param trial Mark the slot pending confirmation when true.
     Error set_boot_slot(const std::string& slot, bool trial) override;
+/// @brief Confirm the currently pending slot as good.
     Error confirm_boot_slot() override;
+/// @brief Drive a GPIO line (Hardware daemon only, R7).
+/// @param line GPIO line number.
+/// @param value Value to drive.
     Error gpio_set(int line, bool value) override;
+/// @brief Read a GPIO line.
+/// @param line GPIO line number.
+/// @return The line state, or an error.
     Result<bool> gpio_get(int line) override;
+/// @brief Set an LED steady on/off.
+/// @param name LED name.
+/// @param on True to light the LED.
     Error led_set(const std::string& name, bool on) override;
+/// @brief Blink an LED with the given duty cycle.
+/// @param name LED name.
+/// @param on_ms On duration in ms.
+/// @param off_ms Off duration in ms.
+/// @param repeats Number of blinks.
     Error led_blink(const std::string& name, int on_ms, int off_ms, int repeats) override;
+/// @brief Power-cycle a USB port.
+/// @param port USB port to power-cycle.
     Error usb_reset(const std::string& port) override;
+/// @brief Run a CAN loopback health check on @p iface.
+/// @param iface CAN interface to test.
+/// @return True when the loopback passes, or an error.
     Result<bool> can_loopback_test(const std::string& iface) override;
+/// @brief Send one CAN frame on @p iface.
+/// @param iface CAN interface.
+/// @param frame Frame to send.
     Error can_send(const std::string& iface, const CanFrame& frame) override;
+/// @brief Drain up to @p max_frames frames buffered since the previous call.
+/// @param iface CAN interface.
+/// @param max_frames Maximum frames returned.
+/// @return Buffered frames, or an error.
     Result<std::vector<CanFrame>> can_recv(const std::string& iface, size_t max_frames) override;
+/// @brief Send a control command to a display.
+/// @param cmd Display command.
+/// @param arg Command argument.
     Error display_control(const std::string& cmd, const std::string& arg) override;
+/// @brief Probe display presence/capability.
+/// @return Probe result text, or an error.
     Result<std::string> display_probe() override;
+/// @brief Start a systemd unit (istate requests, REQ §7.1).
+/// @param unit systemd unit to start.
     Error unit_start(const std::string& unit) override;
+/// @brief Stop a systemd unit.
+/// @param unit systemd unit to stop.
     Error unit_stop(const std::string& unit) override;
+/// @brief Restart a systemd unit.
+/// @param unit systemd unit to restart.
     Error unit_restart(const std::string& unit) override;
+/// @brief Query whether a unit is active.
+/// @param unit systemd unit to query.
+/// @return True when active, or an error.
     Result<bool> unit_active(const std::string& unit) override;
     Result<std::vector<std::string>> kernel_log_lines(bool from_start) override;
+/// @brief Application log sink / journal access for LogManager.
+/// @param unit Unit whose journal to read.
+/// @param max_lines Maximum lines returned.
+/// @return Log lines, or an error.
     Result<std::vector<std::string>> journal_lines(const std::string& unit, size_t max_lines) override;
+/// @brief Render/apply a network plan (interfaces, firewall, ssh windows, wg, time).
+///
+/// The simulated platform records the plan; native shells out only when
+/// INSTR_APPLY_NETWORK=1 (never silently mutates a host).
+/// @param plan_json Rendered network plan (interfaces, firewall, ssh windows, wg, time).
     Error apply_network_plan(const std::string& plan_json) override;
+/// @brief True when HQ is currently reachable.
     bool hq_reachable() override;
+/// @brief Measured-boot attestation state (§10).
     MeasuredBootState measured_boot() override;
-    /// @copydoc IPlatform::coredump_dir
+/// @brief Directory coredumps are written to.
+/// @return The coredump directory path.
     std::string coredump_dir() override
     {
         return "/var/lib/instrumentation/coredumps";
     }
-    /// @copydoc IPlatform::platform_name
+/// @brief Human-readable platform name ("native" / "simulated" / board name).
+/// @return The platform name ("native" / "simulated" / board name).
     std::string platform_name() override
     {
         return "simulated";
@@ -255,6 +363,7 @@ class SimulatedPlatform : public IPlatform
     /// @}
 
     /// @brief Script per-unit journal contents for LogManager tests.
+/// @param j Per-unit journal contents to script.
     void set_journal(const std::map<std::string, std::vector<std::string>>& j)
     {
         journal_ = j;
@@ -262,16 +371,19 @@ class SimulatedPlatform : public IPlatform
     /// @brief Fault-injection / scenario knobs for the newer platform surfaces.
     /// @{
     /// @brief Script the partition topology.
+/// @param p Partition topology to script.
     void set_partitions(std::vector<Partition> p)
     {
         partitions_ = std::move(p);
     }
     /// @brief Script the time-source inventory.
+/// @param t Time-source inventory to script.
     void set_time_sources(std::vector<TimeSourceInfo> t)
     {
         time_sources_ = std::move(t);
     }
     /// @brief Script the measured-boot state.
+/// @param m Measured-boot state to script.
     void set_measured_boot(MeasuredBootState m)
     {
         measured_boot_ = std::move(m);
@@ -279,16 +391,22 @@ class SimulatedPlatform : public IPlatform
     /// @brief Queue a frame a can_recv on this interface will hand back
     /// (loopback by default: whatever was sent comes back, which is what a
     /// health check expects).
+/// @param iface Interface to queue the frame on.
+/// @param f Frame to hand to can_recv.
     void push_can_frame(const std::string& iface, const CanFrame& f)
     {
         can_rx_[iface].push_back(f);
     }
     /// @brief Frames sent on this interface so far (test observation).
+/// @param iface Interface to inspect.
+/// @return Frames sent on this interface so far.
     const std::vector<CanFrame>& can_sent(const std::string& iface)
     {
         return can_tx_[iface];
     }
     /// @brief Script CAN controller presence for an interface.
+/// @param iface CAN interface.
+/// @param present Controller presence to script.
     void set_can_present(const std::string& iface, bool present)
     {
         can_present_[iface] = present;

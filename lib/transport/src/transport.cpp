@@ -29,6 +29,7 @@
 
 namespace instr
 {
+/// @brief gRPC transport between the istate hub and daemon spokes (§3.1).
 namespace transport
 {
 

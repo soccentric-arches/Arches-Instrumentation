@@ -45,6 +45,7 @@
 
 namespace instr
 {
+/// @brief Raw-UDS control server/client framework (§3.2).
 namespace ctrl
 {
 
@@ -53,6 +54,7 @@ class StreamSink
 {
   public:
     /// @brief Bind the sink to an accepted connection descriptor.
+/// @param fd Accepted connection descriptor.
     explicit StreamSink(int fd) : fd_(fd)
     {
     }
@@ -123,6 +125,7 @@ class CtrlServer
     /// @brief Accept loop: accepts, reaps finished connection threads, spawns new ones.
     void serve_accept();
     /// @brief Serve one connection: read frames, dispatch to table or stream handler.
+/// @param fd Connection descriptor to serve.
     void serve_conn(int fd);
 
     const CommandTable* table_; ///< Command registry driving dispatch (not owned).
@@ -154,6 +157,7 @@ class CtrlClient
 {
   public:
     /// @brief Construct a client bound to @p socket_path (does not connect yet).
+/// @param socket_path Control socket path to connect to.
     explicit CtrlClient(std::string socket_path);
     /// @brief Close any open connection.
     ~CtrlClient();
@@ -178,8 +182,12 @@ class CtrlClient
 
   private:
     /// @brief Write all of @p data to the socket, looping over partial writes.
+/// @param data Bytes to send.
+/// @return True when all bytes were written.
     bool send_all(const std::string& data);
     /// @brief Read one length-prefixed frame from the socket.
+/// @param out Receives the frame payload.
+/// @return True when a frame was read.
     bool recv_frame(std::string* out);
 
     std::string path_; ///< Socket path to connect to.
@@ -216,6 +224,8 @@ class BulkServer
     using Resolver = std::function<Result<std::string>(const std::string& handle)>;
 
     /// @brief Construct a bulk server on @p socket_path resolving handles via @p resolve.
+/// @param socket_path Bulk socket path to bind.
+/// @param resolve Handle → file-path resolver.
     BulkServer(std::string socket_path, Resolver resolve) : path_(std::move(socket_path)), resolve_(std::move(resolve))
     {
     }
@@ -227,6 +237,7 @@ class BulkServer
     /// @brief Stop accepting and close the socket.
     void stop();
     /// @brief Bound socket path.
+/// @return The bound socket path.
     const std::string& path() const
     {
         return path_;
@@ -241,6 +252,7 @@ class BulkServer
     /// @brief Accept loop: one connection at a time, streaming one handle.
     void serve_accept();
     /// @brief Read a handle from @p fd and stream the resolved file until close.
+/// @param fd Accepted connection descriptor.
     void serve_one(int fd);
 
     std::string path_; ///< Bound socket path.

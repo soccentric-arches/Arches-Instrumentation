@@ -42,6 +42,7 @@
 
 namespace instr
 {
+/// @brief Platform abstraction: board and hardware access behind IPlatform (REQ §5).
 namespace platform
 {
 
@@ -93,6 +94,8 @@ struct CapabilityManifest
     std::string board; ///< Board variant name.
     std::vector<std::string> capabilities; ///< wifi, wifi_ap, can, display, gnss, ptp, watchdog, ...
     /// @brief Test membership of the manifest.
+/// @param c Capability name to test.
+/// @return True when the board declares it.
     bool has(const std::string& c) const
     {
         for (const auto& x : capabilities)
@@ -102,10 +105,22 @@ struct CapabilityManifest
 };
 
 /// @brief Load a device descriptor YAML, validated against @p schema.
+/// @param yaml_text Descriptor YAML source.
+/// @param schema JSON Schema to validate against.
+/// @param source Origin of the text, used in errors.
+/// @return The parsed descriptor, or an error.
 Result<DeviceDescriptor> load_device_descriptor(const std::string& yaml_text, const JValue& schema, const std::string& source);
 /// @brief Load a resource profile YAML, validated against @p schema.
+/// @param yaml_text Profile YAML source.
+/// @param schema JSON Schema to validate against.
+/// @param source Origin of the text, used in errors.
+/// @return The parsed profile, or an error.
 Result<ResourceProfile> load_resource_profile(const std::string& yaml_text, const JValue& schema, const std::string& source);
 /// @brief Load a capability manifest YAML, validated against @p schema.
+/// @param yaml_text Manifest YAML source.
+/// @param schema JSON Schema to validate against.
+/// @param source Origin of the text, used in errors.
+/// @return The parsed manifest, or an error.
 Result<CapabilityManifest> load_capability_manifest(const std::string& yaml_text, const JValue& schema, const std::string& source);
 
 } // namespace platform

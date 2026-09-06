@@ -29,6 +29,7 @@
 
 namespace instr
 {
+/// @brief Platform abstraction: board and hardware access behind IPlatform (REQ §5).
 namespace platform
 {
 
@@ -49,18 +50,23 @@ SimulatedPlatform::SimulatedPlatform()
 }
 
 /// @brief Script the factory identity returned to the daemons.
+/// @param id Identity the daemons will read.
 void SimulatedPlatform::set_factory_identity(const FactoryIdentity& id)
 {
     std::lock_guard<std::mutex> lk(mu_);
     identity_ = id;
 }
 /// @brief Inject a storage device into the enumeration.
+/// @param d Storage device to inject.
 void SimulatedPlatform::inject_storage_device(const StorageDevice& d)
 {
     std::lock_guard<std::mutex> lk(mu_);
     storage_.push_back(d);
 }
 /// @brief Script a thermal zone reading.
+/// @param id Zone id.
+/// @param label Zone label.
+/// @param c Temperature in Celsius.
 void SimulatedPlatform::set_thermal(const std::string& id, const std::string& label, double c)
 {
     std::lock_guard<std::mutex> lk(mu_);
@@ -74,92 +80,103 @@ void SimulatedPlatform::set_thermal(const std::string& id, const std::string& la
     thermals_.push_back(ThermalZone{id, label, c});
 }
 /// @brief Script a power source reading.
+/// @param id Source id.
+/// @param kind ac or battery.
+/// @param pct Charge percentage.
+/// @param charging True when charging.
 void SimulatedPlatform::set_power(const std::string& id, const std::string& kind, double pct, bool charging)
 {
     std::lock_guard<std::mutex> lk(mu_);
     power_.push_back(PowerSource{id, kind, pct, charging});
 }
 /// @brief Inject a network interface into the enumeration.
+/// @param i Interface to inject.
 void SimulatedPlatform::inject_iface(const IfaceInfo& i)
 {
     std::lock_guard<std::mutex> lk(mu_);
     ifaces_.push_back(i);
 }
 /// @brief Append one kernel log line (emits it to followers too).
+/// @param line Line to append.
 void SimulatedPlatform::append_kernel_line(const std::string& line)
 {
     std::lock_guard<std::mutex> lk(mu_);
     kernel_log_.push_back(line);
 }
 
-/// @copydoc IPlatform::read_factory_identity
+/// @brief Factory identity for first-boot key generation (REQ §6.2).
+/// @return The scripted factory identity.
 Result<FactoryIdentity> SimulatedPlatform::read_factory_identity()
 {
     std::lock_guard<std::mutex> lk(mu_);
     if (!identity_.valid) return Result<FactoryIdentity>::fail(Errc::NotFound, "factory identity not provisioned", "simulated");
     return Result<FactoryIdentity>::good(identity_);
 }
-/// @copydoc IPlatform::entropy_available
+/// @brief True when the CSPRNG is seeded and safe for key generation.
 bool SimulatedPlatform::entropy_available()
 {
     return entropy_;
 }
-/// @copydoc IPlatform::storage_devices
+/// @brief All storage devices with wear/health data.
+/// @return The scripted storage devices.
 std::vector<StorageDevice> SimulatedPlatform::storage_devices()
 {
     std::lock_guard<std::mutex> lk(mu_);
     return storage_;
 }
-/// @copydoc IPlatform::memory_info
+/// @brief Memory pressure snapshot.
 MemInfo SimulatedPlatform::memory_info()
 {
     std::lock_guard<std::mutex> lk(mu_);
     return mem_;
 }
-/// @copydoc IPlatform::cpu_snapshot
+/// @brief CPU utilisation and frequency snapshot.
 CpuSnapshot SimulatedPlatform::cpu_snapshot()
 {
     std::lock_guard<std::mutex> lk(mu_);
     return cpu_;
 }
-/// @copydoc IPlatform::load_average_1m
+/// @brief One-minute load average.
 double SimulatedPlatform::load_average_1m()
 {
     return load_;
 }
-/// @copydoc IPlatform::process_count
+/// @brief Total process count.
 uint32_t SimulatedPlatform::process_count()
 {
     return processes_;
 }
-/// @copydoc IPlatform::uptime_s
+/// @brief Uptime in seconds.
 uint64_t SimulatedPlatform::uptime_s()
 {
     return uptime_;
 }
-/// @copydoc IPlatform::boot_count
+/// @brief Number of boots recorded.
 uint32_t SimulatedPlatform::boot_count()
 {
     return boot_count_;
 }
-/// @copydoc IPlatform::last_shutdown_clean
+/// @brief True when the previous shutdown was clean.
 bool SimulatedPlatform::last_shutdown_clean()
 {
     return clean_shutdown_;
 }
-/// @copydoc IPlatform::thermal_zones
+/// @brief Thermal zone readings.
+/// @return The scripted thermal zones.
 std::vector<ThermalZone> SimulatedPlatform::thermal_zones()
 {
     std::lock_guard<std::mutex> lk(mu_);
     return thermals_;
 }
-/// @copydoc IPlatform::power_sources
+/// @brief Power source readings.
+/// @return The scripted power sources.
 std::vector<PowerSource> SimulatedPlatform::power_sources()
 {
     std::lock_guard<std::mutex> lk(mu_);
     return power_;
 }
-/// @copydoc IPlatform::watchdog_set_timeout_s
+/// @brief Configure the hardware watchdog timeout (0 disarms where supported).
+/// @param seconds Watchdog timeout in seconds.
 Error SimulatedPlatform::watchdog_set_timeout_s(int seconds)
 {
     (void)seconds;
@@ -167,32 +184,36 @@ Error SimulatedPlatform::watchdog_set_timeout_s(int seconds)
     watchdog_running_ = true;
     return Error::none();
 }
-/// @copydoc IPlatform::watchdog_pet
+/// @brief Pet the hardware watchdog.
 Error SimulatedPlatform::watchdog_pet()
 {
     if (fail_watchdog_) return Error::make(Errc::Io, "simulated watchdog pet failure", "watchdog");
     ++watchdog_pets_;
     return Error::none();
 }
-/// @copydoc IPlatform::time_locked
+/// @brief True when a time source is currently disciplined.
 bool SimulatedPlatform::time_locked()
 {
     return time_locked_;
 }
-/// @copydoc IPlatform::interfaces
+/// @brief Enumerate network interfaces.
+/// @return The scripted interfaces.
 std::vector<IfaceInfo> SimulatedPlatform::interfaces()
 {
     std::lock_guard<std::mutex> lk(mu_);
     return ifaces_;
 }
-/// @copydoc IPlatform::boot_slots
+/// @brief Current A/B boot-slot state.
+/// @return The scripted boot-slot state.
 Result<BootSlotState> SimulatedPlatform::boot_slots()
 {
     if (fail_boot_slots_) return Result<BootSlotState>::fail(Errc::Io, "simulated bootctl failure", "boot");
     std::lock_guard<std::mutex> lk(mu_);
     return Result<BootSlotState>::good(slots_);
 }
-/// @copydoc IPlatform::set_boot_slot
+/// @brief Select a boot slot; @p trial marks it pending confirmation.
+/// @param slot Slot to select.
+/// @param trial Mark the slot pending confirmation when true.
 Error SimulatedPlatform::set_boot_slot(const std::string& slot, bool trial)
 {
     if (fail_boot_slots_) return Error::make(Errc::Io, "simulated set-slot failure", "boot");
@@ -201,7 +222,7 @@ Error SimulatedPlatform::set_boot_slot(const std::string& slot, bool trial)
     if (trial) slots_.pending = slot;
     return Error::none();
 }
-/// @copydoc IPlatform::confirm_boot_slot
+/// @brief Confirm the currently pending slot as good.
 Error SimulatedPlatform::confirm_boot_slot()
 {
     if (fail_boot_slots_) return Error::make(Errc::Io, "simulated confirm failure", "boot");
@@ -214,7 +235,9 @@ Error SimulatedPlatform::confirm_boot_slot()
     }
     return Error::none();
 }
-/// @copydoc IPlatform::gpio_set
+/// @brief Drive a GPIO line (Hardware daemon only, R7).
+/// @param line GPIO line number.
+/// @param value Value to drive.
 Error SimulatedPlatform::gpio_set(int line, bool value)
 {
     if (fail_gpio_) return Error::make(Errc::Io, "simulated gpio failure", "gpio");
@@ -222,7 +245,9 @@ Error SimulatedPlatform::gpio_set(int line, bool value)
     gpios_[line] = value;
     return Error::none();
 }
-/// @copydoc IPlatform::gpio_get
+/// @brief Read a GPIO line.
+/// @param line GPIO line number.
+/// @return The scripted line state.
 Result<bool> SimulatedPlatform::gpio_get(int line)
 {
     std::lock_guard<std::mutex> lk(mu_);
@@ -230,14 +255,20 @@ Result<bool> SimulatedPlatform::gpio_get(int line)
     if (it == gpios_.end()) return Result<bool>::fail(Errc::NotFound, "gpio not configured", "gpio");
     return Result<bool>::good(it->second);
 }
-/// @copydoc IPlatform::led_set
+/// @brief Set an LED steady on/off.
+/// @param name LED name.
+/// @param on True to light the LED.
 Error SimulatedPlatform::led_set(const std::string& name, bool on)
 {
     std::lock_guard<std::mutex> lk(mu_);
     leds_[name] = on;
     return Error::none();
 }
-/// @copydoc IPlatform::led_blink
+/// @brief Blink an LED with the given duty cycle.
+/// @param name LED name.
+/// @param on_ms On duration in ms.
+/// @param off_ms Off duration in ms.
+/// @param repeats Number of blinks.
 Error SimulatedPlatform::led_blink(const std::string& name, int on_ms, int off_ms, int repeats)
 {
     std::lock_guard<std::mutex> lk(mu_);
@@ -247,7 +278,8 @@ Error SimulatedPlatform::led_blink(const std::string& name, int on_ms, int off_m
     leds_[name + ":blink-ack"] = repeats > 0;
     return Error::none();
 }
-/// @copydoc IPlatform::usb_reset
+/// @brief Power-cycle a USB port.
+/// @param port USB port to reset.
 Error SimulatedPlatform::usb_reset(const std::string& port)
 {
     if (fail_usb_) return Error::make(Errc::Io, "simulated usb reset failure", port);
@@ -255,14 +287,18 @@ Error SimulatedPlatform::usb_reset(const std::string& port)
     usb_resets_.push_back(port);
     return Error::none();
 }
-/// @copydoc IPlatform::can_loopback_test
+/// @brief Run a CAN loopback health check on @p iface.
+/// @param iface CAN interface to test.
+/// @return True (loopback echoes by default).
 Result<bool> SimulatedPlatform::can_loopback_test(const std::string& iface)
 {
     if (fail_can_) return Result<bool>::good(false);
     (void)iface;
     return Result<bool>::good(true);
 }
-/// @copydoc IPlatform::display_control
+/// @brief Send a control command to a display.
+/// @param cmd Display command.
+/// @param arg Command argument.
 Error SimulatedPlatform::display_control(const std::string& cmd, const std::string& arg)
 {
     if (fail_display_) return Error::make(Errc::Io, "simulated display failure", cmd);
@@ -270,13 +306,15 @@ Error SimulatedPlatform::display_control(const std::string& cmd, const std::stri
     display_cmds_.push_back(cmd + ":" + arg);
     return Error::none();
 }
-/// @copydoc IPlatform::display_probe
+/// @brief Probe display presence/capability.
+/// @return The scripted probe result.
 Result<std::string> SimulatedPlatform::display_probe()
 {
     if (fail_display_) return Result<std::string>::fail(Errc::Io, "simulated display probe failure", "display");
     return Result<std::string>::good("ok 1280x800");
 }
-/// @copydoc IPlatform::unit_start
+/// @brief Start a systemd unit (istate requests, REQ §7.1).
+/// @param unit Unit to start.
 Error SimulatedPlatform::unit_start(const std::string& unit)
 {
     if (fail_unit_start_) return Error::make(Errc::Unavailable, "simulated systemctl failure", unit);
@@ -285,14 +323,16 @@ Error SimulatedPlatform::unit_start(const std::string& unit)
     started_units_.push_back(unit);
     return Error::none();
 }
-/// @copydoc IPlatform::unit_stop
+/// @brief Stop a systemd unit.
+/// @param unit Unit to stop.
 Error SimulatedPlatform::unit_stop(const std::string& unit)
 {
     std::lock_guard<std::mutex> lk(mu_);
     units_[unit] = false;
     return Error::none();
 }
-/// @copydoc IPlatform::unit_restart
+/// @brief Restart a systemd unit.
+/// @param unit Unit to restart.
 Error SimulatedPlatform::unit_restart(const std::string& unit)
 {
     std::lock_guard<std::mutex> lk(mu_);
@@ -300,7 +340,9 @@ Error SimulatedPlatform::unit_restart(const std::string& unit)
     restarts_.push_back(unit);
     return Error::none();
 }
-/// @copydoc IPlatform::unit_active
+/// @brief Query whether a unit is active.
+/// @param unit Unit to query.
+/// @return The scripted unit state.
 Result<bool> SimulatedPlatform::unit_active(const std::string& unit)
 {
     std::lock_guard<std::mutex> lk(mu_);
@@ -308,6 +350,8 @@ Result<bool> SimulatedPlatform::unit_active(const std::string& unit)
     return Result<bool>::good(it != units_.end() && it->second);
 }
 /// @copydoc IPlatform::kernel_log_lines
+/// @param from_start True to read from the beginning; false to follow with new lines only.
+/// @return The scripted kernel log lines.
 Result<std::vector<std::string>> SimulatedPlatform::kernel_log_lines(bool from_start)
 {
     std::lock_guard<std::mutex> lk(mu_);
@@ -323,7 +367,10 @@ Result<std::vector<std::string>> SimulatedPlatform::kernel_log_lines(bool from_s
     follow_cursor_ = kernel_log_.size();
     return Result<std::vector<std::string>>::good(std::move(fresh));
 }
-/// @copydoc IPlatform::journal_lines
+/// @brief Application log sink / journal access for LogManager.
+/// @param unit Unit whose journal to read.
+/// @param max_lines Maximum lines returned.
+/// @return The scripted journal lines.
 Result<std::vector<std::string>> SimulatedPlatform::journal_lines(const std::string& unit, size_t max_lines)
 {
     std::lock_guard<std::mutex> lk(mu_);
@@ -333,14 +380,18 @@ Result<std::vector<std::string>> SimulatedPlatform::journal_lines(const std::str
     if (out.size() > max_lines) out.erase(out.begin(), out.end() - long(max_lines));
     return Result<std::vector<std::string>>::good(std::move(out));
 }
-/// @copydoc IPlatform::apply_network_plan
+/// @brief Render/apply a network plan (interfaces, firewall, ssh windows, wg, time).
+///
+/// The simulated platform records the plan; native shells out only when
+/// INSTR_APPLY_NETWORK=1 (never silently mutates a host).
+/// @param plan_json Network plan to record.
 Error SimulatedPlatform::apply_network_plan(const std::string& plan_json)
 {
     std::lock_guard<std::mutex> lk(mu_);
     applied_plans_.push_back(plan_json);
     return Error::none();
 }
-/// @copydoc IPlatform::hq_reachable
+/// @brief True when HQ is currently reachable.
 bool SimulatedPlatform::hq_reachable()
 {
     return hq_reachable_;
@@ -355,10 +406,12 @@ bool SimulatedPlatform::hq_reachable()
 
 namespace instr
 {
+/// @brief Platform abstraction: board and hardware access behind IPlatform (REQ §5).
 namespace platform
 {
 
-/// @copydoc IPlatform::partitions
+/// @brief Partition topology including mount points and usage (§5).
+/// @return The scripted partition topology.
 std::vector<Partition> SimulatedPlatform::partitions()
 {
     std::lock_guard<std::mutex> lk(mu_);
@@ -386,7 +439,8 @@ std::vector<Partition> SimulatedPlatform::partitions()
     return out;
 }
 
-/// @copydoc IPlatform::time_sources
+/// @brief Which time sources this board has, and their state (§5, §7.1).
+/// @return The scripted time-source inventory.
 std::vector<TimeSourceInfo> SimulatedPlatform::time_sources()
 {
     std::lock_guard<std::mutex> lk(mu_);
@@ -410,7 +464,9 @@ std::vector<TimeSourceInfo> SimulatedPlatform::time_sources()
     return out;
 }
 
-/// @copydoc IPlatform::can_send
+/// @brief Send one CAN frame on @p iface.
+/// @param iface CAN interface.
+/// @param frame Frame to send.
 Error SimulatedPlatform::can_send(const std::string& iface, const CanFrame& frame)
 {
     std::lock_guard<std::mutex> lk(mu_);
@@ -423,7 +479,10 @@ Error SimulatedPlatform::can_send(const std::string& iface, const CanFrame& fram
     return Error::none();
 }
 
-/// @copydoc IPlatform::can_recv
+/// @brief Drain up to @p max_frames frames buffered since the previous call.
+/// @param iface CAN interface.
+/// @param max_frames Maximum frames returned.
+/// @return Queued receive frames.
 Result<std::vector<SimulatedPlatform::CanFrame>> SimulatedPlatform::can_recv(const std::string& iface, size_t max_frames)
 {
     std::lock_guard<std::mutex> lk(mu_);
@@ -439,7 +498,7 @@ Result<std::vector<SimulatedPlatform::CanFrame>> SimulatedPlatform::can_recv(con
     return Result<std::vector<CanFrame>>::good(std::move(out));
 }
 
-/// @copydoc IPlatform::measured_boot
+/// @brief Measured-boot attestation state (§10).
 MeasuredBootState SimulatedPlatform::measured_boot()
 {
     std::lock_guard<std::mutex> lk(mu_);

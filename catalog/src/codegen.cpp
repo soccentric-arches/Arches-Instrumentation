@@ -36,10 +36,13 @@
 
 namespace instr
 {
+/// @brief Alarm catalog parsing and C++ header code generation (§7.6, §8).
 namespace catalog
 {
 
 /// @brief Canonical lowercase severity name.
+/// @param s Severity to name.
+/// @return Canonical lowercase name.
 const char* severity_name(Severity s)
 {
     switch (s)
@@ -54,6 +57,9 @@ const char* severity_name(Severity s)
 }
 
 /// @brief Parse a severity name (case-insensitive).
+/// @param s Name to parse.
+/// @param err Receives the failure when unknown.
+/// @param n Name to parse.
 Severity severity_from_name(const std::string& n, Error* err)
 {
     std::string u;
@@ -67,7 +73,9 @@ Severity severity_from_name(const std::string& n, Error* err)
     return Severity::Info;
 }
 
-/// @brief Encode "0x1_04_1_0007"-form id text into the packed identity.
+/// @brief Encode id text "0x1_04_1_0007" → uint32 (validated field widths).
+/// @param text Canonical id text.
+/// @return The packed id, or an error for malformed fields.
 Result<uint32_t> parse_alarm_id_text(const std::string& text)
 {
     // Format: 0x<domain>_<module>_<type>_<index>
@@ -102,7 +110,9 @@ Result<uint32_t> parse_alarm_id_text(const std::string& text)
     return Result<uint32_t>::good(v);
 }
 
-/// @brief Parse and validate catalog YAML; duplicates are loud errors.
+/// @brief Parse + validate a catalog; duplicate IDs or names are loud errors.
+/// @param yaml_text Catalog source text.
+/// @return Parsed catalog, or a diagnosable error.
 Result<AlarmCatalog> parse_catalog(const std::string& yaml_text)
 {
     try
@@ -146,6 +156,8 @@ Result<AlarmCatalog> parse_catalog(const std::string& yaml_text)
 }
 
 /// @brief Convert a symbolic name to INSTR_ALARM_<UPPER_SNAKE> form.
+/// @param name Symbolic alarm name.
+/// @return The UPPER_SNAKE constant suffix.
 static std::string to_upper_snake(const std::string& name)
 {
     std::string out;
@@ -164,6 +176,8 @@ static std::string to_upper_snake(const std::string& name)
 }
 
 /// @brief Escape and quote a string as a C literal.
+/// @param s Text to escape.
+/// @return The quoted C literal.
 static std::string c_str(const std::string& s)
 {
     std::string out = "\"";
@@ -180,7 +194,10 @@ static std::string c_str(const std::string& s)
     return out + "\"";
 }
 
-/// @brief Render the generated INSTR_ALARM_* header from the catalog.
+/// @brief Render the C++ header: INSTR_ALARM_* constants + entry table.
+/// @param cat Parsed catalog.
+/// @param version Catalog version stamped into the output.
+/// @return Generated header text, or an error.
 Result<std::string> render_header(const AlarmCatalog& cat, const std::string& version)
 {
     std::ostringstream o;

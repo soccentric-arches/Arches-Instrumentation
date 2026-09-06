@@ -39,12 +39,15 @@
 
 namespace instr
 {
+/// @brief Raw-UDS control server/client framework (§3.2).
 namespace ctrl
 {
 
 // ---------------- StreamSink ----------------
 
 /// @brief Frame one JSON line to the client; latches closed() on failure.
+/// @param json_line JSON payload line to frame and send.
+/// @return False once the client disconnects.
 bool StreamSink::send(const std::string& json_line)
 {
     std::string frame = frames::encode_frame(json_line);
@@ -67,6 +70,8 @@ bool StreamSink::send(const std::string& json_line)
 // ---------------- CtrlServer ----------------
 
 /// @brief Construct a server over @p table on @p socket_path.
+/// @param table Command table driving dispatch.
+/// @param socket_path Socket to bind.
 CtrlServer::CtrlServer(const CommandTable* table, std::string socket_path) : table_(table), path_(std::move(socket_path))
 {
 }
@@ -161,6 +166,7 @@ void CtrlServer::serve_accept()
 }
 
 /// @brief Serve one connection until close.
+/// @param fd Connection descriptor to serve.
 void CtrlServer::serve_conn(int fd)
 {
     frames::FrameDecoder dec;
@@ -254,6 +260,8 @@ void CtrlClient::close()
 }
 
 /// @brief Loop over partial writes until all bytes are sent.
+/// @param data Bytes to send.
+/// @return True when all bytes were written.
 bool CtrlClient::send_all(const std::string& data)
 {
     size_t off = 0;
@@ -267,6 +275,8 @@ bool CtrlClient::send_all(const std::string& data)
 }
 
 /// @brief Read one length-prefixed frame.
+/// @param out Receives the frame payload.
+/// @return True when a frame was read.
 bool CtrlClient::recv_frame(std::string* out)
 {
     char buf[8192];
@@ -281,6 +291,9 @@ bool CtrlClient::recv_frame(std::string* out)
 }
 
 /// @brief Single request/response round trip.
+/// @param op Operation name.
+/// @param json_args Raw JSON argument string.
+/// @return The server's result envelope.
 CommandResult CtrlClient::call(const std::string& op, const std::string& json_args)
 {
     if (fd_ < 0) return CommandResult::err(Errc::Unavailable, "not connected", "");
@@ -314,6 +327,10 @@ CommandResult CtrlClient::call(const std::string& op, const std::string& json_ar
 }
 
 /// @brief Streaming call: one callback per frame until the server closes.
+/// @param op Operation name.
+/// @param json_args Raw JSON argument string.
+/// @param on_frame Per-frame callback.
+/// @return ok() when the stream ended cleanly.
 Error CtrlClient::call_stream(const std::string& op, const std::string& json_args, const std::function<void(const std::string&)>& on_frame)
 {
     if (fd_ < 0) return Error::make(Errc::Unavailable, "not connected", path_);
@@ -396,6 +413,7 @@ void BulkServer::serve_accept()
 }
 
 /// @brief Read a handle and stream the resolved file until close.
+/// @param fd Accepted connection descriptor.
 void BulkServer::serve_one(int fd)
 {
     // Request: one length-prefixed frame carrying the handle.
@@ -443,7 +461,15 @@ void BulkServer::serve_one(int fd)
     ++served_;
 }
 
-/// @brief Stream a bulk payload by handle, chunk by chunk.
+/// @brief Read a payload by handle from a bulk socket, chunk by chunk.
+///
+/// @p sink is called with each chunk as it arrives, so a caller can stream to
+/// disk or onward to HQ without holding the whole bundle in memory.
+///
+/// @param socket_path Bulk socket to connect to.
+/// @param handle Handle named by the control response.
+/// @param sink Called per chunk; return false to stop early.
+/// @return Total bytes received, or an error.
 Result<uint64_t> bulk_fetch(const std::string& socket_path, const std::string& handle, const std::function<bool(const char*, size_t)>& sink)
 {
     int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
@@ -489,6 +515,8 @@ Result<uint64_t> bulk_fetch(const std::string& socket_path, const std::string& h
 // ---------------- tool main ----------------
 
 /// @brief Print a command envelope (--json emits raw; default pretty-prints).
+/// @param r Result envelope to print.
+/// @param pretty Pretty-print the JSON payload when true.
 static void print_envelope(const CommandResult& r, bool pretty)
 {
     std::string env = r.envelope();
@@ -504,7 +532,13 @@ static void print_envelope(const CommandResult& r, bool pretty)
         std::cout << env << "\n";
 }
 
-/// @brief Shared _ctrl tool entry: argument parsing, help and dispatch.
+/// @brief Shared _ctrl tool main: --help, --help <op>, --json, --socket PATH, completion.
+/// @param argc Argc from main().
+/// @param argv Argv from main().
+/// @param table Command table for the tool.
+/// @param prog_name Tool name used in the usage line.
+/// @param default_socket Socket path used unless --socket overrides.
+/// @return Process exit code.
 int tool_main(int argc, char** argv, const CommandTable& table, const std::string& prog_name, const std::string& default_socket)
 {
     std::string socket_path = default_socket;

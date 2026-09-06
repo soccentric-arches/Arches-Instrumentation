@@ -31,6 +31,7 @@
 
 namespace instr
 {
+/// @brief Platform abstraction: board and hardware access behind IPlatform (REQ §5).
 namespace platform
 {
 
@@ -41,6 +42,8 @@ namespace platform
 static JValue yaml_to_json(const YAML::Node& n);
 
 /// @brief Convert one YAML scalar node to the equivalent JValue.
+/// @param n YAML scalar node to convert.
+/// @return The equivalent JValue.
 static JValue yaml_scalar(const YAML::Node& n)
 {
     if (n.IsNull()) return JValue();
@@ -74,12 +77,19 @@ static JValue yaml_scalar(const YAML::Node& n)
 }
 
 /// @brief Recursively project a YAML node tree to JSON.
+/// @param n YAML node tree to project.
+/// @return The equivalent JValue.
 static JValue yaml_to_json(const YAML::Node& n)
 {
     return yaml_scalar(n);
 }
 
 /// @brief Validate descriptor YAML against its schema with source-context errors.
+/// @param schema JSON Schema to validate against.
+/// @param yaml_text Descriptor YAML source.
+/// @param source Origin of the text, used in errors.
+/// @param out Receives the parse failure text when invalid.
+/// @return True when the text conforms.
 static Error validate(const JValue& schema, const std::string& yaml_text, const std::string& source, JValue* out)
 {
     auto j = json_from_yaml_text(yaml_text);
@@ -96,6 +106,10 @@ static Error validate(const JValue& schema, const std::string& yaml_text, const 
 }
 
 /// @brief Load a device descriptor YAML, validated against @p schema.
+/// @param yaml_text Descriptor YAML source.
+/// @param schema JSON Schema to validate against.
+/// @param source Origin of the text, used in errors.
+/// @return The parsed descriptor, or an error.
 Result<DeviceDescriptor> load_device_descriptor(const std::string& yaml_text, const JValue& schema, const std::string& source)
 {
     JValue j;
@@ -134,6 +148,10 @@ Result<DeviceDescriptor> load_device_descriptor(const std::string& yaml_text, co
 }
 
 /// @brief Load a resource profile YAML, validated against @p schema.
+/// @param yaml_text Profile YAML source.
+/// @param schema JSON Schema to validate against.
+/// @param source Origin of the text, used in errors.
+/// @return The parsed profile, or an error.
 Result<ResourceProfile> load_resource_profile(const std::string& yaml_text, const JValue& schema, const std::string& source)
 {
     JValue j;
@@ -161,6 +179,10 @@ Result<ResourceProfile> load_resource_profile(const std::string& yaml_text, cons
 }
 
 /// @brief Load a capability manifest YAML, validated against @p schema.
+/// @param yaml_text Manifest YAML source.
+/// @param schema JSON Schema to validate against.
+/// @param source Origin of the text, used in errors.
+/// @return The parsed manifest, or an error.
 Result<CapabilityManifest> load_capability_manifest(const std::string& yaml_text, const JValue& schema, const std::string& source)
 {
     JValue j;

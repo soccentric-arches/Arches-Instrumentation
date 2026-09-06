@@ -38,6 +38,7 @@
 
 namespace instr
 {
+/// @brief Alarm catalog parsing and C++ header code generation (§7.6, §8).
 namespace catalog
 {
 
@@ -52,6 +53,8 @@ enum class Severity
 };
 
 /// @brief Canonical lowercase name of a severity.
+/// @param s Severity to name.
+/// @return Canonical lowercase name.
 const char* severity_name(Severity);
 
 /// @brief Parse a severity name (case-insensitive).

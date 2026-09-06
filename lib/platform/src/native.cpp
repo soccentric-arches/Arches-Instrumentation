@@ -49,6 +49,7 @@
 
 namespace instr
 {
+/// @brief Platform abstraction: board and hardware access behind IPlatform (REQ §5).
 namespace platform
 {
 
@@ -72,6 +73,8 @@ NativePlatform::~NativePlatform()
 }
 
 /// @brief Read a file under the sysroot.
+/// @param path File to read under the sysroot.
+/// @return File contents, or an error.
 Result<std::string> NativePlatform::read_file(const std::string& path)
 {
     std::ifstream f(sysroot_ + path);
@@ -82,6 +85,8 @@ Result<std::string> NativePlatform::read_file(const std::string& path)
 }
 
 /// @brief List a directory under the sysroot.
+/// @param path Directory to list under the sysroot.
+/// @return Entry names.
 std::vector<std::string> NativePlatform::list_dir(const std::string& path)
 {
     std::vector<std::string> out;
@@ -105,7 +110,8 @@ bool NativePlatform::apply_enabled() const
     return v && std::string(v) == "1";
 }
 
-/// @copydoc IPlatform::read_factory_identity
+/// @brief Factory identity for first-boot key generation (REQ §6.2).
+/// @return The factory identity, or an error when the board carries none.
 Result<FactoryIdentity> NativePlatform::read_factory_identity()
 {
     auto f = read_file("/pst/factory/identity/identity.yaml");
@@ -137,7 +143,7 @@ Result<FactoryIdentity> NativePlatform::read_factory_identity()
     return Result<FactoryIdentity>::good(id);
 }
 
-/// @copydoc IPlatform::entropy_available
+/// @brief True when the CSPRNG is seeded and safe for key generation.
 bool NativePlatform::entropy_available()
 {
     auto a = read_file("/proc/sys/kernel/random/entropy_avail");
@@ -152,7 +158,8 @@ bool NativePlatform::entropy_available()
     }
 }
 
-/// @copydoc IPlatform::storage_devices
+/// @brief All storage devices with wear/health data.
+/// @return Storage devices with wear/health data.
 std::vector<StorageDevice> NativePlatform::storage_devices()
 {
     std::vector<StorageDevice> out;
@@ -200,7 +207,7 @@ std::vector<StorageDevice> NativePlatform::storage_devices()
     return out;
 }
 
-/// @copydoc IPlatform::memory_info
+/// @brief Memory pressure snapshot.
 MemInfo NativePlatform::memory_info()
 {
     MemInfo m;
@@ -227,7 +234,7 @@ MemInfo NativePlatform::memory_info()
     return m;
 }
 
-/// @copydoc IPlatform::cpu_snapshot
+/// @brief CPU utilisation and frequency snapshot.
 CpuSnapshot NativePlatform::cpu_snapshot()
 {
     CpuSnapshot c;
@@ -280,7 +287,7 @@ CpuSnapshot NativePlatform::cpu_snapshot()
     return c;
 }
 
-/// @copydoc IPlatform::load_average_1m
+/// @brief One-minute load average.
 double NativePlatform::load_average_1m()
 {
     auto f = read_file("/proc/loadavg");
@@ -295,13 +302,13 @@ double NativePlatform::load_average_1m()
     }
 }
 
-/// @copydoc IPlatform::process_count
+/// @brief Total process count.
 uint32_t NativePlatform::process_count()
 {
     return uint32_t(list_dir("/proc").size());
 }
 
-/// @copydoc IPlatform::uptime_s
+/// @brief Uptime in seconds.
 uint64_t NativePlatform::uptime_s()
 {
     auto f = read_file("/proc/uptime");
@@ -316,7 +323,7 @@ uint64_t NativePlatform::uptime_s()
     }
 }
 
-/// @copydoc IPlatform::boot_count
+/// @brief Number of boots recorded.
 uint32_t NativePlatform::boot_count()
 {
     auto f = read_file("/var/lib/instrumentation/bootcount");
@@ -331,13 +338,14 @@ uint32_t NativePlatform::boot_count()
     }
 }
 
-/// @copydoc IPlatform::last_shutdown_clean
+/// @brief True when the previous shutdown was clean.
 bool NativePlatform::last_shutdown_clean()
 {
     return read_file("/run/instrumentation/clean-shutdown").ok();
 }
 
-/// @copydoc IPlatform::thermal_zones
+/// @brief Thermal zone readings.
+/// @return Thermal zone readings.
 std::vector<ThermalZone> NativePlatform::thermal_zones()
 {
     std::vector<ThermalZone> out;
@@ -368,7 +376,8 @@ std::vector<ThermalZone> NativePlatform::thermal_zones()
     return out;
 }
 
-/// @copydoc IPlatform::power_sources
+/// @brief Power source readings.
+/// @return Power source readings.
 std::vector<PowerSource> NativePlatform::power_sources()
 {
     std::vector<PowerSource> out;
@@ -400,7 +409,8 @@ std::vector<PowerSource> NativePlatform::power_sources()
     return out;
 }
 
-/// @copydoc IPlatform::watchdog_set_timeout_s
+/// @brief Configure the hardware watchdog timeout (0 disarms where supported).
+/// @param seconds Watchdog timeout in seconds (0 disarms where supported).
 Error NativePlatform::watchdog_set_timeout_s(int seconds)
 {
     int fd = ::open((sysroot_ + "/dev/watchdog").c_str(), O_WRONLY);
@@ -424,7 +434,7 @@ Error NativePlatform::watchdog_set_timeout_s(int seconds)
     return Error::none();
 }
 
-/// @copydoc IPlatform::watchdog_pet
+/// @brief Pet the hardware watchdog.
 Error NativePlatform::watchdog_pet()
 {
     // Keep a persistent fd open for petting.
@@ -438,14 +448,15 @@ Error NativePlatform::watchdog_pet()
     return Error::none();
 }
 
-/// @copydoc IPlatform::time_locked
+/// @brief True when a time source is currently disciplined.
 bool NativePlatform::time_locked()
 {
     // chrony tracking or a time-synced marker from networkd.
     return read_file("/run/instrumentation/time-synced").ok();
 }
 
-/// @copydoc IPlatform::interfaces
+/// @brief Enumerate network interfaces.
+/// @return Network interface states.
 std::vector<IfaceInfo> NativePlatform::interfaces()
 {
     std::vector<IfaceInfo> out;
@@ -484,6 +495,8 @@ std::vector<IfaceInfo> NativePlatform::interfaces()
 //   boot_golden     the known-good fallback slot
 
 /// @brief Read a U-Boot environment variable.
+/// @param var U-Boot variable to read.
+/// @return The variable value, or an error.
 Result<std::string> NativePlatform::fw_getenv(const std::string& var)
 {
     std::string cmd = "fw_printenv -n " + var + " 2>/dev/null";
@@ -499,6 +512,8 @@ Result<std::string> NativePlatform::fw_getenv(const std::string& var)
 }
 
 /// @brief Write a U-Boot environment variable.
+/// @param var U-Boot variable to write.
+/// @param value Value to write.
 Error NativePlatform::fw_setenv(const std::string& var, const std::string& value)
 {
     if (!apply_enabled()) return Error::make(Errc::Unavailable, "bootloader env write disabled on host (INSTR_APPLY_NETWORK!=1)", var);
@@ -517,7 +532,8 @@ bool NativePlatform::have_fw_env()
     return fw_env_present_;
 }
 
-/// @copydoc IPlatform::boot_slots
+/// @brief Current A/B boot-slot state.
+/// @return The boot-slot state, or an error.
 Result<BootSlotState> NativePlatform::boot_slots()
 {
     BootSlotState s;
@@ -576,7 +592,9 @@ Result<BootSlotState> NativePlatform::boot_slots()
     return Result<BootSlotState>::good(s);
 }
 
-/// @copydoc IPlatform::set_boot_slot
+/// @brief Select a boot slot; @p trial marks it pending confirmation.
+/// @param slot Slot to select ("A"/"B").
+/// @param trial Mark the slot pending confirmation when true.
 Error NativePlatform::set_boot_slot(const std::string& slot, bool trial)
 {
     if (slot != "A" && slot != "B") return Error::make(Errc::InvalidArgument, "bad slot", slot);
@@ -609,7 +627,7 @@ Error NativePlatform::set_boot_slot(const std::string& slot, bool trial)
     return e;
 }
 
-/// @copydoc IPlatform::confirm_boot_slot
+/// @brief Confirm the currently pending slot as good.
 Error NativePlatform::confirm_boot_slot()
 {
     auto cur = boot_slots();
@@ -640,6 +658,8 @@ Error NativePlatform::confirm_boot_slot()
 }
 
 /// @brief Flag-file fallback for boards without U-Boot env.
+/// @param rel Flag-file relative path.
+/// @param value Value to record.
 Error NativePlatform::write_boot_file(const std::string& rel, const std::string& value)
 {
     FILE* f = std::fopen((sysroot_ + rel).c_str(), "w");
@@ -649,7 +669,9 @@ Error NativePlatform::write_boot_file(const std::string& rel, const std::string&
     return Error::none();
 }
 
-/// @copydoc IPlatform::gpio_set
+/// @brief Drive a GPIO line (Hardware daemon only, R7).
+/// @param line GPIO line number.
+/// @param value Value to drive.
 Error NativePlatform::gpio_set(int line, bool value)
 {
     std::string dir = "/sys/class/gpio/gpio" + std::to_string(line);
@@ -667,7 +689,9 @@ Error NativePlatform::gpio_set(int line, bool value)
     return Error::none();
 }
 
-/// @copydoc IPlatform::gpio_get
+/// @brief Read a GPIO line.
+/// @param line GPIO line number.
+/// @return The line state, or an error.
 Result<bool> NativePlatform::gpio_get(int line)
 {
     auto v = read_file("/sys/class/gpio/gpio" + std::to_string(line) + "/value");
@@ -682,7 +706,9 @@ Result<bool> NativePlatform::gpio_get(int line)
     }
 }
 
-/// @copydoc IPlatform::led_set
+/// @brief Set an LED steady on/off.
+/// @param name LED name.
+/// @param on True to light the LED.
 Error NativePlatform::led_set(const std::string& name, bool on)
 {
     FILE* f = std::fopen((sysroot_ + "/sys/class/leds/" + name + "/brightness").c_str(), "w");
@@ -692,7 +718,11 @@ Error NativePlatform::led_set(const std::string& name, bool on)
     return Error::none();
 }
 
-/// @copydoc IPlatform::led_blink
+/// @brief Blink an LED with the given duty cycle.
+/// @param name LED name.
+/// @param on_ms On duration in ms.
+/// @param off_ms Off duration in ms.
+/// @param repeats Number of blinks.
 Error NativePlatform::led_blink(const std::string& name, int on_ms, int off_ms, int repeats)
 {
     for (int i = 0; i < repeats; ++i)
@@ -707,7 +737,8 @@ Error NativePlatform::led_blink(const std::string& name, int on_ms, int off_ms, 
     return Error::none();
 }
 
-/// @copydoc IPlatform::usb_reset
+/// @brief Power-cycle a USB port.
+/// @param port USB port to power-cycle.
 Error NativePlatform::usb_reset(const std::string& port)
 {
     // Standard sysfs authorized toggle resets a USB port.
@@ -723,7 +754,9 @@ Error NativePlatform::usb_reset(const std::string& port)
     return Error::none();
 }
 
-/// @copydoc IPlatform::can_loopback_test
+/// @brief Run a CAN loopback health check on @p iface.
+/// @param iface CAN interface to test.
+/// @return True when the loopback passes, or an error.
 Result<bool> NativePlatform::can_loopback_test(const std::string& iface)
 {
     // A behavioural sanity check: interface must exist and be up.
@@ -732,7 +765,9 @@ Result<bool> NativePlatform::can_loopback_test(const std::string& iface)
     return Result<bool>::good(state->find("up") != std::string::npos);
 }
 
-/// @copydoc IPlatform::display_control
+/// @brief Send a control command to a display.
+/// @param cmd Display command.
+/// @param arg Command argument.
 Error NativePlatform::display_control(const std::string& cmd, const std::string& arg)
 {
     // Which backend this board has is descriptor data, not a code branch
@@ -820,7 +855,8 @@ Error NativePlatform::display_control(const std::string& cmd, const std::string&
     return Error::make(Errc::NotSupported, "display command not in descriptor", cmd);
 }
 
-/// @copydoc IPlatform::display_probe
+/// @brief Probe display presence/capability.
+/// @return Probe result text, or an error.
 Result<std::string> NativePlatform::display_probe()
 {
     auto f = read_file("/sys/class/graphics/fb0/virtual_size");
@@ -830,28 +866,33 @@ Result<std::string> NativePlatform::display_probe()
     return Result<std::string>::good("ok " + s);
 }
 
-/// @copydoc IPlatform::unit_start
+/// @brief Start a systemd unit (istate requests, REQ §7.1).
+/// @param unit systemd unit to start.
 Error NativePlatform::unit_start(const std::string& unit)
 {
     if (!apply_enabled()) return Error::make(Errc::Unavailable, "systemd mutation disabled on host (INSTR_APPLY_NETWORK!=1)", unit);
     int rc = std::system(("systemctl start " + unit + " 2>/dev/null").c_str());
     return rc == 0 ? Error::none() : Error::make(Errc::Unavailable, "systemctl start failed", unit);
 }
-/// @copydoc IPlatform::unit_stop
+/// @brief Stop a systemd unit.
+/// @param unit systemd unit to stop.
 Error NativePlatform::unit_stop(const std::string& unit)
 {
     if (!apply_enabled()) return Error::make(Errc::Unavailable, "systemd mutation disabled on host", unit);
     int rc = std::system(("systemctl stop " + unit + " 2>/dev/null").c_str());
     return rc == 0 ? Error::none() : Error::make(Errc::Unavailable, "systemctl stop failed", unit);
 }
-/// @copydoc IPlatform::unit_restart
+/// @brief Restart a systemd unit.
+/// @param unit systemd unit to restart.
 Error NativePlatform::unit_restart(const std::string& unit)
 {
     if (!apply_enabled()) return Error::make(Errc::Unavailable, "systemd mutation disabled on host", unit);
     int rc = std::system(("systemctl restart " + unit + " 2>/dev/null").c_str());
     return rc == 0 ? Error::none() : Error::make(Errc::Unavailable, "systemctl restart failed", unit);
 }
-/// @copydoc IPlatform::unit_active
+/// @brief Query whether a unit is active.
+/// @param unit systemd unit to query.
+/// @return True when active, or an error.
 Result<bool> NativePlatform::unit_active(const std::string& unit)
 {
     if (apply_enabled())
@@ -867,6 +908,8 @@ Result<bool> NativePlatform::unit_active(const std::string& unit)
 }
 
 /// @copydoc IPlatform::kernel_log_lines
+/// @param from_start True for boot backfill; false to follow with new lines only.
+/// @return Kernel log lines, or an error.
 Result<std::vector<std::string>> NativePlatform::kernel_log_lines(bool from_start)
 {
     std::lock_guard<std::mutex> lk(kmsg_mu_);
@@ -914,6 +957,9 @@ bool NativePlatform::open_follow_fd()
 }
 
 /// @brief Read up to @p max_lines kernel messages from @p fd into @p out.
+/// @param fd Descriptor to read from.
+/// @param out Receives the lines.
+/// @param max_lines Maximum lines to read.
 void NativePlatform::read_kmsg_into(int fd, std::vector<std::string>* out, int max_lines)
 {
     char buf[8192];
@@ -937,7 +983,10 @@ void NativePlatform::read_kmsg_into(int fd, std::vector<std::string>* out, int m
     }
 }
 
-/// @copydoc IPlatform::journal_lines
+/// @brief Application log sink / journal access for LogManager.
+/// @param unit Unit whose journal to read.
+/// @param max_lines Maximum lines returned.
+/// @return Log lines, or an error.
 Result<std::vector<std::string>> NativePlatform::journal_lines(const std::string& unit, size_t max_lines)
 {
     // Reading the journal is an observation, not a mutation: it must work on a
@@ -965,6 +1014,7 @@ Result<std::vector<std::string>> NativePlatform::journal_lines(const std::string
 // but on a device the plan is genuinely applied, not recorded and dropped.
 
 /// @brief Record (and conditionally execute) a network command.
+/// @param cmd Command to record (and conditionally execute).
 Error NativePlatform::run_cmd(const std::string& cmd)
 {
     if (!apply_enabled())
@@ -979,6 +1029,8 @@ Error NativePlatform::run_cmd(const std::string& cmd)
 }
 
 /// @brief Record (and conditionally execute) a config-file write.
+/// @param path Config file to write.
+/// @param text Configuration text.
 Error NativePlatform::write_conf(const std::string& path, const std::string& text)
 {
     if (!apply_enabled())
@@ -993,7 +1045,11 @@ Error NativePlatform::write_conf(const std::string& path, const std::string& tex
     return Error::none();
 }
 
-/// @copydoc IPlatform::apply_network_plan
+/// @brief Render/apply a network plan (interfaces, firewall, ssh windows, wg, time).
+///
+/// The simulated platform records the plan; native shells out only when
+/// INSTR_APPLY_NETWORK=1 (never silently mutates a host).
+/// @param plan_json Rendered network plan (interfaces, firewall, ssh windows, wg, time).
 Error NativePlatform::apply_network_plan(const std::string& plan_json)
 {
     auto parsed = json_parse(plan_json);
@@ -1184,6 +1240,9 @@ Error NativePlatform::apply_network_plan(const std::string& plan_json)
 }
 
 /// @brief Write the rendered supplicant / hostapd configuration for a plan.
+/// @param mode "sta" or "ap".
+/// @param iface Interface the configuration applies to.
+/// @param text Rendered configuration text.
 Error NativePlatform::write_wireless_conf(const std::string& mode, const std::string& iface, const std::string& text)
 {
     if (mode == "client") return write_conf("/etc/wpa_supplicant/wpa_supplicant-" + iface + ".conf", text);
@@ -1191,7 +1250,7 @@ Error NativePlatform::write_wireless_conf(const std::string& mode, const std::st
     return Error::make(Errc::InvalidArgument, "unknown wireless mode", mode);
 }
 
-/// @copydoc IPlatform::hq_reachable
+/// @brief True when HQ is currently reachable.
 bool NativePlatform::hq_reachable()
 {
     return read_file("/run/instrumentation/tunnel-up").ok();
@@ -1203,10 +1262,12 @@ bool NativePlatform::hq_reachable()
 
 namespace instr
 {
+/// @brief Platform abstraction: board and hardware access behind IPlatform (REQ §5).
 namespace platform
 {
 
-/// @copydoc IPlatform::partitions
+/// @brief Partition topology including mount points and usage (§5).
+/// @return Partition topology.
 std::vector<Partition> NativePlatform::partitions()
 {
     std::vector<Partition> out;
@@ -1260,7 +1321,8 @@ std::vector<Partition> NativePlatform::partitions()
     return out;
 }
 
-/// @copydoc IPlatform::time_sources
+/// @brief Which time sources this board has, and their state (§5, §7.1).
+/// @return Time-source inventory with state.
 std::vector<TimeSourceInfo> NativePlatform::time_sources()
 {
     std::vector<TimeSourceInfo> out;
@@ -1307,7 +1369,9 @@ std::vector<TimeSourceInfo> NativePlatform::time_sources()
     return out;
 }
 
-/// @copydoc IPlatform::can_send
+/// @brief Send one CAN frame on @p iface.
+/// @param iface CAN interface.
+/// @param frame Frame to send.
 Error NativePlatform::can_send(const std::string& iface, const CanFrame& frame)
 {
     int fd = ::socket(PF_CAN, SOCK_RAW, CAN_RAW);
@@ -1340,7 +1404,10 @@ Error NativePlatform::can_send(const std::string& iface, const CanFrame& frame)
     return Error::none();
 }
 
-/// @copydoc IPlatform::can_recv
+/// @brief Drain up to @p max_frames frames buffered since the previous call.
+/// @param iface CAN interface.
+/// @param max_frames Maximum frames returned.
+/// @return Buffered frames, or an error.
 Result<std::vector<NativePlatform::CanFrame>> NativePlatform::can_recv(const std::string& iface, size_t max_frames)
 {
     int fd = ::socket(PF_CAN, SOCK_RAW, CAN_RAW);
@@ -1379,7 +1446,7 @@ Result<std::vector<NativePlatform::CanFrame>> NativePlatform::can_recv(const std
     return Result<std::vector<CanFrame>>::good(std::move(out));
 }
 
-/// @copydoc IPlatform::measured_boot
+/// @brief Measured-boot attestation state (§10).
 MeasuredBootState NativePlatform::measured_boot()
 {
     MeasuredBootState m;
@@ -1423,6 +1490,7 @@ MeasuredBootState NativePlatform::measured_boot()
 
 namespace instr
 {
+/// @brief Platform abstraction: board and hardware access behind IPlatform (REQ §5).
 namespace platform
 {
 
@@ -1430,6 +1498,7 @@ namespace platform
 // (already read above); NVMe and SATA need smartctl, which is why this is
 // best-effort and marks smart_available rather than inventing numbers.
 /// @brief Enrich a device with SMART / NVMe health where it is exposed.
+/// @param d Device to enrich with SMART/NVMe health.
 void NativePlatform::read_smart(StorageDevice* d)
 {
     if (d->kind == "nvme")
