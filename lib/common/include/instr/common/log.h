@@ -41,117 +41,167 @@
 namespace instr
 {
 
+/// @brief Severity levels for structured log records.
 enum class LogLevel
 {
-    Trace = 0,
-    Debug = 1,
-    Info = 2,
-    Warning = 3,
-    Error = 4,
-    Critical = 5
+    Trace = 0,     ///< Very verbose flow detail; normally disabled.
+    Debug = 1,     ///< Diagnostic detail for development.
+    Info = 2,      ///< Normal operational messages (default level).
+    Warning = 3,   ///< Recoverable problem worth attention.
+    Error = 4,     ///< Operation failed but the daemon keeps running.
+    Critical = 5   ///< Severe failure threatening service continuity.
 };
 
+/// @brief Canonical uppercase name of a level ("INFO", "ERROR", ...).
+/// @param l Level to name.
+/// @return Static string for the level; "INFO" when out of range.
 const char* log_level_name(LogLevel);
-LogLevel log_level_from_name(const std::string&); // "INFO" -> Info; unknown -> Info
 
+/// @brief Parse a level name (case-insensitive, e.g. "INFO" -> Info).
+/// @param n Name as produced by log_level_name().
+/// @return The parsed level; Info when the name is unknown.
+LogLevel log_level_from_name(const std::string&);
+
+/// @brief One structured log event with timestamps and arbitrary key=value fields.
 struct LogRecord
 {
-    LogLevel level = LogLevel::Info;
-    std::string source;
-    std::string message;
-    std::map<std::string, std::string> fields;
-    uint64_t mono_ns = 0;
-    int64_t wall_ns = 0;
-    bool wall_valid = false;
+    LogLevel level = LogLevel::Info;                  ///< Severity of the event.
+    std::string source;                               ///< Emitting component, e.g. "telemetry.metrics".
+    std::string message;                              ///< Human-readable event text (may contain redacted values only).
+    std::map<std::string, std::string> fields;         ///< Structured key=value pairs (secret keys redacted).
+    uint64_t mono_ns = 0;                             ///< Monotonic timestamp of the event.
+    int64_t wall_ns = 0;                              ///< Wall timestamp of the event.
+    bool wall_valid = false;                          ///< True when wall_ns is trustworthy.
 };
 
+/// @brief Interface for log record consumers; Logger writes accepted records here.
 class ISink
 {
   public:
     virtual ~ISink() = default;
+    /// @brief Consume one accepted log record.
+    /// @param r Record to write; the sink must not retain a reference past the call.
     virtual void write(const LogRecord&) = 0;
 };
 
-// Structured key=value line on stderr; journald picks it up verbatim on
-// targets (journal-aware).
+/// @brief Structured key=value line on stderr; journald picks it up verbatim on targets.
 class StderrSink : public ISink
 {
   public:
+    /// @copydoc ISink::write
     void write(const LogRecord&) override;
 };
 
-// Bounded in-memory ring; used by tests and crash forensics.
+/// @brief Bounded in-memory ring; used by tests and crash forensics.
 class MemorySink : public ISink
 {
   public:
+    /// @brief Construct a ring with the given capacity.
+    /// @param capacity Maximum number of records retained; older records drop first.
     explicit MemorySink(size_t capacity = 1024) : cap_(capacity)
     {
     }
+    /// @copydoc ISink::write
     void write(const LogRecord&) override;
+    /// @brief Live view of the retained records, oldest first.
     const std::deque<LogRecord>& records() const
     {
         return buf_;
     }
+    /// @brief Copy of the retained records, oldest first.
     std::vector<LogRecord> snapshot() const
     {
         return {buf_.begin(), buf_.end()};
     }
+    /// @brief Discard all retained records.
     void clear()
     {
         buf_.clear();
     }
 
   private:
-    size_t cap_;
-    std::deque<LogRecord> buf_;
+    size_t cap_;                    ///< Maximum retained records.
+    std::deque<LogRecord> buf_;     ///< Ring buffer, oldest first.
 };
 
-// Secret hygiene guard. Field values whose key looks like a credential are
-// redacted; raw credential material in message bodies is masked. Enforced by
-// the secret-leak test (REQ §12).
+/// @brief Secret hygiene guard (REQ §10, §12).
+///
+/// Field values whose key looks like a credential are redacted; raw credential
+/// material in message bodies is masked. Enforced by the secret-leak test.
 class Redactor
 {
   public:
+    /// @brief The credential-like key names that are always redacted.
+    /// @return Static list, e.g. contains password, token, psk and friends.
     static const std::vector<std::string>& secret_key_names();
+    /// @brief Decide whether a field key refers to credential material.
+    /// @param key Field key to test.
+    /// @return True when the key must be redacted.
     static bool is_secret_key(const std::string& key);
+    /// @brief Redact a field value under a credential-like key.
+    /// @param key Field key (drives redaction shape, e.g. partial reveal).
+    /// @param value Raw value that must not reach a sink verbatim.
+    /// @return Safe replacement text for the value.
     static std::string redact_value(const std::string& key, const std::string& value);
+    /// @brief Mask raw credential material appearing inside free-form text.
+    /// @param text Message body to scrub.
+    /// @return Text with any recognised credential substrings masked.
     static std::string redact_text(const std::string& text);
 };
 
+/// @brief Structured, levelled, rate-limited logger with per-source controls and secret redaction.
 class Logger
 {
   public:
+    /// @brief Construct a logger writing to @p sink and stamping with @p ts.
+    /// @param sink Destination for accepted records.
+    /// @param ts Time source for record timestamps.
     Logger(ISink& sink, TimeSource& ts) : sink_(&sink), ts_(&ts)
     {
     }
 
+    /// @brief Set the global level; records below it are dropped.
     void set_level(LogLevel l)
     {
         level_ = l;
     }
+    /// @brief Current global level.
     LogLevel level() const
     {
         return level_;
     }
-    // Per-source runtime level control (REQ §4).
+    /// @brief Override the level for one source (per-source runtime control, REQ §4).
+    /// @param source Source name, e.g. "telemetry.metrics".
+    /// @param l New level for that source.
     void set_source_level(const std::string& source, LogLevel l)
     {
         source_levels_[source] = l;
     }
+    /// @brief Remove all per-source level overrides.
     void clear_source_levels()
     {
         source_levels_.clear();
     }
 
-    // Rate limit per source: max N messages/s, surplus dropped and summarised.
+    /// @brief Rate-limit one source: max N messages/s, surplus dropped and summarised.
+    /// @param source Source name to limit.
+    /// @param max_per_s Allowed message rate; surplus is suppressed.
     void set_rate_limit(const std::string& source, double max_per_s);
+    /// @brief Remove all per-source rate limits.
     void clear_rate_limits()
     {
         rate_limits_.clear();
     }
 
+    /// @brief Emit a record: level-filtered, rate-limited, secret-redacted, then written to the sink.
+    /// @param lvl Severity of the record.
+    /// @param source Emitting component name.
+    /// @param msg Event text (credential material is masked before writing).
+    /// @param fields Optional structured key=value pairs (secret keys redacted).
     void log(LogLevel lvl, const std::string& source, const std::string& msg, const std::map<std::string, std::string>& fields = {});
 
+    /// @brief Convenience wrappers delegating to log() with a fixed level.
+    /// @{
     void trace(const std::string& s, const std::string& msg, const std::map<std::string, std::string>& f = {})
     {
         log(LogLevel::Trace, s, msg, f);
@@ -177,26 +227,28 @@ class Logger
         log(LogLevel::Critical, s, msg, f);
     }
 
-    // Exposed for tests: how many messages were dropped by rate limiting.
+    /// @brief Number of messages dropped by rate limiting (exposed for tests).
     uint64_t dropped_by_rate_limit() const
     {
         return dropped_;
     }
 
   private:
-    ISink* sink_;
-    TimeSource* ts_;
-    LogLevel level_ = LogLevel::Info;
-    std::map<std::string, LogLevel> source_levels_;
+    ISink* sink_;                                    ///< Destination for accepted records.
+    TimeSource* ts_;                                 ///< Clock for record timestamps.
+    LogLevel level_ = LogLevel::Info;                ///< Global level threshold.
+    std::map<std::string, LogLevel> source_levels_;  ///< Per-source level overrides.
+    /// @brief Per-source token-bucket state backing set_rate_limit().
     struct RateBucket
     {
-        double tokens;
-        double last_s;
-        double rate;
+        double tokens;   ///< Current token count.
+        double last_s;   ///< Monotonic time of the last refill, seconds.
+        double rate;     ///< Allowed messages per second.
     };
-    std::map<std::string, RateBucket> rate_limits_;
-    std::map<std::string, uint64_t> suppressed_;
-    uint64_t dropped_ = 0;
+    std::map<std::string, RateBucket> rate_limits_;   ///< Active per-source rate limits.
+    std::map<std::string, uint64_t> suppressed_;      ///< Suppressed-count summary state per source.
+    uint64_t dropped_ = 0;                           ///< Lifetime count of messages dropped by rate limiting.
+    /// @brief Monotonic seconds used for rate-limit bookkeeping.
     double now_s();
 };
 

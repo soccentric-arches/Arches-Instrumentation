@@ -34,6 +34,7 @@
 namespace instr
 {
 
+/// @brief Canonical uppercase name of a level ("INFO", "ERROR", ...).
 const char* log_level_name(LogLevel l)
 {
     switch (l)
@@ -48,6 +49,7 @@ const char* log_level_name(LogLevel l)
     return "?";
 }
 
+/// @brief Parse a level name (case-insensitive); unknown names map to Info.
 LogLevel log_level_from_name(const std::string& n)
 {
     std::string u;
@@ -62,6 +64,7 @@ LogLevel log_level_from_name(const std::string& n)
 
 // ---------------- sinks ----------------
 
+/// @copydoc ISink::write
 void StderrSink::write(const LogRecord& r)
 {
     char tbuf[32];
@@ -74,6 +77,7 @@ void StderrSink::write(const LogRecord& r)
     std::fprintf(stderr, "\n");
 }
 
+/// @copydoc ISink::write
 void MemorySink::write(const LogRecord& r)
 {
     buf_.push_back(r);
@@ -82,6 +86,7 @@ void MemorySink::write(const LogRecord& r)
 
 // ---------------- redaction ----------------
 
+/// @brief The credential-like key names that are always redacted.
 const std::vector<std::string>& Redactor::secret_key_names()
 {
     static const std::vector<std::string> names = {
@@ -97,6 +102,7 @@ static std::string lower(const std::string& s)
     return o;
 }
 
+/// @brief Decide whether a field key refers to credential material.
 bool Redactor::is_secret_key(const std::string& key)
 {
     const std::string k = lower(key);
@@ -105,6 +111,7 @@ bool Redactor::is_secret_key(const std::string& key)
     return false;
 }
 
+/// @brief Redact a field value under a credential-like key.
 std::string Redactor::redact_value(const std::string& key, const std::string& value)
 {
     if (is_secret_key(key)) return "[REDACTED]";
@@ -127,6 +134,7 @@ inline bool ends_value(char c)
 
 } // namespace
 
+/// @brief Mask raw credential material appearing inside free-form text.
 std::string Redactor::redact_text(const std::string& text)
 {
     const std::string lowered = lower(text);
@@ -186,16 +194,19 @@ std::string Redactor::redact_text(const std::string& text)
 
 // ---------------- logger ----------------
 
+/// @brief Monotonic seconds used for rate-limit bookkeeping.
 double Logger::now_s()
 {
     return static_cast<double>(ts_->mono_ns()) / 1e9;
 }
 
+/// @brief Rate-limit one source: max N messages/s, surplus dropped and summarised.
 void Logger::set_rate_limit(const std::string& source, double max_per_s)
 {
     rate_limits_[source] = RateBucket{max_per_s, now_s(), max_per_s};
 }
 
+/// @brief Emit a record: level-filtered, rate-limited, secret-redacted, then written to the sink.
 void Logger::log(LogLevel lvl, const std::string& source, const std::string& msg, const std::map<std::string, std::string>& fields)
 {
     // Effective level: per-source override, else global.
