@@ -56,9 +56,12 @@ foreach(d monitord networkd hardware faults alarms logmanager telemetry ota back
 endforeach()
 
 # ---- istate domain tests ----
+# istate follows the same src/ include/ test/ shape as every other daemon
+# (§2), so its tests live with it rather than in a directory of their own.
 foreach(t pst provisioning orchestrator northbound config)
-  add_executable(unit_istate_${t} istate/test_${t}.cpp)
+  add_executable(unit_istate_${t} ../daemons/istate/test/test_${t}.cpp)
   target_link_libraries(unit_istate_${t} PRIVATE instr_istate_lib)
+  target_compile_definitions(unit_istate_${t} PRIVATE REPO_ROOT="${CMAKE_SOURCE_DIR}")
   gtest_discover_tests(unit_istate_${t})
 endforeach()
 

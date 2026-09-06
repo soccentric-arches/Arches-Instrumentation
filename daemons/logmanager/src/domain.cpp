@@ -313,6 +313,19 @@ Result<std::string> BundleStore::payload(const std::string& handle) const {
   return txt;
 }
 
+Result<std::string> BundleStore::payload_path(const std::string& handle) const {
+  // A handle is minted by this store and is hex, so it cannot contain path
+  // separators — but check rather than trust: this value arrives from a
+  // caller and is about to become a filesystem path.
+  if (handle.empty() || handle.find('/') != std::string::npos ||
+      handle.find("..") != std::string::npos)
+    return Result<std::string>::fail(Errc::InvalidArgument, "malformed bundle handle", handle);
+  const std::string p = handle_path(handle);
+  if (!fs_.exists(p))
+    return Result<std::string>::fail(Errc::NotFound, "no such bundle", handle);
+  return Result<std::string>::good(p);
+}
+
 std::vector<BundleMeta> BundleStore::list() const {
   std::vector<BundleMeta> out;
   auto files = fs_.list_dir(dir_);

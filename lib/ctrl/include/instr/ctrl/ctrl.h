@@ -114,6 +114,51 @@ class CtrlClient {
   frames::FrameDecoder dec_;
 };
 
+// ---- bulk data transfer (REQ §7.7) ----
+// "Bulk transfer by handle — the control API carries a handle and metadata;
+// the payload never traverses istate's control path."
+//
+// A bundle can be tens of megabytes. Base64ing it into a JSON control
+// response (as this used to do) inflates it by a third, buffers all of it in
+// memory at both ends, and routes it through the path that carries alarms
+// and liveness — which is the traffic that must not be held up behind a
+// support archive.
+//
+// So the payload gets its own socket: the control response names a handle,
+// the caller connects to the bulk socket, sends the handle, and the server
+// streams raw bytes until close. Nothing is framed and nothing is encoded.
+class BulkServer {
+ public:
+  // resolve: handle → absolute file path, or an error for an unknown handle.
+  using Resolver = std::function<Result<std::string>(const std::string& handle)>;
+
+  BulkServer(std::string socket_path, Resolver resolve)
+      : path_(std::move(socket_path)), resolve_(std::move(resolve)) {}
+  ~BulkServer();
+
+  Error start();
+  void stop();
+  const std::string& path() const { return path_; }
+  uint64_t served() const { return served_.load(); }
+
+ private:
+  void serve_accept();
+  void serve_one(int fd);
+
+  std::string path_;
+  Resolver resolve_;
+  int listen_fd_ = -1;
+  std::atomic<bool> running_{false};
+  std::atomic<uint64_t> served_{0};
+  std::thread accept_thread_;
+};
+
+// Reads a payload by handle from a bulk socket. `sink` is called with each
+// chunk as it arrives, so a caller can stream to disk or onward to HQ
+// without holding the whole bundle in memory.
+Result<uint64_t> bulk_fetch(const std::string& socket_path, const std::string& handle,
+                            const std::function<bool(const char* data, size_t len)>& sink);
+
 // Shared _ctrl main: --help, --help <op>, --json, --socket PATH, completion.
 // Returns process exit code.
 int tool_main(int argc, char** argv, const CommandTable& table, const std::string& prog_name,

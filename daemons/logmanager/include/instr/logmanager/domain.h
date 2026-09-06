@@ -154,6 +154,11 @@ class BundleStore {
   Result<BundleMeta> meta(const std::string& handle) const;
   // Payload fetch — served on the daemon's data socket, never via istate.
   Result<std::string> payload(const std::string& handle) const;
+  // Absolute path of a bundle's payload, for the bulk socket to stream from
+  // (§7.7: the payload never travels the control path). Errors for an
+  // unknown handle, so an unknown handle cannot be turned into a read of an
+  // arbitrary file.
+  Result<std::string> payload_path(const std::string& handle) const;
   std::vector<BundleMeta> list() const;
 
  private:

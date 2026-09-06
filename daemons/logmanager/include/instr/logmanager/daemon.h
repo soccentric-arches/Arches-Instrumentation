@@ -67,6 +67,10 @@ class LogCore {
   Error apply_config(const ConfigDocument& doc);
   void set_config_listener(std::function<void(const Config&)> f) { on_config_ = std::move(f); }
 
+  // Where the bulk payload socket lives, reported to callers by bundle-fetch.
+  void set_bulk_socket_path(std::string p) { bulk_socket_path_ = std::move(p); }
+  const std::string& bulk_socket_path() const { return bulk_socket_path_; }
+
   LogStore& store() { return store_; }
   BundleStore& bundles() { return bundles_; }
   CrashForensics& forensics() { return forensics_; }
@@ -90,6 +94,7 @@ class LogCore {
   std::mutex mu_;
   Config cfg_;
   std::function<void(const Config&)> on_config_;
+  std::string bulk_socket_path_ = "/run/instrumentation/logmanager-bulk.sock";
 };
 
 CommandTable build_log_table(LogCore* core);

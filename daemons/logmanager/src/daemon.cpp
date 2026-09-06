@@ -192,18 +192,25 @@ CommandTable build_log_table(LogCore* core) {
            if (!m.ok()) return CommandResult::from_error(m.error);
            return CommandResult::good(bundle_json(*m));
          }});
-  t.add({"bundle-fetch", "fetch bundle payload by handle (bulk; data socket path)",
+  t.add({"bundle-fetch", "locate a bundle payload for bulk transfer by handle",
          {{"handle", true, "bundle handle"}},
          [core](const std::string& args) {
            auto a = args_object(args);
            if (!a.ok()) return CommandResult::from_error(a.error);
-           auto p = core->bundles().payload((*a).get_string("handle"));
-           if (!p.ok()) return CommandResult::from_error(p.error);
-           // Payload returned base64 so it survives the JSON envelope; the
-           // dedicated data socket streams raw for large bundles.
+           const std::string handle = (*a).get_string("handle");
+           auto m = core->bundles().meta(handle);
+           if (!m.ok()) return CommandResult::from_error(m.error);
+           // §7.7: the control API carries a handle and metadata; the
+           // payload never traverses it. The caller reads the bytes from the
+           // bulk socket, so a 40 MB support archive does not get base64'd
+           // into a JSON envelope and pushed through the path that also
+           // carries alarms.
            JValue o = JValue::object();
-           o.set("size", JValue(double(p->size())));
-           o.set("payload_b64", JValue(crypto::base64_encode(*p)));
+           o.set("handle", JValue(m->handle));
+           o.set("size_bytes", JValue(double(m->size_bytes)));
+           o.set("sha256", JValue(m->sha256));
+           o.set("bulk_socket", JValue(core->bulk_socket_path()));
+           o.set("transfer", JValue(std::string("bulk")));
            return CommandResult::good(o.dump());
          }});
   t.add({"crash-report", "capture crash forensics for an abnormal exit",

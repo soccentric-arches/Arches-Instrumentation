@@ -33,6 +33,7 @@
 #include <unistd.h>
 
 #include <cerrno>
+#include <cstdio>
 #include <cstring>
 #include <iostream>
 
@@ -265,6 +266,136 @@ Error CtrlClient::call_stream(const std::string& op, const std::string& json_arg
     on_frame(resp);
   }
   return Error::none();
+}
+
+// ---------------- bulk transfer (REQ §7.7) ----------------
+
+BulkServer::~BulkServer() { stop(); }
+
+Error BulkServer::start() {
+  listen_fd_ = ::socket(AF_UNIX, SOCK_STREAM, 0);
+  if (listen_fd_ < 0) return Error::make(Errc::Io, "socket() failed", path_);
+  ::unlink(path_.c_str());
+  struct sockaddr_un addr;
+  std::memset(&addr, 0, sizeof(addr));
+  addr.sun_family = AF_UNIX;
+  if (path_.size() >= sizeof(addr.sun_path))
+    return Error::make(Errc::InvalidArgument, "socket path too long", path_);
+  std::strncpy(addr.sun_path, path_.c_str(), sizeof(addr.sun_path) - 1);
+  if (::bind(listen_fd_, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) != 0)
+    return Error::make(Errc::Io, "bind failed: " + std::string(strerror(errno)), path_);
+  // Same 0600 root-only posture as the ctrl socket: a support bundle can
+  // contain anything the device logged.
+  ::chmod(path_.c_str(), 0600);
+  if (::listen(listen_fd_, 8) != 0) return Error::make(Errc::Io, "listen failed", path_);
+  running_ = true;
+  accept_thread_ = std::thread([this] { serve_accept(); });
+  return Error::none();
+}
+
+void BulkServer::stop() {
+  if (!running_.exchange(false)) {
+    if (listen_fd_ >= 0) {
+      ::close(listen_fd_);
+      listen_fd_ = -1;
+    }
+    return;
+  }
+  if (listen_fd_ >= 0) {
+    ::shutdown(listen_fd_, SHUT_RDWR);
+    ::close(listen_fd_);
+    listen_fd_ = -1;
+  }
+  if (accept_thread_.joinable()) accept_thread_.join();
+  ::unlink(path_.c_str());
+}
+
+void BulkServer::serve_accept() {
+  while (running_.load()) {
+    int fd = ::accept(listen_fd_, nullptr, nullptr);
+    if (fd < 0) {
+      if (!running_.load()) break;
+      continue;
+    }
+    serve_one(fd);  // one transfer at a time: bulk is not latency-sensitive
+    ::close(fd);
+  }
+}
+
+void BulkServer::serve_one(int fd) {
+  // Request: one length-prefixed frame carrying the handle.
+  frames::FrameDecoder dec;
+  char buf[4096];
+  std::string handle;
+  while (running_.load()) {
+    ssize_t n = ::read(fd, buf, sizeof(buf));
+    if (n <= 0) return;
+    if (dec.feed(buf, size_t(n), &handle)) break;
+  }
+  if (handle.empty()) return;
+
+  auto path = resolve_ ? resolve_(handle) : Result<std::string>::fail(Errc::Unavailable,
+                                                                     "no resolver", handle);
+  if (!path.ok()) {
+    // An unknown handle closes without data; the metadata call is where a
+    // caller learns whether a bundle exists.
+    return;
+  }
+  std::FILE* f = std::fopen(path->c_str(), "rb");
+  if (!f) return;
+  char chunk[64 * 1024];
+  size_t got;
+  while ((got = std::fread(chunk, 1, sizeof(chunk), f)) > 0) {
+    size_t off = 0;
+    while (off < got) {
+      ssize_t w = ::write(fd, chunk + off, got - off);
+      if (w <= 0) {
+        std::fclose(f);
+        return;
+      }
+      off += size_t(w);
+    }
+  }
+  std::fclose(f);
+  ++served_;
+}
+
+Result<uint64_t> bulk_fetch(const std::string& socket_path, const std::string& handle,
+                            const std::function<bool(const char*, size_t)>& sink) {
+  int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+  if (fd < 0) return Result<uint64_t>::fail(Errc::Io, "socket() failed", socket_path);
+  struct sockaddr_un addr;
+  std::memset(&addr, 0, sizeof(addr));
+  addr.sun_family = AF_UNIX;
+  if (socket_path.size() >= sizeof(addr.sun_path)) {
+    ::close(fd);
+    return Result<uint64_t>::fail(Errc::InvalidArgument, "socket path too long", socket_path);
+  }
+  std::strncpy(addr.sun_path, socket_path.c_str(), sizeof(addr.sun_path) - 1);
+  if (::connect(fd, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) != 0) {
+    ::close(fd);
+    return Result<uint64_t>::fail(Errc::Unavailable, "cannot connect to bulk socket",
+                                  socket_path);
+  }
+  const std::string req = frames::encode_frame(handle);
+  size_t off = 0;
+  while (off < req.size()) {
+    ssize_t w = ::write(fd, req.data() + off, req.size() - off);
+    if (w <= 0) {
+      ::close(fd);
+      return Result<uint64_t>::fail(Errc::Io, "bulk request write failed", socket_path);
+    }
+    off += size_t(w);
+  }
+  uint64_t total = 0;
+  char buf[64 * 1024];
+  ssize_t n;
+  while ((n = ::read(fd, buf, sizeof(buf))) > 0) {
+    if (sink && !sink(buf, size_t(n))) break;
+    total += uint64_t(n);
+  }
+  ::close(fd);
+  return Result<uint64_t>::good(total);
 }
 
 // ---------------- tool main ----------------
