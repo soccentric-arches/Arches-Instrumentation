@@ -32,12 +32,19 @@
 
 namespace instr
 {
+/// @brief Telemetry daemon: aggregation, health score and northbound batches (§7.8).
 namespace telemetry
 {
+/// @brief Pure domain logic for this daemon: no transport, no sockets, fully unit-testable.
 namespace domain
 {
 
 /// @brief Register a metric definition; duplicates and invalid defs are loud.
+/// @param name Metric name.
+/// @param unit Unit string.
+/// @param type gauge or counter.
+/// @param app Registering application.
+/// @return The registration outcome.
 MetricRegistry::Reg MetricRegistry::register_metric(const std::string& name, const std::string& unit, const std::string& type, const std::string& app)
 {
     if (name.empty() || (type != "gauge" && type != "counter")) return Reg::Invalid;
@@ -57,6 +64,8 @@ MetricRegistry::Reg MetricRegistry::register_metric(const std::string& name, con
 }
 
 /// @brief Look up a metric definition.
+/// @param name Metric name to look up.
+/// @return Pointer to the definition, or nullptr.
 const MetricDef* MetricRegistry::find(const std::string& name) const
 {
     auto it = metrics_.find(name);
@@ -64,6 +73,10 @@ const MetricDef* MetricRegistry::find(const std::string& name) const
 }
 
 /// @brief Ingest one raw sample into the open window.
+/// @param metric Metric name.
+/// @param value Sample value.
+/// @param mono_ns Sample time.
+/// @param tags Dimension tags.
 void Aggregator::add(const std::string& metric, double value, uint64_t mono_ns, const std::map<std::string, std::string>& tags)
 {
     auto& q = current_[metric];
@@ -73,6 +86,8 @@ void Aggregator::add(const std::string& metric, double value, uint64_t mono_ns, 
 }
 
 /// @brief Close the window and aggregate per metric×function.
+/// @param window_end_mono_ns Window close time.
+/// @return Records for each metric×function.
 std::vector<AggWindow> Aggregator::close(uint64_t window_end_mono_ns)
 {
     std::vector<AggWindow> out;
@@ -131,6 +146,8 @@ std::vector<AggWindow> Aggregator::close(uint64_t window_end_mono_ns)
 }
 
 /// @brief Enqueue a batch, dropping oldest telemetry when full.
+/// @param b Batch to enqueue.
+/// @param cls Droppable or protected.
 void RetentionBuffer::push(const MetricBatch& b, Class cls)
 {
     buf_.push_back(Item{b, cls});
@@ -155,6 +172,7 @@ void RetentionBuffer::push(const MetricBatch& b, Class cls)
 }
 
 /// @brief Remove and return all retained batches.
+/// @return All retained batches, oldest first.
 std::vector<MetricBatch> RetentionBuffer::drain()
 {
     std::vector<MetricBatch> out;
@@ -164,6 +182,8 @@ std::vector<MetricBatch> RetentionBuffer::drain()
 }
 
 /// @brief Compute the composite health score with per-factor contributions.
+/// @param in Health inputs from the other daemons.
+/// @return The composite score with per-factor contributions.
 HealthScoreValue compute_health_score(const HealthInputs& in)
 {
     // Starts at 100; each factor subtracts its penalty, floored at 0.
@@ -190,6 +210,12 @@ HealthScoreValue compute_health_score(const HealthInputs& in)
 }
 
 /// @brief Ingest a sample; emit a batch when full or the interval elapsed.
+/// @param metric Metric name.
+/// @param value Sample value.
+/// @param unit Unit string.
+/// @param mono_ns Sample time.
+/// @param tags Dimension tags.
+/// @return The emitted batch, or std::nullopt while accumulating.
 std::optional<MetricBatch> BatchShaper::ingest(const std::string& metric, double value, const std::string& unit, uint64_t mono_ns, const std::map<std::string, std::string>& tags)
 {
     agg_.add(metric, value, mono_ns, tags);
@@ -223,6 +249,8 @@ std::optional<MetricBatch> BatchShaper::ingest(const std::string& metric, double
 }
 
 /// @brief Force a flush of the open aggregation window.
+/// @param now_mono_ns Current monotonic time.
+/// @return The flushed batch, or std::nullopt when nothing pending.
 std::optional<MetricBatch> BatchShaper::flush(uint64_t now_mono_ns)
 {
     if (total_pending_ == 0) return std::nullopt;
@@ -254,12 +282,15 @@ std::optional<MetricBatch> BatchShaper::flush(uint64_t now_mono_ns)
 } // namespace instr
 namespace instr
 {
+/// @brief Telemetry daemon: aggregation, health score and northbound batches (§7.8).
 namespace telemetry
 {
+/// @brief Pure domain logic for this daemon: no transport, no sockets, fully unit-testable.
 namespace domain
 {
 
 /// @brief Shrink the retention bound (drops immediately, never lazily).
+/// @param n New record bound (shrinking drops immediately).
 void RetentionBuffer::set_max_records(size_t n)
 {
     max_records_ = n;

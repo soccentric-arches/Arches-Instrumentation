@@ -42,8 +42,10 @@
 
 namespace instr
 {
+/// @brief Telemetry daemon: aggregation, health score and northbound batches (§7.8).
 namespace telemetry
 {
+/// @brief Pure domain logic for this daemon: no transport, no sockets, fully unit-testable.
 namespace domain
 {
 
@@ -120,14 +122,20 @@ class MetricRegistry
     };
     /// @brief Register a metric definition.
     /// @return The outcome (Duplicate and Invalid are loud, alarm-visible).
+/// @param name Metric name.
+/// @param unit Unit string.
+/// @param type gauge or counter.
+/// @param app Registering application.
     Reg register_metric(const std::string& name, const std::string& unit, const std::string& type, const std::string& app);
     /// @brief All registered metrics.
+/// @return All registered metrics.
     const std::map<std::string, MetricDef>& metrics() const
     {
         return metrics_;
     }
     /// @brief Look up a metric definition.
     /// @return Pointer to the def, or nullptr when unregistered.
+/// @param name Metric name to look up.
     const MetricDef* find(const std::string& name) const;
 
   private:
@@ -139,10 +147,20 @@ class Aggregator
 {
   public:
     /// @brief Ingest one raw sample into the open window.
+/// @param window_end_mono_ns Window close time.
+/// @param metric Metric name.
+/// @param value Sample value.
+/// @param mono_ns Sample time.
+/// @param tags Dimension tags.
+/// @return Records for each metric×function.
     void add(const std::string& metric, double value, uint64_t mono_ns, const std::map<std::string, std::string>& tags = {});
     /// @brief Close the current window and produce records for each metric×function.
+/// @param fns Aggregation functions to apply at close.
+/// @param window_end_mono_ns Window close time.
+/// @return Records for each metric×function.
     std::vector<AggWindow> close(uint64_t window_end_mono_ns);
     /// @brief Replace the aggregation function set.
+/// @param fns Aggregation functions to apply at close.
     void set_functions(const std::vector<std::string>& fns)
     {
         functions_ = fns;
@@ -166,6 +184,7 @@ class RetentionBuffer
 {
   public:
     /// @brief Construct a buffer with a record bound.
+/// @param max_records Record bound.
     RetentionBuffer(size_t max_records) : max_records_(max_records)
     {
     }
@@ -177,7 +196,9 @@ class RetentionBuffer
     };
     /// @brief Bounded local retention of unsent data; oldest telemetry dropped first (§7.8, §11).
     ///
+/// @return The current record bound.
     /// Shrinking the bound drops immediately, never lazily.
+/// @param n New record bound (shrinking drops immediately).
     void set_max_records(size_t n);
     /// @brief Current record bound.
     size_t max_records() const
@@ -185,6 +206,9 @@ class RetentionBuffer
         return max_records_;
     }
     /// @brief Enqueue a batch.
+/// @return All retained batches, oldest first.
+/// @param b Batch to enqueue.
+/// @param cls Droppable or protected.
     void push(const MetricBatch& b, Class cls);
     /// @brief Dropped telemetry batches since the last query.
     uint64_t dropped() const
@@ -192,6 +216,7 @@ class RetentionBuffer
         return dropped_;
     }
     /// @brief Remove and return all retained batches, oldest first.
+/// @return All retained batches, oldest first.
     std::vector<MetricBatch> drain();
     /// @brief Batches currently retained.
     size_t size() const
@@ -227,6 +252,8 @@ struct HealthInputs
 };
 
 /// @brief Compute the composite health score with contributing factors exposed.
+/// @param in Health inputs from the other daemons.
+/// @return The composite score with per-factor contributions.
 HealthScoreValue compute_health_score(const HealthInputs& in);
 
 /// @brief Batch shaping: bounded records per batch, flush interval.
@@ -234,6 +261,8 @@ class BatchShaper
 {
   public:
     /// @brief Construct a shaper with record bound and flush interval.
+/// @param max_records Record bound per batch.
+/// @param flush_interval_s Flush cadence in seconds.
     BatchShaper(size_t max_records, double flush_interval_s) : max_records_(max_records), flush_interval_s_(flush_interval_s)
     {
     }
@@ -243,20 +272,30 @@ class BatchShaper
     /// aggregation windows.
     ///
     /// @return The emitted batch, or std::nullopt while accumulating.
+/// @param metric Metric name.
+/// @param value Sample value.
+/// @param unit Unit string.
+/// @param mono_ns Sample time.
+/// @param tags Dimension tags.
     std::optional<MetricBatch> ingest(const std::string& metric, double value, const std::string& unit, uint64_t mono_ns, const std::map<std::string, std::string>& tags);
     /// @brief Force a flush of the open window (interval elapsed or shutdown).
+/// @param now_mono_ns Current monotonic time.
+/// @return The flushed batch, or std::nullopt when nothing pending.
     std::optional<MetricBatch> flush(uint64_t now_mono_ns);
     /// @brief Attach a health score to the next emitted batch.
+/// @param h Health score for the next batch.
     void set_health(const HealthScoreValue& h)
     {
         pending_health_ = h;
     }
     /// @brief Retune the record bound when configuration arrives (§7.8, §9).
+/// @param n New record bound.
     void set_max_records(size_t n)
     {
         max_records_ = n;
     }
     /// @brief Retune the flush interval.
+/// @param s New flush interval in seconds.
     void set_flush_interval_s(double s)
     {
         flush_interval_s_ = s;
@@ -272,6 +311,7 @@ class BatchShaper
         return max_records_;
     }
     /// @brief Attach reproducibility metadata to emitted batches.
+/// @param m Metadata to attach to emitted batches.
     void set_repro(const ReproMetadata& m)
     {
         repro_ = m;

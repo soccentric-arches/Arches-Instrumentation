@@ -29,10 +29,16 @@
 
 namespace instr
 {
+/// @brief Telemetry daemon: aggregation, health score and northbound batches (§7.8).
 namespace telemetry
 {
 
 /// @brief Application metric registration entry point.
+/// @param name Metric name.
+/// @param unit Unit string.
+/// @param type gauge or counter.
+/// @param app Registering application.
+/// @return The registration outcome.
 MetricRegistry::Reg TelemetryCore::register_metric(const std::string& name, const std::string& unit, const std::string& type, const std::string& app)
 {
     auto r = registry_.register_metric(name, unit, type, app);
@@ -41,6 +47,10 @@ MetricRegistry::Reg TelemetryCore::register_metric(const std::string& name, cons
 }
 
 /// @brief Ingest a relayed sample into the shaper.
+/// @param metric Metric name.
+/// @param value Sample value.
+/// @param unit Unit string.
+/// @param tags Dimension tags.
 void TelemetryCore::ingest_relayed(const std::string& metric, double value, const std::string& unit, const std::map<std::string, std::string>& tags)
 {
     auto maybe = shaper_.ingest(metric, value, unit, ts_.mono_ns(), tags);
@@ -52,6 +62,8 @@ void TelemetryCore::ingest_relayed(const std::string& metric, double value, cons
 }
 
 /// @brief Render a metric record as JSON.
+/// @param r Metric record to render.
+/// @return The record as JSON.
 static JValue record_json(const MetricRecord& r)
 {
     JValue o = JValue::object();
@@ -65,6 +77,8 @@ static JValue record_json(const MetricRecord& r)
 }
 
 /// @brief Build the telemetry ctrl command table.
+/// @param core Domain core the table reads from.
+/// @return The command table.
 CommandTable build_telemetry_table(TelemetryCore* core)
 {
     CommandTable t;
@@ -130,6 +144,11 @@ CommandTable build_telemetry_table(TelemetryCore* core)
 }
 
 /// @brief Wire the channel, config sink and handlers together.
+/// @param core Domain core.
+/// @param log Logger.
+/// @param table Command table.
+/// @param hub_target istate gRPC target.
+/// @param build_version Build version to advertise.
 TelemetrySpoke::TelemetrySpoke(TelemetryCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version) : core_(core), log_(log), table_(table)
 {
     using ChannelT = SpokeChannel<telemetry::TelemetryHub, telemetry::TelemetrySpokeFrame, telemetry::TelemetryHubFrame>;
@@ -165,6 +184,7 @@ TelemetrySpoke::TelemetrySpoke(TelemetryCore* core, Logger* log, const CommandTa
 }
 
 /// @brief Install the schema every config delivery must satisfy.
+/// @param schema Schema every config delivery must satisfy.
 void TelemetrySpoke::set_schema(JValue schema)
 {
     config_sink_ = std::make_unique<ConfigSink>("telemetry", std::move(schema), [this](const ConfigDocument& doc) { return core_->apply_config(doc); });
@@ -183,6 +203,7 @@ void TelemetrySpoke::stop()
 }
 
 /// @brief Queue a telemetry batch to istate.
+/// @param b Batch to queue.
 void TelemetrySpoke::send_batch(const MetricBatch& b)
 {
     channel_->enqueue([&b](telemetry::TelemetrySpokeFrame& f) {
