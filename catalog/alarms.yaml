@@ -489,3 +489,108 @@ entries:
     escalation: none
     auto_clear: auto
     hq_reportable: false
+  # =========================================================================
+  # IV&V applications — domain 0x4 (Application), R5
+  # =========================================================================
+  #
+  # R5: an alarm is declared by an application and by nothing else. The three
+  # IV&V applications had no module allocation at all, so there was no id they
+  # could legally raise. See Task.md E-04.
+  #
+  # MODULE ALLOCATION IS ONE-WAY. The 32-bit layout is locked and HQ decodes
+  # against this file, so an id that has shipped cannot be reused to mean
+  # something else. Modules 0x01-0x0A are the ten daemons; 0x0B-0x0F are left
+  # free for a future daemon, and applications start at a clean 0x10 so the
+  # two groups stay visually distinct in a raw code:
+  #
+  #   0x10  arches-hal      owner "arches-hal"
+  #   0x11  arches-client   owner "arches-client"
+  #   0x12  arches-server   owner "arches-server"
+  #
+  # The `owner` on a RaiseAlarm call must match the name above exactly and for
+  # the life of the alarm -- an alarm raised as one owner and cleared as
+  # another does not clear.
+
+  # ---- arches-hal (module 0x10, application) ----
+  - id: 0x4_10_1_0001
+    name: hal_module_fault
+    severity: MAJOR
+    probable_cause: equipment-malfunction
+    specific_problem: hal-module-fault
+    description: A HAL hardware module reported a fault and is no longer usable for validation.
+    escalation: promote-after-1h
+    auto_clear: manual
+    hq_reportable: true
+  - id: 0x4_10_1_0002
+    name: hal_module_unavailable
+    severity: MINOR
+    probable_cause: equipment-malfunction
+    specific_problem: hal-module-absent
+    description: A HAL module declared in the registry did not enumerate on this board.
+    escalation: none
+    auto_clear: auto
+    hq_reportable: true
+  - id: 0x4_10_2_0003
+    name: hal_stm32_link_lost
+    severity: MAJOR
+    probable_cause: communications-subsystem-failure
+    specific_problem: stm32-coprocessor-link-lost
+    description: The link to the STM32 real-time co-processor stopped responding.
+    escalation: promote-after-1h
+    auto_clear: auto
+    hq_reportable: true
+
+  # ---- arches-client (module 0x11, application) ----
+  - id: 0x4_11_3_0001
+    name: client_run_aborted
+    severity: MAJOR
+    probable_cause: software-error
+    specific_problem: ivv-run-aborted
+    description: An IV&V run aborted before completion; results for that run are incomplete.
+    escalation: none
+    auto_clear: manual
+    hq_reportable: true
+  - id: 0x4_11_2_0002
+    name: client_server_stream_lost
+    severity: MINOR
+    probable_cause: communications-subsystem-failure
+    specific_problem: server-stream-disconnected
+    description: The result stream to Arches-Server dropped; results are spooling locally.
+    escalation: promote-after-1h
+    auto_clear: auto
+    hq_reportable: true
+  - id: 0x4_11_4_0003
+    name: client_spool_backlog
+    severity: WARNING
+    probable_cause: storage-capacity-issue
+    specific_problem: result-spool-backlog
+    description: The local result spool is growing faster than it drains to Arches-Server.
+    escalation: none
+    auto_clear: auto
+    hq_reportable: true
+
+  # ---- arches-server (module 0x12, application) ----
+  #
+  # Arches-Server runs on an x86 host, not the Jetson. Whether it reaches an
+  # istate at all is an open question (Task.md E-07); these ids are allocated
+  # either way so the allocation does not have to be revisited once it is
+  # settled -- and because allocation is one-way, deferring it is the more
+  # expensive option.
+  - id: 0x4_12_4_0001
+    name: server_ingest_backlog
+    severity: MAJOR
+    probable_cause: queue-size-exceeded
+    specific_problem: result-ingest-backlog
+    description: Result ingest is falling behind; the client stream is being back-pressured.
+    escalation: promote-after-1h
+    auto_clear: auto
+    hq_reportable: true
+  - id: 0x4_12_3_0002
+    name: server_db_write_failed
+    severity: CRITICAL
+    probable_cause: storage-media-failure
+    specific_problem: result-store-write-failed
+    description: A write to the result store failed; run results may be lost.
+    escalation: none
+    auto_clear: manual
+    hq_reportable: true
