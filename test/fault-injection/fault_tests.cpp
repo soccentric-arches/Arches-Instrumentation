@@ -73,6 +73,7 @@ struct FaultFixture
 
 // §11 "/pst corrupt": fall back to redundant copy; if both fail, boot
 // unprovisioned and report — never fail to boot.
+/// @brief A corrupt /pst file recovers from its redundant copy (REQ §11).
 TEST(FaultPst, CorruptPrimaryRecoversFromRedundantCopy)
 {
     FaultFixture f;
@@ -88,6 +89,7 @@ TEST(FaultPst, CorruptPrimaryRecoversFromRedundantCopy)
     EXPECT_EQ((*doc).get_int("interval"), 7);
 }
 
+/// @brief When both copies fail, the device boots unprovisioned and reports loudly — it never dies.
 TEST(FaultPst, BothCopiesCorruptBootsUnprovisionedAndReports)
 {
     FaultFixture f;
@@ -108,6 +110,7 @@ TEST(FaultPst, BothCopiesCorruptBootsUnprovisionedAndReports)
 
 // §11 "spool full": drop oldest telemetry first, never alarms or faults,
 // report the drop.
+/// @brief A full spool drops telemetry, keeps protected records and reports what it dropped.
 TEST(FaultSpool, FullDropsTelemetryKeepsFaultsReports)
 {
     SimulatedFileSystem fs;
@@ -129,6 +132,7 @@ TEST(FaultSpool, FullDropsTelemetryKeepsFaultsReports)
 }
 
 // §11 "HQ unreachable": jittered backoff; device fully operational.
+/// @brief An unreachable HQ moves the session into backoff with jittered reconnect pacing.
 TEST(FaultHq, UnreachableTriggersBackoffState)
 {
     FaultFixture f;
@@ -164,6 +168,7 @@ TEST(FaultHq, UnreachableTriggersBackoffState)
 }
 
 // §11 "spoke crashes / hangs": istate reports degraded, requests restart.
+/// @brief A wedged spoke (running but silent) is detected, restart requested and the device reports degraded.
 TEST(FaultSpoke, HangDetectedRestartRequestedDeviceDegrades)
 {
     FaultFixture f;
@@ -182,6 +187,7 @@ TEST(FaultSpoke, HangDetectedRestartRequestedDeviceDegrades)
 // answered by a pong. This is the case the probe override cannot represent:
 // an idle-but-healthy daemon (backup, ota) sends no traffic of its own, so
 // only the pong separates "quiet" from "wedged".
+/// @brief An idle-but-answering spoke is never falsely reported hung (pongs distinguish quiet from hung).
 TEST(FaultSpoke, IdleButAnsweringSpokeIsNotReportedHung)
 {
     FaultFixture f;
@@ -208,6 +214,7 @@ TEST(FaultSpoke, IdleButAnsweringSpokeIsNotReportedHung)
     EXPECT_GT((*orch.spoke("backup"))->pongs_received, 0u);
 }
 
+/// @brief A spoke that stops answering pings is restarted after the hang timeout.
 TEST(FaultSpoke, SpokeThatStopsAnsweringPingsIsRestarted)
 {
     FaultFixture f;
@@ -246,6 +253,7 @@ TEST(FaultSpoke, SpokeThatStopsAnsweringPingsIsRestarted)
 
 // §11 "clock unavailable at boot": operate on monotonic; re-stamp on
 // acquisition.
+/// @brief Monotonic time keeps operating without a wall clock; spooled records are re-stamped on lock.
 TEST(FaultClock, MonotonicOperationAndRestamp)
 {
     ManualTimeSource ts;
@@ -267,6 +275,7 @@ TEST(FaultClock, MonotonicOperationAndRestamp)
 }
 
 // §11 "storage near full": budgets enforced, alarm before the limit.
+/// @brief Budget warnings fire before the hard limit; no consumer can wedge the partition.
 TEST(FaultStorage, BudgetAlarmBeforeLimitNeverWedges)
 {
     FaultFixture f;
@@ -281,6 +290,7 @@ TEST(FaultStorage, BudgetAlarmBeforeLimitNeverWedges)
 }
 
 // §11 "firewall change kills tunnel": auto-revert within the timeout.
+/// @brief A plan change that kills the tunnel auto-reverts within the guard timeout (§7.2).
 TEST(FaultNetwork, TunnelLossGuardRevertsChange)
 {
     SimulatedPlatform plat;
@@ -300,6 +310,7 @@ TEST(FaultNetwork, TunnelLossGuardRevertsChange)
 }
 
 // §11 "proto version mismatch": refuse, alarm, never guess.
+/// @brief A proto schema mismatch is refused and raises the alarm the contract requires (§3.1).
 TEST(FaultProto, MismatchRefusedWithAlarm)
 {
     FaultFixture f;
@@ -314,6 +325,7 @@ TEST(FaultProto, MismatchRefusedWithAlarm)
 }
 
 // §11 "unclean shutdown": marker-based detection, reported on next boot.
+/// @brief An unclean shutdown is detected via the persistent marker and reported on next boot.
 TEST(FaultShutdown, UncleanMarkerReportedOnNextBoot)
 {
     FaultFixture f;
@@ -326,6 +338,7 @@ TEST(FaultShutdown, UncleanMarkerReportedOnNextBoot)
 }
 
 // §11 "fleet-wide simultaneous boot": jittered drain + backpressure honoured.
+/// @brief Hundreds of devices reconnecting together stay jittered; no thundering herd.
 TEST(FaultFlood, JitteredDrainNotStampede)
 {
     SimulatedFileSystem fs;
@@ -354,6 +367,7 @@ TEST(FaultFlood, JitteredDrainNotStampede)
 
 // Fault injection: storage write failure mid-config-save → loud error,
 // prior state intact.
+/// @brief A failed write leaves the previous state intact (temp+rename discipline).
 TEST(FaultStorage, WriteFailureLeavesStateIntact)
 {
     FaultFixture f;

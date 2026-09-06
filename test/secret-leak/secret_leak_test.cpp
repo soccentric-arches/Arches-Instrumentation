@@ -43,6 +43,7 @@ using namespace instr::backup;
 using namespace instr::telemetry;
 namespace telemetry_proto = instr::telemetry; // proto-generated namespace
 
+/// @brief No credential reaches a log sink — fields and inline values redacted (REQ §10, enforced not conventional).
 TEST(SecretLeak, LoggerRedactsSecretFieldsAndInlineValues)
 {
     MemorySink sink;
@@ -61,6 +62,7 @@ TEST(SecretLeak, LoggerRedactsSecretFieldsAndInlineValues)
     EXPECT_NE(all.find("SIM-1"), std::string::npos); // non-secrets pass
 }
 
+/// @brief Backup archives exclude key material and are sealed before leaving the device.
 TEST(SecretLeak, BackupArchivesExcludeKeysAndEncrypt)
 {
     SimulatedFileSystem fs;
@@ -92,6 +94,7 @@ TEST(SecretLeak, BackupArchivesExcludeKeysAndEncrypt)
     }
 }
 
+/// @brief Telemetry batches carry no credential-shaped data.
 TEST(SecretLeak, TelemetryRecordsCarryNoCredentials)
 {
     // The telemetry surface ships only metric values + reproducibility
@@ -118,6 +121,7 @@ TEST(SecretLeak, TelemetryRecordsCarryNoCredentials)
     EXPECT_EQ(probe.find("password"), std::string::npos);
 }
 
+/// @brief The audit trail records actions without leaking secrets in details.
 TEST(SecretLeak, AuditTrailRedactsDetailSecrets)
 {
     MemorySink sink;

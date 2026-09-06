@@ -51,6 +51,7 @@ static std::string slurp(const std::string& path)
     return ss.str();
 }
 
+/// @brief The generated proto descriptors match the golden hash — wire incompatibility is caught at build time.
 TEST(ContractProtos, DescriptorHashMatchesGolden)
 {
     std::string desc = slurp(PROTO_DESC_FILE);
@@ -71,6 +72,7 @@ TEST(ContractProtos, DescriptorHashMatchesGolden)
                                 << "bump transport::kProtoSchemaVersion if wire-incompatible.";
 }
 
+/// @brief The proto schema version is one shared constant every side checks (§3.1).
 TEST(ContractHandshake, SchemaVersionIsSuiteWide)
 {
     // One wire format for services: every spoke and istate share one schema
@@ -82,6 +84,7 @@ TEST(ContractHandshake, SchemaVersionIsSuiteWide)
     EXPECT_EQ(transport::kProtoSchemaVersion, 2u);
 }
 
+/// @brief Registration requests carry the fields the orchestrator records; mismatches are refused.
 TEST(ContractHandshake, RegistrationFieldsAreStable)
 {
     // The handshake contract: daemon name, build version, proto schema
@@ -100,6 +103,7 @@ TEST(ContractHandshake, RegistrationFieldsAreStable)
     EXPECT_EQ(back.capabilities(0), "samples");
 }
 
+/// @brief The ctrl frame format is a 4-byte little-endian length prefix (§3.2, on the wire contract).
 TEST(ContractCtrl, FrameFormatIsLengthPrefixedLe32)
 {
     // The raw-UDS ctrl contract: 4-byte LE length + payload.
@@ -113,6 +117,7 @@ TEST(ContractCtrl, FrameFormatIsLengthPrefixedLe32)
     EXPECT_EQ(out, "payload");
 }
 
+/// @brief Alarms and faults share the §8 32-bit identity scheme.
 TEST(ContractAlarmIds, SameSchemeForAlarmsAndFaults)
 {
     // §8: alarms and faults share the 32-bit identity scheme so HQ can
@@ -128,6 +133,7 @@ TEST(ContractAlarmIds, SameSchemeForAlarmsAndFaults)
     EXPECT_EQ(alarm_id_string(fault), "0x5_05_3_0008");
 }
 
+/// @brief The spool drop-priority order is the contractual one: telemetry first, alarms/faults never.
 TEST(ContractSpool, DropPriorityOrderIsContractual)
 {
     // §11: oldest telemetry first, then log refs, then events; alarms and

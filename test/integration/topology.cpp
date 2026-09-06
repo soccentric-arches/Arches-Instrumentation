@@ -187,6 +187,7 @@ struct Topology
 
 } // namespace
 
+/// @brief istate listens on one UDS per spoke (§3.1 topology).
 TEST(Topology, ServerListensOnASocketPerSpoke)
 {
     Topology t;
@@ -201,6 +202,7 @@ TEST(Topology, ServerListensOnASocketPerSpoke)
     }
 }
 
+/// @brief A spoke completes the real registration handshake over gRPC.
 TEST(Topology, SpokeRegistersOverTheRealTransport)
 {
     Topology t;
@@ -213,6 +215,7 @@ TEST(Topology, SpokeRegistersOverTheRealTransport)
     })) << "the hub never marked monitord ready";
 }
 
+/// @brief Config delivery flows over the channel and the spoke acks it (§9).
 TEST(Topology, ConfigurationIsDeliveredAndAcknowledgedOverTheChannel)
 {
     Topology t;
@@ -229,6 +232,7 @@ TEST(Topology, ConfigurationIsDeliveredAndAcknowledgedOverTheChannel)
     EXPECT_TRUE(t.core->config_ack_state("monitord").applied);
 }
 
+/// @brief A config change pushes to a running spoke without a restart.
 TEST(Topology, ConfigChangePropagatesToARunningSpoke)
 {
     Topology t;
@@ -248,6 +252,7 @@ TEST(Topology, ConfigChangePropagatesToARunningSpoke)
     EXPECT_NEAR(t.mon_core->config().interval, 1.5, 1e-9);
 }
 
+/// @brief A schema-invalid delivery is refused and the previous document stays in force (R10).
 TEST(Topology, InvalidConfigIsRefusedAndThePreviousOneStaysInForce)
 {
     Topology t;
@@ -270,6 +275,7 @@ TEST(Topology, InvalidConfigIsRefusedAndThePreviousOneStaysInForce)
     EXPECT_NEAR(t.mon_core->config().interval, 0.2, 1e-9);
 }
 
+/// @brief monitord samples stream to istate over the real channel.
 TEST(Topology, SamplesStreamFromMonitordToIstate)
 {
     Topology t;
@@ -282,6 +288,7 @@ TEST(Topology, SamplesStreamFromMonitordToIstate)
     EXPECT_TRUE(wait_for([&] { return t.core->northbound_spool().size() > 0; }, 8000));
 }
 
+/// @brief The liveness ping/pong works over the real channel (§3.1).
 TEST(Topology, LivenessPingIsAnsweredOverTheRealChannel)
 {
     Topology t;
@@ -303,6 +310,7 @@ TEST(Topology, LivenessPingIsAnsweredOverTheRealChannel)
         << "an idle spoke never answered a liveness ping";
 }
 
+/// @brief A proto schema mismatch is refused at registration.
 TEST(Topology, ProtoSchemaMismatchIsRefusedAtRegistration)
 {
     Topology t;
@@ -324,6 +332,7 @@ TEST(Topology, ProtoSchemaMismatchIsRefusedAtRegistration)
     ch.stop();
 }
 
+/// @brief Registration metadata (build, proto, capabilities) reaches the orchestrator.
 TEST(Topology, RegistrationMetadataReachesTheOrchestrator)
 {
     // §3.1: the handshake carries daemon name, build version, proto schema
@@ -344,6 +353,7 @@ TEST(Topology, RegistrationMetadataReachesTheOrchestrator)
     EXPECT_FALSE((*s)->capabilities.empty()) << "the capability list was not recorded";
 }
 
+/// @brief A mismatch is reported to the orchestrator, not only refused silently.
 TEST(Topology, ProtoMismatchIsReportedNotOnlyRefused)
 {
     // §11: "Proto version mismatch — refuse registration, raise an alarm, do
@@ -371,6 +381,7 @@ TEST(Topology, ProtoMismatchIsReportedNotOnlyRefused)
     ch.stop();
 }
 
+/// @brief A spoke reconnects and re-registers after the hub restarts.
 TEST(Topology, SpokeReconnectsAfterTheHubRestarts)
 {
     Topology t;
@@ -396,6 +407,7 @@ TEST(Topology, SpokeReconnectsAfterTheHubRestarts)
     EXPECT_TRUE(wait_for([&] { return t.mon->registered(); }, 15000)) << "the spoke did not re-attach after the hub returned";
 }
 
+/// @brief Three spokes run concurrently and all register.
 TEST(Topology, ThreeSpokesRunTogetherAndAllRegister)
 {
     Topology t;

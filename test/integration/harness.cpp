@@ -121,6 +121,7 @@ struct SimHq
 
 } // namespace
 
+/// @brief The full in-process topology boots: /pst seeded, spokes started in order.
 TEST(IntegrationBoot, FullTopologyBootsAndSpokesStart)
 {
     Harness h;
@@ -135,6 +136,7 @@ TEST(IntegrationBoot, FullTopologyBootsAndSpokesStart)
     EXPECT_TRUE(h.core->last_shutdown_clean());
 }
 
+/// @brief The handshake accepts a matching schema and refuses a mismatch with a diagnosable reason.
 TEST(IntegrationRegistration, HandshakeAcceptsMatchingSchemaRefusesMismatch)
 {
     Harness h;
@@ -147,6 +149,7 @@ TEST(IntegrationRegistration, HandshakeAcceptsMatchingSchemaRefusesMismatch)
     EXPECT_NE(reason.find("mismatch"), std::string::npos);
 }
 
+/// @brief Droppable and protected classes flow northbound under the documented drop policy.
 TEST(IntegrationSpool, ProtectedAndDroppableClassesFlowNorthbound)
 {
     Harness h;
@@ -166,6 +169,7 @@ TEST(IntegrationSpool, ProtectedAndDroppableClassesFlowNorthbound)
     h.core->shutdown();
 }
 
+/// @brief A critical alarm lands in the timeline, requests a snapshot and is spool-protected.
 TEST(IntegrationAlarm, CriticalAlarmTimelineSnapshotRequestAndProtectedSpool)
 {
     Harness h;
@@ -192,6 +196,7 @@ TEST(IntegrationAlarm, CriticalAlarmTimelineSnapshotRequestAndProtectedSpool)
     EXPECT_TRUE(saw_alarm_north);
 }
 
+/// @brief A signed HQ push applies only after Ed25519 verification (§9).
 TEST(IntegrationConfig, SignedPushFromHqAppliesAfterVerification)
 {
     Harness h;
@@ -215,6 +220,7 @@ TEST(IntegrationConfig, SignedPushFromHqAppliesAfterVerification)
     EXPECT_EQ((*drift).find("effective")->find("interval")->as_number(), 9);
 }
 
+/// @brief System reset wipes system/state, keeps factory/backup and reseeds defaults (§6.1).
 TEST(IntegrationReset, SystemResetWipesKeepsFactoryAndReseeds)
 {
     Harness h;
@@ -232,6 +238,7 @@ TEST(IntegrationReset, SystemResetWipesKeepsFactoryAndReseeds)
     h.core->shutdown();
 }
 
+/// @brief A hung spoke is detected by the liveness sweep and a restart is requested.
 TEST(IntegrationLiveness, HungSpokeDetectedAndRestartRequested)
 {
     Harness h;
@@ -250,6 +257,7 @@ TEST(IntegrationLiveness, HungSpokeDetectedAndRestartRequested)
     EXPECT_EQ(h.plat.unit_restarts().size(), 1u);
 }
 
+/// @brief Budget warnings fire before the limit and the limit is enforced.
 TEST(IntegrationBudgets, WarningRaisedBeforeLimitAndEnforced)
 {
     Harness h;
@@ -269,6 +277,7 @@ TEST(IntegrationBudgets, WarningRaisedBeforeLimitAndEnforced)
     EXPECT_TRUE((*j).is_array());
 }
 
+/// @brief A missing clean-shutdown marker is reported as an unclean shutdown on next boot.
 TEST(IntegrationUncleanShutdown, MarkerMissingReportedNextBoot)
 {
     Harness h;
@@ -287,6 +296,7 @@ TEST(IntegrationUncleanShutdown, MarkerMissingReportedNextBoot)
     EXPECT_TRUE(core2.last_shutdown_clean());
 }
 
+/// @brief Events from every source land in one ordered per-device timeline (§7.1).
 TEST(IntegrationTimeline, SingleOrderedPerDeviceStream)
 {
     Harness h;

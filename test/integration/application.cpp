@@ -192,6 +192,7 @@ struct AppTopology
 
 } // namespace
 
+/// @brief The application API socket is separate from every _ctrl socket (§7.6).
 TEST(Application, HasItsOwnSocketDistinctFromTheCtrlSockets)
 {
     // §3.2 fixes the ctrl sockets at 0600 root-only, so they can never be the
@@ -203,6 +204,7 @@ TEST(Application, HasItsOwnSocketDistinctFromTheCtrlSockets)
     EXPECT_TRUE(S_ISSOCK(st.st_mode));
 }
 
+/// @brief Applications read system info without ever opening /pst (R4).
 TEST(Application, CanReadSystemInfoWithoutTouchingPst)
 {
     // §3.3's shape: every read is an istate call, the app holds no device state.
@@ -217,6 +219,7 @@ TEST(Application, CanReadSystemInfoWithoutTouchingPst)
     EXPECT_FALSE(reply.boot_id().empty()) << "§4: every record carries a boot id";
 }
 
+/// @brief An application-raised alarm reaches the Alarms daemon (R5: applications declare alarms).
 TEST(Application, RaisesAnAlarmThatReachesTheAlarmsDaemon)
 {
     // R5: "Only an application sets or clears an alarm." This is that path.
@@ -243,6 +246,7 @@ TEST(Application, RaisesAnAlarmThatReachesTheAlarmsDaemon)
     EXPECT_EQ(active[0].owner, "my-app") << "the owner must be the declaring application, not istate";
 }
 
+/// @brief A CRITICAL application alarm requests the bounded diagnostic snapshot.
 TEST(Application, CriticalAlarmAsksForTheDiagnosticSnapshot)
 {
     // §7.6 snapshot-on-fault: the evidence must exist at the moment it matters,
@@ -260,6 +264,7 @@ TEST(Application, CriticalAlarmAsksForTheDiagnosticSnapshot)
     EXPECT_TRUE(reply.needs_snapshot());
 }
 
+/// @brief An application can clear the alarm it raised.
 TEST(Application, ClearsAnAlarmItRaised)
 {
     AppTopology t;
@@ -288,6 +293,7 @@ TEST(Application, ClearsAnAlarmItRaised)
     EXPECT_TRUE(AppTopology::wait_for([&] { return t.alarm_core->manager().active().empty(); })) << "the alarm the application cleared is still active";
 }
 
+/// @brief An alarm without an owner is refused — attribution is mandatory.
 TEST(Application, AnAlarmWithoutAnOwnerIsRefused)
 {
     // R5 makes the owner the whole point: an unattributed alarm is not a
@@ -304,6 +310,7 @@ TEST(Application, AnAlarmWithoutAnOwnerIsRefused)
     EXPECT_EQ(status.error_code(), grpc::StatusCode::INVALID_ARGUMENT);
 }
 
+/// @brief When Alarms is unreachable the failure is reported, never swallowed.
 TEST(Application, AlarmWithTheAlarmsDaemonDownIsReportedNotSwallowed)
 {
     // R10: the device keeps working. But an application that declared an alarm
@@ -320,6 +327,7 @@ TEST(Application, AlarmWithTheAlarmsDaemonDownIsReportedNotSwallowed)
     EXPECT_EQ(status.error_code(), grpc::StatusCode::UNAVAILABLE);
 }
 
+/// @brief An application registers a metric with Telemetry (§7.8 registration API).
 TEST(Application, RegistersAMetricWithTelemetry)
 {
     // §7.8: "application metric registration API".
@@ -339,6 +347,7 @@ TEST(Application, RegistersAMetricWithTelemetry)
     EXPECT_TRUE(reply.ok());
 }
 
+/// @brief Registered metrics accept samples and flow into batches.
 TEST(Application, ReportsMetricSamples)
 {
     AppTopology t;
@@ -371,6 +380,7 @@ TEST(Application, ReportsMetricSamples)
     EXPECT_EQ(reply.rejected(), 0u);
 }
 
+/// @brief A malformed sample is rejected without failing the rest of the batch.
 TEST(Application, ASampleWithNoMetricNameIsRejectedWithoutFailingTheBatch)
 {
     // §14: no silent failures. A bad sample is counted and reported; the good
@@ -392,6 +402,7 @@ TEST(Application, ASampleWithNoMetricNameIsRejectedWithoutFailingTheBatch)
     EXPECT_FALSE(reply.error().empty()) << "a rejected sample must be diagnosable";
 }
 
+/// @brief Application config writes land with origin=App (§6.2).
 TEST(Application, ConfigWritesLandWithAppOrigin)
 {
     // §6.2: applications "may then override values as they see fit, with origin
@@ -421,6 +432,7 @@ TEST(Application, ConfigWritesLandWithAppOrigin)
     EXPECT_EQ(it->second, "app");
 }
 
+/// @brief Application config writes are attributed in the audit trail.
 TEST(Application, ConfigWriteIsAttributedInTheAuditTrail)
 {
     // §10: "who changed what, when, from where".
@@ -441,6 +453,7 @@ TEST(Application, ConfigWriteIsAttributedInTheAuditTrail)
     EXPECT_TRUE(found) << "an application's config write left no audit trail";
 }
 
+/// @brief A config write without an app name is refused — attribution is mandatory.
 TEST(Application, ConfigWriteWithoutAnAppNameIsRefused)
 {
     AppTopology t;
@@ -456,6 +469,7 @@ TEST(Application, ConfigWriteWithoutAnAppNameIsRefused)
     EXPECT_EQ(status.error_code(), grpc::StatusCode::INVALID_ARGUMENT);
 }
 
+/// @brief Dotted application keys expand into the nested document shape.
 TEST(Application, NestedConfigKeysAreExpanded)
 {
     // Config paths are dotted; an application sets one key at a time and the
@@ -481,6 +495,7 @@ TEST(Application, NestedConfigKeysAreExpanded)
     EXPECT_NE(reply.origins().find("app.window_s"), reply.origins().end()) << "a dotted key did not become a nested config path";
 }
 
+/// @brief Origin rules: an application cannot overwrite an operator's local edit.
 TEST(Application, CannotOverwriteAnOperatorsLocalEdit)
 {
     // §4 merge semantics: an application adding keys must never clobber what an
