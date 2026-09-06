@@ -42,15 +42,23 @@ namespace instr
 namespace tar
 {
 
+/// @brief One file in a ustar archive.
 struct FileEntry
 {
-    std::string name; // relative path inside the archive
-    std::string data;
-    uint32_t mode = 0644;
-    uint64_t mtime = 0;
+    std::string name;            ///< Relative path inside the archive.
+    std::string data;            ///< File contents.
+    uint32_t mode = 0644;        ///< Permission bits.
+    uint64_t mtime = 0;          ///< Modification time, unix seconds.
 };
 
+/// @brief Write a POSIX ustar archive (no external tar binary; testable and deterministic).
+/// @param files Files to archive, in write order.
+/// @return The archive bytes.
 std::string write_ustar(const std::vector<FileEntry>& files);
+
+/// @brief Read a ustar archive back into entries.
+/// @param archive Archive bytes.
+/// @return The entries, or a Corrupt error for a malformed archive.
 Result<std::vector<FileEntry>> read_ustar(const std::string& archive);
 
 } // namespace tar

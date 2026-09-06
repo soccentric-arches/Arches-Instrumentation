@@ -34,6 +34,7 @@ namespace instr
 namespace tar
 {
 
+/// @brief Render an integer as zero-padded octal into a fixed-width header field.
 static void octal(char* out, size_t width, uint64_t v)
 {
     // width includes the terminating NUL; write octal right-aligned.
@@ -48,6 +49,7 @@ static void octal(char* out, size_t width, uint64_t v)
     }
 }
 
+/// @brief Compute the ustar header checksum (checksum field treated as spaces).
 static uint32_t header_checksum(const char* h)
 {
     uint32_t sum = 0;
@@ -55,6 +57,7 @@ static uint32_t header_checksum(const char* h)
     return sum;
 }
 
+/// @brief Serialise files into a POSIX ustar archive.
 std::string write_ustar(const std::vector<FileEntry>& files)
 {
     std::string out;
@@ -91,6 +94,7 @@ std::string write_ustar(const std::vector<FileEntry>& files)
     return out;
 }
 
+/// @brief Parse a ustar archive; malformed archives are rejected as Corrupt.
 Result<std::vector<FileEntry>> read_ustar(const std::string& archive)
 {
     std::vector<FileEntry> out;

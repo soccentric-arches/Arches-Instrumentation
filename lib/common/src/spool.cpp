@@ -40,6 +40,7 @@ namespace instr
 static constexpr uint32_t kMagic = 0x53504F4C;
 static constexpr size_t kHeaderSize = 4 + 4 + 1 + 3 + 8 + 4; // 24
 
+/// @brief CRC-32 integrity trailer for spool records.
 static uint32_t crc32(const std::string& data)
 {
     static uint32_t table[256];
@@ -59,18 +60,22 @@ static uint32_t crc32(const std::string& data)
     return c ^ 0xFFFFFFFFu;
 }
 
+/// @brief Append a little-endian u32 to a buffer.
 static void put_u32(std::string& s, uint32_t v)
 {
     for (int i = 0; i < 4; ++i) s += char((v >> (8 * i)) & 0xFF);
 }
+/// @brief Append a little-endian u64 to a buffer.
 static void put_u64(std::string& s, uint64_t v)
 {
     for (int i = 0; i < 8; ++i) s += char((v >> (8 * i)) & 0xFF);
 }
+/// @brief Read a little-endian u32 from a buffer.
 static uint32_t get_u32(const std::string& s, size_t off)
 {
     return uint32_t(uint8_t(s[off])) | (uint32_t(uint8_t(s[off + 1])) << 8) | (uint32_t(uint8_t(s[off + 2])) << 16) | (uint32_t(uint8_t(s[off + 3])) << 24);
 }
+/// @brief Read a little-endian u64 from a buffer.
 static uint64_t get_u64(const std::string& s, size_t off)
 {
     uint64_t v = 0;
@@ -78,6 +83,7 @@ static uint64_t get_u64(const std::string& s, size_t off)
     return v;
 }
 
+/// @brief Serialise one spool record: header + payload + CRC.
 static std::string encode_record(SpoolPriority prio, uint64_t mono, const std::string& payload)
 {
     std::string body;
@@ -96,6 +102,7 @@ static std::string encode_record(SpoolPriority prio, uint64_t mono, const std::s
 }
 
 // Decode one record at `off`; on success sets *out, advances off past it.
+/// @brief Parse one record at @p off; advances @p off on success.
 static bool decode_record(const std::string& seg, size_t& off, DiskSpool::Entry* out)
 {
     if (off + kHeaderSize > seg.size()) return false;
@@ -115,6 +122,7 @@ static bool decode_record(const std::string& seg, size_t& off, DiskSpool::Entry*
     return true;
 }
 
+/// @brief Open/create the spool directory and rebuild the index from segments.
 Error DiskSpool::open()
 {
     index_.clear();
@@ -171,6 +179,7 @@ Error DiskSpool::open()
     return Error::none();
 }
 
+/// @brief Roll to a fresh segment file.
 Error DiskSpool::append_segment()
 {
     Error e = fs_.write(segment_path(next_seg_seq_), "");
@@ -183,6 +192,7 @@ Error DiskSpool::append_segment()
 
 // Removes the record at `victim` (index into index_) by rewriting its
 // segment and fixing offsets of the remaining records in that segment.
+/// @brief Remove index entry @p victim and mark its bytes free.
 Error DiskSpool::erase_index_record(size_t victim)
 {
     IdxRec rec = index_[victim];
@@ -214,6 +224,7 @@ Error DiskSpool::erase_index_record(size_t victim)
     return Error::none();
 }
 
+/// @brief Evict the oldest droppable (non-protected) record.
 Error DiskSpool::drop_one_oldest_droppable()
 {
     for (size_t i = 0; i < index_.size(); ++i)
@@ -235,6 +246,7 @@ Error DiskSpool::drop_one_oldest_droppable()
     return Error::make(Errc::NotFound, "no droppable record", "spool");
 }
 
+/// @brief Append one record, enforcing the budget with the documented drop policy.
 Error DiskSpool::append(SpoolPriority prio, const std::string& payload, uint64_t mono_ns, int* dropped)
 {
     std::string rec = encode_record(prio, mono_ns, payload);
@@ -283,6 +295,7 @@ Error DiskSpool::append(SpoolPriority prio, const std::string& payload, uint64_t
     return Error::none();
 }
 
+/// @brief Oldest-first non-destructive snapshot of up to @p max records.
 std::vector<DiskSpool::Entry> DiskSpool::peek(size_t max) const
 {
     std::vector<Entry> out;
@@ -306,6 +319,7 @@ std::vector<DiskSpool::Entry> DiskSpool::peek(size_t max) const
     return out;
 }
 
+/// @brief Consume the oldest @p n records after a successful drain.
 Error DiskSpool::pop_front(size_t n)
 {
     if (n > index_.size()) n = index_.size();
