@@ -26,6 +26,10 @@
  */
 
 
+#include <fstream>
+#include <set>
+#include <sstream>
+
 #include <gtest/gtest.h>
 
 #include "instr/common/timestamps.h"
@@ -162,4 +166,67 @@ TEST(FaultProcessor, NonMatchingLinesNeverEmit) {
   auto recs = proc.feed({"boring line", "another boring line", "systemd[1]: fine"}, 0, false);
   EXPECT_TRUE(recs.empty());
   EXPECT_EQ(proc.stats().lines_scanned, 3u);
+}
+// ---------------------------------------------------------------------------
+// The shipped rule set against a real kernel log (§7.5, §12 fixtures).
+// The rules are data, so the thing worth testing is whether they match what
+// a device actually prints — not whether the regex engine works.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+std::string slurp_fixture(const std::string& name) {
+  std::ifstream f(std::string(REPO_ROOT) + "/test/fixtures/" + name);
+  std::ostringstream ss;
+  ss << f.rdbuf();
+  return ss.str();
+}
+std::vector<std::string> fixture_lines(const std::string& name) {
+  std::vector<std::string> out;
+  std::istringstream in(slurp_fixture(name));
+  std::string line;
+  while (std::getline(in, line))
+    if (!line.empty()) out.push_back(line);
+  return out;
+}
+
+}  // namespace
+
+TEST(FaultRulesFixture, ShippedRulesMatchARealBootLog) {
+  auto rules = load_rules(slurp_fixture("../../catalog/fault-rules.yaml"));
+  ASSERT_TRUE(rules.ok()) << rules.error.str();
+  FaultProcessor proc(*rules);
+
+  const auto lines = fixture_lines("kernel-log-boot.txt");
+  ASSERT_GT(lines.size(), 10u) << "fixture missing or empty";
+  auto found = proc.feed(lines, 1'000'000'000ull, /*backfill=*/true);
+
+  std::set<std::string> matched;
+  for (const auto& r : found) matched.insert(r.rule);
+
+  // §7.5 names the classes the default set must cover. Each of these has a
+  // corresponding line in the fixture; a rule that stops matching real
+  // kernel output is a silent loss of coverage on every device.
+  for (const char* want : {"storage_error", "thermal_throttle", "ecc_event", "device_timeout",
+                           "oom", "watchdog_trip"}) {
+    EXPECT_TRUE(matched.count(want) > 0) << "no fault raised for " << want
+                                         << " despite a matching line in the boot log";
+  }
+  // Everything raised from the boot ring is marked as backfill, so HQ can
+  // tell a boot-window fault from one happening now.
+  for (const auto& r : found) EXPECT_TRUE(r.backfill);
+}
+
+TEST(FaultRulesFixture, OrdinaryBootLinesRaiseNothing) {
+  auto rules = load_rules(slurp_fixture("../../catalog/fault-rules.yaml"));
+  ASSERT_TRUE(rules.ok());
+  FaultProcessor proc(*rules);
+  // Healthy boot chatter must stay quiet: a rule set that fires on normal
+  // lines is worse than no rule set, because the noise hides real faults.
+  auto found = proc.feed({"6,0,0,-;Linux version 5.15.148-tegra (buildd@arches) #1 SMP",
+                          "6,42,120000,-;Machine model: NVIDIA Jetson Orin Nano",
+                          "6,800,3000000,-;systemd[1]: Reached target Multi-User System.",
+                          "6,101,340000,-;mmc0: new HS400 MMC card at address 0001"},
+                         2'000'000'000ull, false);
+  EXPECT_TRUE(found.empty()) << "the default rule set fires on healthy boot output";
 }

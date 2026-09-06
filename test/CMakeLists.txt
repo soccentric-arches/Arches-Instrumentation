@@ -48,6 +48,10 @@ gtest_discover_tests(unit_catalog)
 foreach(d monitord networkd hardware faults alarms logmanager telemetry ota backup)
   add_executable(unit_${d} ../daemons/${d}/test/test_domain.cpp)
   target_link_libraries(unit_${d} PRIVATE instr_${d}_lib)
+  # Fixtures (test/fixtures) are real artefacts — a genuine kernel log, a
+  # manufacturing identity — so parsers are tested against what devices
+  # actually produce.
+  target_compile_definitions(unit_${d} PRIVATE REPO_ROOT="${CMAKE_SOURCE_DIR}")
   gtest_discover_tests(unit_${d})
 endforeach()
 
