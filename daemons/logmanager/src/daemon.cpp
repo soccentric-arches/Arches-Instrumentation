@@ -340,5 +340,126 @@ void LogSpoke::send_crash(const std::string& daemon, const std::string& coredump
   });
 }
 
+// ---- LogCollector (§7.7) --------------------------------------------------
+
+LogCollector::LogCollector(LogCore* core, platform::IPlatform* plat, IFileSystem* fs, TimeSource* ts,
+                           Logger* log)
+    : core_(core),
+      plat_(plat),
+      fs_(fs),
+      ts_(ts),
+      log_(log),
+      worker_("logmanager-collect", 2.0, [this] { (void)poll(); }) {}
+
+void LogCollector::start() { worker_.start(); }
+void LogCollector::stop() { worker_.stop(); }
+
+// Parses "<LEVEL> message" where the line carries one, else falls back to the
+// source's configured level. Journal "short" output and most application
+// sinks put the level in the first bracketed or bare token.
+static std::string parse_level(const std::string& line, const std::string& dflt) {
+  static const char* kLevels[] = {"CRITICAL", "ERROR", "WARNING", "WARN",
+                                  "INFO",     "DEBUG", "TRACE"};
+  // Look only in the first 64 characters: a level token appears in the
+  // prefix, and scanning the whole line would match the word "error"
+  // occurring anywhere in a message body.
+  const std::string head = line.substr(0, 64);
+  for (const char* lv : kLevels) {
+    auto pos = head.find(lv);
+    if (pos != std::string::npos) return std::string(lv) == "WARN" ? "WARNING" : lv;
+  }
+  return dflt;
+}
+
+size_t LogCollector::emit(const SourceSpec& spec, const std::string& raw) {
+  if (raw.empty()) return 0;
+  LogLine l;
+  l.mono_ns = ts_->mono_ns();
+  l.source = spec.name;
+  l.level = parse_level(raw, spec.level.empty() ? "INFO" : spec.level);
+  l.message = raw;
+  Error e = core_->store().append(spec.name, l);
+  if (!e.ok()) {
+    if (log_) log_->warning("logmanager", "append to '" + spec.name + "' failed: " + e.str());
+    return 0;
+  }
+  // Feed the live-tail fan-out too, so a tail session sees collected lines
+  // and not only what a test injected (§7.7: tail streams to istate).
+  core_->emit(l);
+  ++lines_;
+  return 1;
+}
+
+size_t LogCollector::collect_journal(const SourceSpec& spec) {
+  if (!plat_) return 0;
+  // "path" carries the unit for a journal source; the source name is the
+  // fallback so a minimal config still works.
+  const std::string unit = spec.path.empty() ? spec.name : spec.path;
+  auto lines = plat_->journal_lines(unit, 500);
+  if (!lines.ok() || lines->empty()) return 0;
+
+  Cursor& cur = cursors_[spec.name];
+  size_t start = 0;
+  if (!cur.last_line.empty()) {
+    // Resume after the last line we handed on. Not found means the window
+    // moved past it (a burst, or a journal rotation) — take the whole batch
+    // rather than silently dropping the gap.
+    for (size_t i = lines->size(); i-- > 0;) {
+      if ((*lines)[i] == cur.last_line) {
+        start = i + 1;
+        break;
+      }
+    }
+  }
+  size_t n = 0;
+  for (size_t i = start; i < lines->size(); ++i) n += emit(spec, (*lines)[i]);
+  cur.last_line = lines->back();
+  return n;
+}
+
+size_t LogCollector::collect_file(const SourceSpec& spec) {
+  if (!fs_ || spec.path.empty()) return 0;
+  auto size = fs_->file_size(spec.path);
+  if (!size.ok()) return 0;  // sink not created yet: normal, not an error
+  Cursor& cur = cursors_[spec.name];
+  if (*size < cur.offset) cur.offset = 0;  // rotated or truncated by the app
+  if (*size == cur.offset) return 0;
+  auto text = fs_->read(spec.path);
+  if (!text.ok()) return 0;
+  if (cur.offset > text->size()) cur.offset = 0;
+
+  std::string chunk = text->substr(cur.offset);
+  // Only consume up to the last newline: a partial trailing line is a write
+  // still in flight, and collecting half of it would corrupt the record.
+  auto last_nl = chunk.rfind('\n');
+  if (last_nl == std::string::npos) return 0;
+  chunk.resize(last_nl + 1);
+  cur.offset += chunk.size();
+
+  size_t n = 0;
+  size_t pos = 0;
+  while (pos < chunk.size()) {
+    size_t nl = chunk.find('\n', pos);
+    if (nl == std::string::npos) break;
+    if (nl > pos) n += emit(spec, chunk.substr(pos, nl - pos));
+    pos = nl + 1;
+  }
+  return n;
+}
+
+size_t LogCollector::poll() {
+  if (!core_->config().enabled) return 0;
+  size_t n = 0;
+  for (const auto& spec : core_->store().sources()) {
+    if (spec.kind == "journal") {
+      n += collect_journal(spec);
+    } else if (spec.kind == "file" || spec.kind == "app") {
+      n += collect_file(spec);
+    }
+    // An unknown kind is a config error the schema already rejects; nothing
+    // to do here beyond leaving it uncollected.
+  }
+  return n;
+}
 }  // namespace logmanager
 }  // namespace instr

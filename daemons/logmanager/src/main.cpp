@@ -34,6 +34,7 @@
 #include "instr/common/version_gen.h"
 #include "instr/ctrl/ctrl.h"
 #include "instr/logmanager/daemon.h"
+#include "instr/platform/factory.h"
 #include "instr/platform/native.h"
 #include "instr/common/filesystem.h"
 
@@ -53,6 +54,12 @@ int main(int argc, char** argv) {
   instr::Logger log(sink, ts);
 
   std::string root = args.root.empty() ? "/" : args.root;
+  // §5: the same binary runs against the simulated platform on a build host.
+  bool platform_known = true;
+  auto plat_owned = instr::platform::make_platform(args.platform, root, &platform_known);
+  if (!platform_known)
+    log.warning(args.name, "unknown --platform '" + args.platform + "', using native");
+  instr::platform::IPlatform& plat = *plat_owned;
   instr::NativeFileSystem fs;
   std::string base = root + "/pst/state/logs";
   fs.mkdirs(base);
@@ -62,7 +69,13 @@ int main(int argc, char** argv) {
   std::vector<instr::logmanager::SourceSpec> sources = {
       {"journal-system", "journal", "kernel", "INFO", 8 << 20, 5, 7ull * 24 * 3600, true},
       {"journal-istate", "journal", "instr-istate", "INFO", 8 << 20, 5, 7ull * 24 * 3600, true},
+      // Application log sink (§7.7): colocated applications append here and
+      // the collector picks the lines up. Shipped by default so an app on a
+      // stock image is collected without a config push.
+      {"app", "app", root + "/var/log/instrumentation/app.log", "INFO", 8 << 20, 5,
+       7ull * 24 * 3600, true},
   };
+  fs.mkdirs(root + "/var/log/instrumentation");
   core.store().configure(sources);
   core.store().set_budget_bytes(128ull << 20);
 
@@ -116,8 +129,16 @@ int main(int argc, char** argv) {
   });
   prune.start();
 
+  // Collection (§7.7). Without this the store is never written to and every
+  // downstream feature — tail, bundles, retention — operates on an empty
+  // set. Sources are re-read each pass, so an istate delivery takes effect
+  // without a restart.
+  instr::logmanager::LogCollector collector(&core, &plat, &fs, &ts, &log);
+  collector.start();
+
   instr::sd_notify_ready();
   instr::run_until_stop(stop, {});
+  collector.stop();
   prune.stop();
   bulk.stop();
   spoke.stop();
