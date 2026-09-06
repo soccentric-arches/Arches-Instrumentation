@@ -30,6 +30,7 @@
  */
 
 #pragma once
+#include <mutex>
 #include <map>
 #include <string>
 #include <vector>
@@ -77,16 +78,26 @@ class Sampler
     std::vector<MonitorSample> tick();
 
     /// @brief Override the default sampling interval.
+    ///
+    /// Thread-safe: the sampler thread reads this through interval_for() on
+    /// every pass while configuration arrives on another thread (see the note
+    /// on intervals_mu_).
+    ///
     /// @param s Default sampling interval in seconds.
     void set_default_interval_s(double s)
     {
+        std::lock_guard<std::mutex> lk(intervals_mu_);
         default_interval_ = s;
     }
     /// @brief Override the interval for one resource class.
+    ///
+    /// Thread-safe; see set_default_interval_s.
+    ///
     /// @param resource_class Resource class to retune.
     /// @param s Interval in seconds.
     void set_interval_for(const std::string& resource_class, double s)
     {
+        std::lock_guard<std::mutex> lk(intervals_mu_);
         intervals_[resource_class] = s;
     }
     /// @brief Effective interval for a resource class.
@@ -112,6 +123,22 @@ class Sampler
     TimeSource& ts_;                   ///< Clock (not owned).
     platform::CpuSnapshot prev_cpu_;  ///< Previous tick snapshot for rate deltas.
     bool have_prev_cpu_ = false;      ///< False until the second tick.
+    // Sampling intervals are written by configuration and read by the sampler
+    // thread, so they need their own lock.
+    //
+    // The writers are MonitorCore::configure(), apply_config() and the
+    // `set-interval` ctrl command; the reader is MonitorSpoke::sample_loop(),
+    // which calls interval_for() once per pass to compute its wait deadline.
+    // Nothing synchronised the two: a operator retuning an interval mutated a
+    // std::map while the sampler thread was traversing it, which is a torn
+    // read at best and a crash at worst.
+    //
+    // The lock lives in Sampler rather than in the callers on purpose. Two of
+    // the three writers already hold MonitorCore::mu_ and one does not, and
+    // the reader holds nothing -- so an external lock only appears to protect
+    // this. Owning the invariant here makes it hold however the class is
+    // called. Found by the TSan stage (Task.md A-05).
+    mutable std::mutex intervals_mu_;           ///< Guards default_interval_ and intervals_.
     double default_interval_ = 5.0;   ///< Default per-class interval.
     std::map<std::string, double> intervals_;   ///< Per-class interval overrides.
     Stats stats_;                     ///< Lifetime counters.

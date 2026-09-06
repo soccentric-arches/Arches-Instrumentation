@@ -51,7 +51,23 @@ pipeline {
           steps { sh 'cmake --preset asan && cmake --build --preset asan && ctest --preset asan --output-on-failure' }
         }
         stage('TSan') {
-          steps { sh 'cmake --preset tsan && cmake --build --preset tsan && ctest --preset tsan --output-on-failure' }
+          // TSAN_OPTIONS: the system gRPC/protobuf/abseil are not built with
+          // -fsanitize=thread, so TSan cannot see their internal
+          // synchronisation and reports races inside them. test/tsan.supp
+          // suppresses exactly those; a race in instr:: code still fails.
+          //
+          // setarch -R: TSan maps a fixed shadow region and aborts with
+          // "unexpected memory mapping" when the host's ASLR entropy is high
+          // enough for the main mapping to collide with it (seen on 6.x/7.x
+          // kernels). Disabling ASLR for the run is the documented remedy.
+          steps {
+            sh '''
+              export TSAN_OPTIONS="suppressions=$WORKSPACE/test/tsan.supp"
+              cmake --preset tsan
+              setarch $(uname -m) -R cmake --build --preset tsan
+              setarch $(uname -m) -R ctest --preset tsan --output-on-failure
+            '''
+          }
         }
       }
     }

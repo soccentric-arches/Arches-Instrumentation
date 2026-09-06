@@ -30,6 +30,7 @@
  */
 
 #pragma once
+#include <mutex>
 #include <deque>
 #include <functional>
 #include <map>
@@ -108,24 +109,45 @@ class MemorySink : public ISink
     /// @param r Record to write; the sink must not retain a reference past the call.
     void write(const LogRecord&) override;
     /// @brief Live view of the retained records, oldest first.
+    ///
+    /// NOT THREAD-SAFE, and deliberately so: it hands out a reference into the
+    /// ring, which cannot be held safely while another thread is writing. Use
+    /// it only from single-threaded tests. Everything else wants snapshot().
+    ///
     /// @return Live view of the retained records, oldest first.
     const std::deque<LogRecord>& records() const
     {
         return buf_;
     }
     /// @brief Copy of the retained records, oldest first.
+    ///
+    /// The thread-safe reader: takes a copy under the lock.
+    ///
     /// @return Copy of the retained records, oldest first.
     std::vector<LogRecord> snapshot() const
     {
+        std::lock_guard<std::mutex> lk(mu_);
         return {buf_.begin(), buf_.end()};
     }
     /// @brief Discard all retained records.
     void clear()
     {
+        std::lock_guard<std::mutex> lk(mu_);
         buf_.clear();
     }
 
   private:
+    // One logger is shared by every thread in a daemon -- gRPC handler
+    // threads, the sampler thread, spoke loops -- and they all reach this sink
+    // through Logger::log(). write() mutates a std::deque (push_back plus
+    // pop_front to hold the ring at capacity), which is not safe to do
+    // concurrently: the integration topology test crashed with a SEGV inside
+    // std::_Rb_tree_insert_and_rebalance on a gRPC worker thread.
+    //
+    // A sink is called from wherever logging happens, so it owns its own
+    // synchronisation rather than making every caller remember. Found by the
+    // TSan stage (Task.md A-05).
+    mutable std::mutex mu_; ///< Guards buf_.
     size_t cap_; ///< Maximum retained records.
     std::deque<LogRecord> buf_; ///< Ring buffer, oldest first.
 };

@@ -41,6 +41,9 @@ namespace domain
 /// @return The effective interval in seconds.
 double Sampler::interval_for(const std::string& resource_class) const
 {
+    // Called from the sampler thread every pass; the setters run on the
+    // configuration thread. See intervals_mu_ in the header.
+    std::lock_guard<std::mutex> lk(intervals_mu_);
     auto it = intervals_.find(resource_class);
     return it == intervals_.end() ? default_interval_ : it->second;
 }

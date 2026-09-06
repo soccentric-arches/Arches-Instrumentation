@@ -86,6 +86,8 @@ void StderrSink::write(const LogRecord& r)
 /// @param r Record to write; the sink must not retain a reference past the call.
 void MemorySink::write(const LogRecord& r)
 {
+    // Called from every thread that logs; see mu_ in the header.
+    std::lock_guard<std::mutex> lk(mu_);
     buf_.push_back(r);
     while (buf_.size() > cap_) buf_.pop_front();
 }
