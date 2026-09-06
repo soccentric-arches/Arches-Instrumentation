@@ -63,6 +63,7 @@ struct Harness {
     opts.liveness_hang_timeout_s = 5;
     fs.mkdirs(opts.run_dir);
     core = std::make_unique<IstateCore>(opts, fs, plat, ts, log);
+    core->set_default_provider([this] { return defaults(); });
   }
 
   std::map<std::string, std::string> defaults() const {

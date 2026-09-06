@@ -113,9 +113,11 @@ class IstateCore {
   Result<bool> system_reset(const std::string& actor);
   Result<bool> factory_reset(const std::string& actor, const std::string& confirmation);
 
-  // Unclean shutdown detection (§11): clean-shutdown marker.
+  // Unclean shutdown detection (§11): clean-shutdown marker. boot() observes
+  // the marker from the previous run and clears it; last_shutdown_clean()
+  // reports what boot observed.
   void write_clean_shutdown_marker();
-  bool last_shutdown_clean() const;
+  bool last_shutdown_clean() const { return observed_clean_shutdown_; }
 
   void push_event_to_spool(const std::string& payload_json) {
     northbound_spool_.enqueue(SpoolPriority::Event, payload_json, ts_.mono_ns());
@@ -147,6 +149,7 @@ class IstateCore {
   std::atomic<bool> hq_backpressured_{false};
   std::function<bool(const std::string&, const std::string&)> hq_send_;
   std::string enrollment_secret_;
+  bool observed_clean_shutdown_ = false;
   RelayFn relay_to_spoke_;
   std::function<std::map<std::string, std::string>()> default_provider_;
 };

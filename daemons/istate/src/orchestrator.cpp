@@ -147,7 +147,9 @@ std::vector<Orchestrator::LivenessEvent> Orchestrator::liveness_sweep(double now
     SpokeInfo& info = kv.second;
     if (info.state == SpokeState::Stopped || info.state == SpokeState::Expected) continue;
     auto pit = probes_.find(kv.first);
-    bool alive = pit != probes_.end() && pit->second();
+    // Spokes without a wired probe are not presumed hung — istate probes
+    // what it registered; the hub frame pong covers the rest.
+    bool alive = pit != probes_.end() ? pit->second() : true;
     if (!alive) {
       // A process that is running but not responding must not look healthy.
       double silent_s = (now_mono - double(info.last_seen_mono)) / 1e9;

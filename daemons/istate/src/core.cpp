@@ -46,14 +46,15 @@ bool IstateCore::boot(const std::map<std::string, std::string>& default_yaml) {
                   {{"files", std::to_string(mount.corrupt.size())}});
     timeline_.append("boot", "istate", "{\"pst_corrupt\":true}", ts_);
   }
-  // Unclean shutdown detection via the clean-shutdown marker (§11).
-  if (!last_shutdown_clean()) {
+  // Unclean shutdown detection via the clean-shutdown marker (§11): observe
+  // the marker from the previous run, then reset it for this run.
+  observed_clean_shutdown_ = fs_.exists(opts_.run_dir + "/clean-shutdown");
+  if (!observed_clean_shutdown_) {
     log_.warning("istate", "previous shutdown was not clean");
     timeline_.append("boot", "istate", "{\"unclean_shutdown\":true}", ts_);
     northbound_spool_.enqueue(SpoolPriority::Event, "{\"kind\":\"unclean_shutdown\"}", ts_.mono_ns());
   }
   fs_.remove(opts_.run_dir + "/clean-shutdown", false);
-
   // 2. Virgin detection + default seeding.
   if (mount.virgin) {
     Error e = pst_.seed_defaults(default_yaml);
@@ -327,10 +328,6 @@ Result<bool> IstateCore::factory_reset(const std::string& actor, const std::stri
 
 void IstateCore::write_clean_shutdown_marker() {
   fs_.write(opts_.run_dir + "/clean-shutdown", std::to_string(ts_.wall_ns()));
-}
-
-bool IstateCore::last_shutdown_clean() const {
-  return fs_.exists(opts_.run_dir + "/clean-shutdown");
 }
 
 }  // namespace istate
