@@ -1,3 +1,30 @@
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file lib/ctrl/src/ctrl.cpp
+ * @brief Implementation of the raw-UDS control server, client, streaming sink, and tool_main dispatch for the *_ctrl tools (REQ §3.2).
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
 #include "instr/ctrl/ctrl.h"
 
 #include <sys/socket.h>
@@ -100,36 +127,43 @@ void CtrlServer::serve_accept() {
 void CtrlServer::serve_conn(int fd) {
   frames::FrameDecoder dec;
   char buf[8192];
-  while (running_.load()) {
+  bool done = false;
+  while (running_.load() && !done) {
     ssize_t n = ::read(fd, buf, sizeof(buf));
     if (n <= 0) break;
+    // A single read may carry several pipelined requests; drain them all
+    // before blocking again.
     std::string payload;
-    if (!dec.feed(buf, size_t(n), &payload)) continue;
-    // Request: {"op":"...","args":{...},"stream":false}
-    auto req = json_parse(payload);
-    if (!req.ok() || !(*req).is_object()) {
-      std::string resp = CommandResult::err(Errc::InvalidArgument, "malformed ctrl request").envelope();
-      (void)StreamSink(fd).send(resp);
-      continue;
-    }
-    std::string op;
-    std::string args;
-    bool stream = false;
-    if (const JValue* v = (*req).find("op")) op = v->as_string();
-    if (const JValue* v = (*req).find("args")) {
-      args = v->is_object() ? v->dump() : "";
-    }
-    if (const JValue* v = (*req).find("stream")) stream = v->as_bool();
-    auto sit = streams_.find(op);
-    if (stream && sit != streams_.end()) {
+    for (bool more = dec.feed(buf, size_t(n), &payload); more;
+         more = dec.feed(nullptr, 0, &payload)) {
+      // Request: {"op":"...","args":{...},"stream":false}
+      auto req = json_parse(payload);
+      if (!req.ok() || !(*req).is_object()) {
+        std::string resp =
+            CommandResult::err(Errc::InvalidArgument, "malformed ctrl request").envelope();
+        (void)StreamSink(fd).send(resp);
+        continue;
+      }
+      std::string op;
+      std::string args;
+      bool stream = false;
+      if (const JValue* v = (*req).find("op")) op = v->as_string();
+      if (const JValue* v = (*req).find("args")) args = v->is_object() ? v->dump() : "";
+      if (const JValue* v = (*req).find("stream")) stream = v->as_bool();
+
+      auto sit = streams_.find(op);
+      if (stream && sit != streams_.end()) {
+        StreamSink sink(fd);
+        sit->second(args, sink);
+        done = true;  // stream finished → close the connection
+        break;
+      }
       StreamSink sink(fd);
-      sit->second(args, sink);
-      break;  // stream finished → close
+      if (!sink.send(table_->dispatch(op, args).envelope())) {
+        done = true;
+        break;
+      }
     }
-    CommandResult result = table_->dispatch(op, args);
-    std::string resp = result.envelope();
-    StreamSink sink(fd);
-    if (!sink.send(resp)) break;
   }
   ::close(fd);
 }
@@ -149,6 +183,7 @@ Error CtrlClient::connect() {
   if (path_.size() >= sizeof(addr.sun_path))
     return Error::make(Errc::InvalidArgument, "socket path too long", path_);
   std::strncpy(addr.sun_path, path_.c_str(), sizeof(addr.sun_path) - 1);
+  dec_ = frames::FrameDecoder();
   if (::connect(fd_, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) != 0) {
     int saved = errno;
     ::close(fd_);
@@ -177,13 +212,13 @@ bool CtrlClient::send_all(const std::string& data) {
 }
 
 bool CtrlClient::recv_frame(std::string* out) {
-  frames::FrameDecoder dec;
   char buf[8192];
   while (true) {
-    if (dec.feed(nullptr, 0, out)) return true;  // pending frames
+    // Drain frames already buffered from an earlier read before blocking.
+    if (dec_.feed(nullptr, 0, out)) return true;
     ssize_t n = ::read(fd_, buf, sizeof(buf));
     if (n <= 0) return false;
-    if (dec.feed(buf, size_t(n), out)) return true;
+    if (dec_.feed(buf, size_t(n), out)) return true;
   }
 }
 

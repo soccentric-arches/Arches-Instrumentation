@@ -1,13 +1,43 @@
-// monitord daemon main (REQ §7.3). Thin shell: wires platform, core, table,
-// ctrl server, spoke channel; all logic lives in the domain classes.
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file daemons/monitord/src/main.cpp
+ * @brief monitord daemon main (REQ §7.3). Thin shell: wires platform, core, table,
+ *
+ * ctrl server, spoke channel; all logic lives in the domain classes.
+ *
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
+
 #include <cstdio>
 
+#include "instr/common/config_sink.h"
 #include "instr/common/daemon_skeleton.h"
 #include "instr/common/log.h"
 #include "instr/ctrl/ctrl.h"
 #include "instr/monitord/spoke.h"
 #include "instr/monitord/table.h"
-#include "instr/platform/native.h"
+#include "instr/platform/factory.h"
 #include "instr/common/filesystem.h"
 #include "instr/common/version_gen.h"
 
@@ -15,7 +45,8 @@ int main(int argc, char** argv) {
   auto args = instr::parse_daemon_args(argc, argv, "monitord");
   if (args.help) {
     std::printf("monitord — system resource monitoring daemon (Arches Instrumentation)\n"
-                "usage: monitord [--socket PATH] [--hub PATH] [--root PATH] [--help]\n");
+                "usage: monitord [--socket PATH] [--hub PATH] [--root PATH]\n"
+                "       [--platform native|simulated] [--help]\n");
     return 0;
   }
   std::atomic<bool> stop{false};
@@ -27,21 +58,44 @@ int main(int argc, char** argv) {
   log.set_level(instr::LogLevel::Info);
 
   std::string root = args.root.empty() ? "/" : args.root;
-  instr::platform::NativePlatform plat(root);
+  // §5: the same binary runs against the simulated platform on a build host.
+  bool platform_known = true;
+  auto plat_owned = instr::platform::make_platform(args.platform, root, &platform_known);
+  if (!platform_known)
+    log.warning(args.name, "unknown --platform '" + args.platform + "', using native");
+  instr::platform::IPlatform& plat = *plat_owned;
   instr::monitord::MonitorCore core(plat, ts);
 
-  // Resource profile from the platform class (descriptor ships with the image).
+  // Resource profile from the platform class (descriptor ships with the
+  // image, selected per MACHINE by the recipe). It sets the per-class
+  // sampling defaults; the delivered configuration overrides them.
+  instr::NativeFileSystem fs;
   {
-    instr::NativeFileSystem fs;
     auto txt = fs.read(root + "/etc/instrumentation/resource-profile.yaml");
+    auto sch = fs.read(root + "/usr/share/instrumentation/schemas/resource-profile.schema.json");
+    instr::JValue profile_schema = instr::JValue::object();
+    if (sch.ok()) {
+      auto parsed = instr::load_schema_text(*sch);
+      if (parsed.ok()) profile_schema = *parsed;
+    }
     if (txt.ok()) {
-      auto profile = instr::platform::load_resource_profile(*txt, instr::JValue::object(),
-                                                            "resource-profile");
-      // Absent schema: the loader validates structure; invalid profiles fall
-      // back to compiled defaults (never wedge the device).
-      (void)profile;
+      auto profile = instr::platform::load_resource_profile(*txt, profile_schema,
+                                                            "resource-profile.yaml");
+      if (profile.ok()) {
+        core.configure(*profile);
+      } else {
+        // An invalid profile is loud but not fatal: compiled defaults keep
+        // the device sampling rather than wedging it (R10).
+        log.error("monitord", "resource profile rejected: " + profile.error.str() +
+                                  " — using compiled defaults");
+      }
     }
   }
+
+  auto cfg_schema = instr::load_daemon_schema(fs, root, "monitord");
+  if (!cfg_schema.ok())
+    log.warning("monitord", "no JSON Schema installed: " + cfg_schema.error.str() +
+                                " — deliveries will be applied unvalidated");
 
   auto table = instr::monitord::build_monitor_table(&core);
   std::string run_dir = root + "/run/instrumentation";
@@ -57,6 +111,7 @@ int main(int argc, char** argv) {
   std::string hub = args.hub_socket.empty() ? run_dir + "/monitord.sock" : args.hub_socket;
   instr::monitord::MonitorSpoke spoke(&core, &log, &table, instr::transport::uds_target(hub),
                                       INSTR_VERSION);
+  if (cfg_schema.ok()) spoke.set_schema(*cfg_schema);
   spoke.start();
 
   instr::sd_notify_ready();

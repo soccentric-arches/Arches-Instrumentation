@@ -1,6 +1,35 @@
-// Fault-injection tests (REQ §12): the failure paths are the ones that ship
-// untested — so every §11 row is exercised here against the simulated
-// filesystem/platform with injected faults.
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file test/fault-injection/fault_tests.cpp
+ * @brief Fault-injection tests (REQ §12): the failure paths are the ones that ship
+ *
+ * untested — so every §11 row is exercised here against the simulated
+ * filesystem/platform with injected faults.
+ *
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
+
 #include <gtest/gtest.h>
 
 #include "instr/common/filesystem.h"
@@ -46,7 +75,10 @@ TEST(FaultPst, CorruptPrimaryRecoversFromRedundantCopy) {
   ConfigDocument d;
   d.set("interval", "7", Origin::Local);
   ASSERT_TRUE(f.core->pst().save_config("monitord", d).ok());
-  f.fs.corrupt_reads_of("/pst/system/monitord/config.yaml", 1);
+  // Inject against the fixture's real root — a literal "/pst/..." would
+  // never match and the test would pass vacuously.
+  const std::string cfg = f.core->pst().path("system/monitord/config.yaml");
+  f.fs.corrupt_reads_of(cfg, 1);
   auto doc = f.core->pst().load_config("monitord");
   ASSERT_TRUE(doc.ok());
   EXPECT_EQ((*doc).get_int("interval"), 7);
@@ -57,8 +89,9 @@ TEST(FaultPst, BothCopiesCorruptBootsUnprovisionedAndReports) {
   ConfigDocument d;
   d.set("interval", "7", Origin::Local);
   ASSERT_TRUE(f.core->pst().save_config("monitord", d).ok());
-  f.fs.corrupt_reads_of("/pst/system/monitord/config.yaml", 1);
-  f.fs.corrupt_reads_of("/pst/system/monitord/config.yaml.bak", 1);
+  const std::string cfg = f.core->pst().path("system/monitord/config.yaml");
+  f.fs.corrupt_reads_of(cfg, 1);
+  f.fs.corrupt_reads_of(cfg + ".bak", 1);
   // load_config still returns loudly (Corrupt) — boot proceeds unprovisioned.
   auto doc = f.core->pst().load_config("monitord");
   EXPECT_FALSE(doc.ok());
@@ -98,9 +131,26 @@ TEST(FaultHq, UnreachableTriggersBackoffState) {
   HqSession s;
   s.on_disconnected();
   EXPECT_EQ(s.state(), HqSession::State::Backoff);
+  // Delays grow exponentially and stay inside the ±20% jitter envelope
+  // around 1+2+4+8+16. Asserting >= 31 exactly would fail whenever the
+  // jitter happens to land low — the jitter is the point of the mechanism.
   double total = 0;
-  for (int i = 0; i < 5; ++i) total += s.next_delay_s();
-  EXPECT_GE(total, 31.0);  // 1+2+4+8+16 — device keeps operating meanwhile
+  double prev = 0;
+  for (int i = 0; i < 5; ++i) {
+    double d = s.next_delay_s();
+    EXPECT_GT(d, prev);  // strictly growing even under jitter
+    prev = d;
+    total += d;
+  }
+  EXPECT_GE(total, 31.0 * 0.8);
+  EXPECT_LE(total, 31.0 * 1.2);
+  // Pinned jitter: the schedule is exactly 1+2+4+8+16 with no jitter applied.
+  HqSession fixed;
+  fixed.set_backoff_rng([] { return 0.5; });  // 0.5 → scale 1.0
+  double exact = 0;
+  for (int i = 0; i < 5; ++i) exact += fixed.next_delay_s();
+  EXPECT_DOUBLE_EQ(exact, 31.0);
+  // device keeps operating meanwhile
   // Local operation unaffected: config still readable/writable.
   ConfigDocument d;
   d.set("interval", "3", Origin::Local);
@@ -119,6 +169,71 @@ TEST(FaultSpoke, HangDetectedRestartRequestedDeviceDegrades) {
   f.core->orchestrator().liveness_sweep(double(f.ts.mono_ns()) / 1e9, 30);
   EXPECT_EQ((*f.core->orchestrator().spoke("networkd"))->state, SpokeState::Hung);
   EXPECT_TRUE(f.core->orchestrator().degraded());  // exposed northbound
+  EXPECT_EQ(f.plat.unit_restarts().size(), 1u);
+}
+
+// §3.1/§7.1: the liveness mechanism itself — a ping over the spoke's channel
+// answered by a pong. This is the case the probe override cannot represent:
+// an idle-but-healthy daemon (backup, ota) sends no traffic of its own, so
+// only the pong separates "quiet" from "wedged".
+TEST(FaultSpoke, IdleButAnsweringSpokeIsNotReportedHung) {
+  FaultFixture f;
+  auto& orch = f.core->orchestrator();
+  orch.register_spoke("backup", "1.0.0", transport::kProtoSchemaVersion,
+                      std::vector<std::string>{});
+  orch.mark_ready("backup");
+
+  std::vector<uint64_t> nonces;
+  orch.set_ping_fn([&](const std::string& daemon, uint64_t nonce) {
+    if (daemon == "backup") nonces.push_back(nonce);
+    return true;
+  });
+
+  // The spoke answers every ping but sends nothing else for ten minutes.
+  for (int i = 0; i < 20; ++i) {
+    f.ts.mono += 30ull * 1'000'000'000ull;
+    orch.liveness_sweep(double(f.ts.mono_ns()) / 1e9, 60);
+    ASSERT_FALSE(nonces.empty());
+    orch.note_pong("backup", nonces.back());
+  }
+  EXPECT_EQ((*orch.spoke("backup"))->state, SpokeState::Ready);
+  EXPECT_EQ(f.plat.unit_restarts().size(), 0u) << "an answering daemon must not be restarted";
+  EXPECT_GT((*orch.spoke("backup"))->pongs_received, 0u);
+}
+
+TEST(FaultSpoke, SpokeThatStopsAnsweringPingsIsRestarted) {
+  FaultFixture f;
+  auto& orch = f.core->orchestrator();
+  orch.register_spoke("telemetry", "1.0.0", transport::kProtoSchemaVersion,
+                      std::vector<std::string>{});
+  orch.mark_ready("telemetry");
+  uint64_t last_nonce = 0;
+  orch.set_ping_fn([&](const std::string&, uint64_t nonce) {
+    last_nonce = nonce;
+    return true;
+  });
+
+  // Answering: healthy.
+  f.ts.mono += 10ull * 1'000'000'000ull;
+  orch.liveness_sweep(double(f.ts.mono_ns()) / 1e9, 30);
+  orch.note_pong("telemetry", last_nonce);
+  EXPECT_EQ((*orch.spoke("telemetry"))->state, SpokeState::Ready);
+
+  // Wedged: the process is up (pings still send) but nothing comes back.
+  f.ts.mono += 60ull * 1'000'000'000ull;
+  auto evs = orch.liveness_sweep(double(f.ts.mono_ns()) / 1e9, 30);
+  EXPECT_EQ((*orch.spoke("telemetry"))->state, SpokeState::Hung);
+  EXPECT_EQ(f.plat.unit_restarts().size(), 1u);
+  bool saw_hung = false;
+  for (const auto& e : evs)
+    if (e.event == "hung") saw_hung = true;
+  EXPECT_TRUE(saw_hung);
+
+  // It comes back and answers again: state recovers without a second restart.
+  f.ts.mono += 5ull * 1'000'000'000ull;
+  orch.note_pong("telemetry", last_nonce);
+  orch.liveness_sweep(double(f.ts.mono_ns()) / 1e9, 30);
+  EXPECT_EQ((*orch.spoke("telemetry"))->state, SpokeState::Ready);
   EXPECT_EQ(f.plat.unit_restarts().size(), 1u);
 }
 
@@ -214,7 +329,10 @@ TEST(FaultFlood, JitteredDrainNotStampede) {
   int accepted = 0;
   auto rep = spool.drain([&](const DiskSpool::Entry&) { return ++accepted <= 10; }, 200);
   EXPECT_TRUE(rep.paused);
-  EXPECT_EQ(spool.size(), 100u);
+  // The ten HQ acked are delivered and removed; the rest are retained for the
+  // next drain. Nothing is lost and nothing is re-sent.
+  EXPECT_EQ(rep.sent, 10u);
+  EXPECT_EQ(spool.size(), 90u);
   // Jitter keeps the retry delay in bounds (no thundering herd).
   instr::istate::HqSession s(1.0, 60.0);
   s.on_disconnected();

@@ -1,3 +1,30 @@
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file daemons/faults/src/daemon.cpp
+ * @brief faults daemon facade: core state, shared command table construction, and spoke wiring (REQ §7.5).
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
 #include "instr/faults/daemon.h"
 
 namespace instr {
@@ -91,6 +118,56 @@ FaultsSpoke::FaultsSpoke(FaultsCore* core, Logger* log, const CommandTable* tabl
     }
   });
   core_->set_sink([this](const FaultRecord& r) { send_fault(r); });
+  // Until a schema is installed the sink still applies deliveries, just
+  // without schema validation — a packaging slip must not leave the daemon
+  // unconfigured (R10).
+  set_schema(JValue::object());
+}
+
+// ---- kernel-log follower (§7.5) ----
+
+FaultFollower::FaultFollower(FaultsCore* core, platform::IPlatform* plat, TimeSource* ts,
+                             Logger* log)
+    : core_(core), plat_(plat), ts_(ts), log_(log),
+      worker_("faults-follow", core->config().poll_interval_s, [this] { (void)poll(); }) {
+  // A delivered configuration retunes the follow interval in place.
+  core_->set_config_listener([this](const FaultsConfig& c) {
+    worker_.set_interval_s(c.enabled ? c.poll_interval_s : 0.0);
+  });
+}
+
+size_t FaultFollower::backfill() {
+  if (!core_->config().backfill_boot_log) return 0;
+  auto lines = plat_->kernel_log_lines(/*from_start=*/true);
+  if (!lines.ok()) {
+    log_->warning("faults", "kernel boot log unavailable: " + lines.error.str());
+    return 0;
+  }
+  if (lines->empty()) return 0;
+  auto recs = core_->feed(*lines, ts_->mono_ns(), /*backfill=*/true);
+  log_->info("faults", "backfilled " + std::to_string(lines->size()) + " boot log lines, " +
+                           std::to_string(recs.size()) + " faults");
+  return recs.size();
+}
+
+size_t FaultFollower::poll() {
+  auto lines = plat_->kernel_log_lines(/*from_start=*/false);
+  if (!lines.ok() || lines->empty()) return 0;
+  return core_->feed(*lines, ts_->mono_ns(), /*backfill=*/false).size();
+}
+
+void FaultFollower::start() { worker_.start(); }
+void FaultFollower::stop() { worker_.stop(); }
+
+void FaultsSpoke::set_schema(JValue schema) {
+  // Configuration is delivered by istate and validated here before it can
+  // change behaviour (§9). A rejection keeps the previous config (R10).
+  config_sink_ = std::make_unique<ConfigSink>(
+      "faults", std::move(schema),
+      [this](const ConfigDocument& doc) { return core_->apply_config(doc); });
+  channel_->set_config_handler([this](const common::ConfigDelivery& d) {
+    return config_sink_->deliver(d.yaml(), d.revision());
+  });
 }
 
 void FaultsSpoke::start() { channel_->start(); }

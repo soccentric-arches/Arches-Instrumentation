@@ -40,6 +40,8 @@ message AlarmSpokeFrame {
     common.Ack ack              = 2;
     common.LivenessPong pong    = 3;
     string status_json          = 4;  // active table / stats as JSON
+    common.ConfigRequest config_request = 5;
+    common.ConfigAck config_ack = 6;
   }
 }
 
@@ -49,6 +51,7 @@ message AlarmHubFrame {
     common.Backpressure backpressure = 2;
     common.RelayedData relay    = 3;
     common.TimeStamp time_sync  = 4;
+    common.ConfigDelivery config = 5;
   }
 }
 

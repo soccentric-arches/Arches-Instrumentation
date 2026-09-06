@@ -1,3 +1,30 @@
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file daemons/istate/src/orchestrator.cpp
+ * @brief istate orchestration implementation (REQ §7.1): startup order, spoke liveness, systemd start/stop requests, and spoke state tracking exposed northbound.
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
 #include "instr/istate/orchestrator.h"
 
 #include <algorithm>
@@ -139,37 +166,77 @@ void Orchestrator::mark_stopped(const std::string& name) {
   it->second.live = false;
 }
 
+void Orchestrator::note_pong(const std::string& daemon, uint64_t nonce) {
+  auto it = spokes_.find(daemon);
+  if (it == spokes_.end()) return;
+  SpokeInfo& info = it->second;
+  // A stale nonce (an answer to a ping we already gave up on) still proves
+  // the spoke is alive, so accept it rather than insisting on the latest.
+  (void)nonce;
+  info.last_pong_mono = ts_.mono_ns();
+  info.last_seen_mono = info.last_pong_mono;
+  ++info.pongs_received;
+  info.live = true;
+  if (info.state == SpokeState::Hung) info.state = SpokeState::Ready;
+}
+
 std::vector<Orchestrator::LivenessEvent> Orchestrator::liveness_sweep(double now_s,
                                                                       double hang_timeout_s) {
   std::vector<LivenessEvent> out;
-  double now_mono = double(ts_.mono_ns());
+  const uint64_t now_mono = ts_.mono_ns();
   for (auto& kv : spokes_) {
     SpokeInfo& info = kv.second;
     if (info.state == SpokeState::Stopped || info.state == SpokeState::Expected) continue;
+
+    // Send this round's ping. A spoke with no open session simply cannot be
+    // pinged; that is a disconnection, which registration handles, not a hang.
+    bool pinged = false;
+    if (send_ping_) {
+      info.ping_nonce = ++next_nonce_;
+      pinged = send_ping_(kv.first, info.ping_nonce);
+      if (pinged) {
+        info.last_ping_mono = now_mono;
+        ++info.pings_sent;
+      }
+    }
+
+    // An explicit probe overrides the channel signal where one is wired.
     auto pit = probes_.find(kv.first);
-    // Spokes without a wired probe are not presumed hung — istate probes
-    // what it registered; the hub frame pong covers the rest.
-    bool alive = pit != probes_.end() ? pit->second() : true;
+    bool alive;
+    if (pit != probes_.end()) {
+      alive = pit->second();
+    } else if (!send_ping_ || !pinged) {
+      // No liveness mechanism available: do not invent a hang.
+      alive = true;
+    } else {
+      // Silence is measured from the last thing the spoke actually said —
+      // a pong or real traffic — never reset by our own sweep.
+      const uint64_t last = std::max(info.last_pong_mono, info.last_seen_mono);
+      const double silent_s = last == 0 ? 0.0 : double(now_mono - last) / 1e9;
+      // Give a freshly registered spoke one full timeout to answer.
+      alive = last == 0 ? (double(now_mono - info.last_ping_mono) / 1e9 < hang_timeout_s)
+                        : (silent_s < hang_timeout_s);
+    }
+
     if (!alive) {
-      // A process that is running but not responding must not look healthy.
-      double silent_s = (now_mono - double(info.last_seen_mono)) / 1e9;
-      if (silent_s >= hang_timeout_s && info.state != SpokeState::Hung) {
+      if (info.state != SpokeState::Hung) {
+        // A process that is running but not responding must not look healthy.
         info.state = SpokeState::Hung;
         info.live = false;
         out.push_back({kv.first, "hung"});
-        // Request restart through systemd (§7.1).
+        // Request restart through systemd (§7.1: orchestration, not
+        // supervision — systemd owns the restart itself).
         (void)plat_.unit_restart(info.unit);
         out.push_back({kv.first, "restarted"});
         if (event_sink_)
           event_sink_("restart", "{\"daemon\":\"" + kv.first + "\",\"reason\":\"hang\"}");
       }
+    } else if (info.state == SpokeState::Hung) {
+      info.state = SpokeState::Ready;
+      info.live = true;
+      out.push_back({kv.first, "recovered"});
     } else {
       info.live = true;
-      info.last_seen_mono = ts_.mono_ns();
-      if (info.state == SpokeState::Hung) {
-        info.state = SpokeState::Ready;
-        out.push_back({kv.first, "degraded"});
-      }
     }
     (void)now_s;
   }

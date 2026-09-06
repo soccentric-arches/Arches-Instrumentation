@@ -1,6 +1,35 @@
-// networkd — owns everything network-adjacent (REQ §7.2, R8). Domain logic:
-// plans, firewall, remote-access windows, tunnel guard, time daemons, and
-// failover ranking. Pure classes; the platform applies rendered plans.
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file daemons/networkd/include/instr/networkd/domain.h
+ * @brief owns everything network-adjacent (REQ §7.2, R8). Domain logic:
+ *
+ * plans, firewall, remote-access windows, tunnel guard, time daemons, and
+ * failover ranking. Pure classes; the platform applies rendered plans.
+ *
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
+
 #pragma once
 #include <cstdint>
 #include <map>
@@ -33,6 +62,42 @@ struct FirewallRule {
   uint32_t dst_port = 0;   // 0 = any
   std::string comment;
 };
+// Wireless (§7.2): client mode with SSID and credential management, scanning,
+// and AP mode for field commissioning where the board supports it. The PSK is
+// never stored here — credentials live in /pst via istate and are referenced
+// by name, so a plan can be logged without leaking one (§10).
+struct WirelessConfig {
+  bool enabled = false;
+  std::string mode = "off";     // client | ap | off
+  std::string iface;            // e.g. wlan0
+  std::string ssid;
+  std::string psk_ref;          // key name in /pst, never the secret itself
+  std::string country;          // regulatory domain
+  uint32_t ap_channel = 6;      // AP mode only
+  bool hidden = false;
+};
+
+// A single scan result (client mode).
+struct WirelessNetwork {
+  std::string ssid;
+  std::string bssid;
+  int32_t signal_dbm = 0;
+  uint32_t channel = 0;
+  std::string security;  // open | wpa2 | wpa3
+};
+
+struct DnsConfig {
+  std::vector<std::string> servers;
+  std::vector<std::string> search;
+};
+
+struct RouteConfig {
+  std::string destination;  // CIDR, or "default"
+  std::string gateway;
+  std::string iface;
+  uint32_t metric = 0;
+};
+
 struct PortForward {
   std::string proto;
   uint32_t listen_port = 0;
@@ -64,6 +129,9 @@ struct NetworkPlan {
   std::vector<IfaceConfig> ifaces;
   std::vector<FirewallRule> firewall;
   std::vector<PortForward> forwards;
+  std::vector<RouteConfig> routes;
+  DnsConfig dns;
+  WirelessConfig wireless;
   bool ssh_enabled = false;   // inbound SSH off by default (§7.2)
   WgConfig wg;
   bool wg_up = false;
@@ -102,9 +170,14 @@ class RemoteAccessManager {
   std::vector<SshWindow> active(int64_t now_unix_s) const;
   bool any_active(int64_t now_unix_s) const;
   void close_all();
+  // Upper bound on a window; a request for longer is clamped, never granted
+  // as asked — "time-boxed" is not negotiable from the request side (§7.2).
+  void set_max_ttl_s(uint64_t s) { max_ttl_s_ = s; }
+  uint64_t max_ttl_s() const { return max_ttl_s_; }
 
  private:
   std::vector<SshWindow> windows_;
+  uint64_t max_ttl_s_ = 8 * 3600;
 };
 
 // ---- time daemon configuration rendering (networkd owns chrony, ptp4l,
@@ -116,6 +189,18 @@ struct TimeDaemonConfig {
   std::string gpsd_args;
 };
 TimeDaemonConfig render_time_daemons(const TimePolicy& policy);
+
+// ---- wireless rendering (§7.2) ----
+// Renders the supplicant / AP configuration for a plan. The PSK is resolved
+// by the caller from /pst at apply time and is never part of the rendered
+// text held in memory or logged.
+struct WirelessRender {
+  std::string wpa_supplicant_conf;  // client mode
+  std::string hostapd_conf;         // AP mode
+  std::string iface;
+  std::string mode;
+};
+WirelessRender render_wireless(const WirelessConfig& w, const std::string& psk);
 
 // ---- connectivity / failover ranking ----
 struct Reachability {

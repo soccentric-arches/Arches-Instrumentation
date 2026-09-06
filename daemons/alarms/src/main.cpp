@@ -1,9 +1,40 @@
-// alarms daemon main (thin shell, REQ §7.6). Active table persists across
-// restart in state/alarms/active.db (via istate-owned state paths).
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file daemons/alarms/src/main.cpp
+ * @brief alarms daemon main (thin shell, REQ §7.6). Active table persists across
+ *
+ * restart in state/alarms/active.db (via istate-owned state paths).
+ *
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
+
 #include <cstdio>
 
+#include "instr/common/config_sink.h"
 #include "instr/common/daemon_skeleton.h"
 #include "instr/common/log.h"
+#include "instr/common/periodic.h"
 #include "instr/common/version_gen.h"
 #include "instr/ctrl/ctrl.h"
 #include "instr/alarms/daemon.h"
@@ -14,7 +45,8 @@ int main(int argc, char** argv) {
   auto args = instr::parse_daemon_args(argc, argv, "alarms");
   if (args.help) {
     std::printf("alarms — telecom-style alarm manager (Arches Instrumentation)\n"
-                "usage: alarms [--socket PATH] [--hub PATH] [--root PATH] [--help]\n");
+                "usage: alarms [--socket PATH] [--hub PATH] [--root PATH]\n"
+                "       [--platform native|simulated] [--help]\n");
     return 0;
   }
   std::atomic<bool> stop{false};
@@ -42,6 +74,13 @@ int main(int argc, char** argv) {
   }
   core.manager().save();
 
+  // The daemon's JSON Schema ships in the image; the configuration itself
+  // arrives from istate over the channel (R4), never read from a file here.
+  auto cfg_schema = instr::load_daemon_schema(fs, root, "alarms");
+  if (!cfg_schema.ok())
+    log.warning("alarms", "no JSON Schema installed: " + cfg_schema.error.str() +
+                          " — deliveries will be applied unvalidated");
+
   auto table = instr::alarms::build_alarms_table(&core);
   std::string run_dir = root + "/run/instrumentation";
   std::string ctrl_path =
@@ -55,19 +94,24 @@ int main(int argc, char** argv) {
   std::string hub = args.hub_socket.empty() ? run_dir + "/alarms.sock" : args.hub_socket;
   instr::alarms::AlarmsSpoke spoke(&core, &log, &table, instr::transport::uds_target(hub),
                                    INSTR_VERSION);
+  if (cfg_schema.ok()) spoke.set_schema(*cfg_schema);
   spoke.start();
-  instr::sd_notify_ready();
-  // Periodic persistence + escalation sweep.
-  instr::run_until_stop(stop, [&] {
-    static uint64_t last = 0;
-    uint64_t now = ts.mono_ns();
-    if (now - last > 5'000'000'000ull) {
-      last = now;
-      core.manager().save();
-      core.manager().escalation_sweep(now);
-    }
-    return true;
+
+  // Escalation sweep + persistence, on the configured interval (§7.6). An
+  // alarm left uncleared must be promoted whether or not anyone is asking.
+  instr::PeriodicWorker escalation("alarms-escalation",
+                                   core.config().escalation_sweep_interval_s, [&] {
+                                     core.manager().escalation_sweep(ts.mono_ns());
+                                     core.manager().save();
+                                   });
+  core.set_config_listener([&](const instr::alarms::AlarmsCore::Config& c) {
+    escalation.set_interval_s(c.enabled ? c.escalation_sweep_interval_s : 0.0);
   });
+  escalation.start();
+
+  instr::sd_notify_ready();
+  instr::run_until_stop(stop, {});
+  escalation.stop();
   core.manager().save();
   spoke.stop();
   ctrl.stop();

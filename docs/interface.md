@@ -26,7 +26,7 @@ Messages: `BackupEvent`, `RestorePreviewEntry`, `BackupSpokeFrame`, `BackupHubFr
 
 ## common.proto (package `instr.common`)
 
-Messages: `TimeStamp`, `RegistrationRequest`, `RegistrationReply`, `Command`, `Ack`, `Backpressure`, `LivenessPing`, `LivenessPong`, `RelayedData`, `WgTunnel`, `EnrollRequest`, `EnrollReply`, `SignedConfig`
+Messages: `TimeStamp`, `RegistrationRequest`, `RegistrationReply`, `Command`, `Ack`, `Backpressure`, `LivenessPing`, `LivenessPong`, `RelayedData`, `WgTunnel`, `EnrollRequest`, `EnrollReply`, `ConfigDelivery`, `ConfigRequest`, `ConfigAck`, `SignedConfig`
 
 ## faults.proto (package `instr.faults`)
 
@@ -136,13 +136,22 @@ Messages: `HealthScore`, `TelemetryRecord`, `TelemetryBatch`, `TelemetrySpokeFra
 ## YAML Schemas
 
 - `alarm-catalog.schema.json` — Master alarm catalog (REQ §8)
+- `alarms.schema.json` — alarms configuration (REQ \u00a77.6)
+- `backup.schema.json` — backup configuration (REQ \u00a77.10)
 - `capability.schema.json` — Capability manifest (REQ §5.1): honest reporting of what exists
-- `daemon-config.schema.json` — Per-daemon configuration (REQ §9)
 - `devices.schema.json` — Board device descriptor (REQ §5.1)
 - `fault-rules.schema.json` — Kernel-log anomaly signature rule set (REQ §7.5)
+- `faults.schema.json` — faults configuration (REQ \u00a77.5)
+- `hardware.schema.json` — hardware configuration (REQ \u00a77.4)
 - `identity.schema.json` — Factory identity (REQ §6: /pst/factory/identity/identity.yaml)
 - `istate-time-policy.schema.json` — Time policy (REQ §7.1: istate owns policy, networkd applies)
+- `istate.schema.json` — istate configuration (REQ \u00a77.1)
+- `logmanager.schema.json` — logmanager configuration (REQ \u00a77.7)
+- `monitord.schema.json` — monitord configuration (REQ \u00a77.3)
+- `networkd.schema.json` — networkd configuration (REQ \u00a77.2)
+- `ota.schema.json` — ota configuration (REQ \u00a77.9)
 - `resource-profile.schema.json` — Resource profile: sampling, retention, budgets by platform class (REQ §5.1)
+- `telemetry.schema.json` — telemetry configuration (REQ \u00a77.8)
 
 ## Ctrl sockets
 

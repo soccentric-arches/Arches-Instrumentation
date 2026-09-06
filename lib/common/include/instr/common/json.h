@@ -1,7 +1,36 @@
-// Arches Instrumentation — JSON value, parser, serialiser and a JSON Schema
-// subset validator (REQ §4 config loading, §9). Every YAML format has a JSON
-// Schema in schemas/ and is validated at load, rejected with a clear
-// file-and-line error on failure.
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file lib/common/include/instr/common/json.h
+ * @brief JSON value, parser, serialiser and a JSON Schema
+ *
+ * subset validator (REQ §4 config loading, §9). Every YAML format has a JSON
+ * Schema in schemas/ and is validated at load, rejected with a clear
+ * file-and-line error on failure.
+ *
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
+
 #pragma once
 #include <map>
 #include <memory>
@@ -113,8 +142,9 @@ class JsonValidator {
   };
   // Validates `instance` against `schema`. Returns false and fills issues on
   // failure. Supported keywords: type, properties, required,
-  // additionalProperties, enum, items, minItems, maxItems, minLength,
-  // maxLength, minimum, maximum, pattern, description (ignored).
+  // additionalProperties (boolean or schema), enum, items, minItems,
+  // maxItems, minLength, maxLength, minimum, maximum, pattern,
+  // description (ignored).
   static bool validate(const JValue& schema, const JValue& instance,
                        std::vector<Issue>* issues);
 };

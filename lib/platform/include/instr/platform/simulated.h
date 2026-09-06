@@ -1,7 +1,36 @@
-// Arches Instrumentation — simulated platform (REQ §5).
-// Complete enough to run the entire suite on a build host with no hardware;
-// the integration harness and fault-injection tests depend on it. All state
-// is in-memory and scriptable, with injectors for every §11 failure mode.
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file lib/platform/include/instr/platform/simulated.h
+ * @brief simulated platform (REQ §5)
+ *
+ * Complete enough to run the entire suite on a build host with no hardware;
+ * the integration harness and fault-injection tests depend on it. All state
+ * is in-memory and scriptable, with injectors for every §11 failure mode.
+ *
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
+
 #pragma once
 #include <map>
 #include <mutex>
@@ -61,6 +90,7 @@ class SimulatedPlatform : public IPlatform {
   Result<FactoryIdentity> read_factory_identity() override;
   bool entropy_available() override;
   std::vector<StorageDevice> storage_devices() override;
+  std::vector<Partition> partitions() override;
   MemInfo memory_info() override;
   CpuSnapshot cpu_snapshot() override;
   double load_average_1m() override;
@@ -73,6 +103,7 @@ class SimulatedPlatform : public IPlatform {
   Error watchdog_set_timeout_s(int seconds) override;
   Error watchdog_pet() override;
   bool time_locked() override;
+  std::vector<TimeSourceInfo> time_sources() override;
   std::vector<IfaceInfo> interfaces() override;
   Result<BootSlotState> boot_slots() override;
   Error set_boot_slot(const std::string& slot, bool trial) override;
@@ -83,6 +114,8 @@ class SimulatedPlatform : public IPlatform {
   Error led_blink(const std::string& name, int on_ms, int off_ms, int repeats) override;
   Error usb_reset(const std::string& port) override;
   Result<bool> can_loopback_test(const std::string& iface) override;
+  Error can_send(const std::string& iface, const CanFrame& frame) override;
+  Result<std::vector<CanFrame>> can_recv(const std::string& iface, size_t max_frames) override;
   Error display_control(const std::string& cmd, const std::string& arg) override;
   Result<std::string> display_probe() override;
   Error unit_start(const std::string& unit) override;
@@ -93,13 +126,32 @@ class SimulatedPlatform : public IPlatform {
   Result<std::vector<std::string>> journal_lines(const std::string& unit, size_t max_lines) override;
   Error apply_network_plan(const std::string& plan_json) override;
   bool hq_reachable() override;
+  MeasuredBootState measured_boot() override;
   std::string coredump_dir() override { return "/var/lib/instrumentation/coredumps"; }
   std::string platform_name() override { return "simulated"; }
 
   void set_journal(const std::map<std::string, std::vector<std::string>>& j) { journal_ = j; }
+  // ---- fault-injection / scenario knobs for the new surfaces ----
+  void set_partitions(std::vector<Partition> p) { partitions_ = std::move(p); }
+  void set_time_sources(std::vector<TimeSourceInfo> t) { time_sources_ = std::move(t); }
+  void set_measured_boot(MeasuredBootState m) { measured_boot_ = std::move(m); }
+  // Frames a can_recv on this interface will hand back (loopback by default:
+  // whatever was sent comes back, which is what a health check expects).
+  void push_can_frame(const std::string& iface, const CanFrame& f) { can_rx_[iface].push_back(f); }
+  const std::vector<CanFrame>& can_sent(const std::string& iface) { return can_tx_[iface]; }
+  void set_can_present(const std::string& iface, bool present) { can_present_[iface] = present; }
 
  private:
   std::mutex mu_;
+  // Follow cursor: index of the first kernel line not yet handed out in
+  // follow mode (see kernel_log_lines).
+  size_t follow_cursor_ = 0;
+  std::vector<Partition> partitions_;
+  std::vector<TimeSourceInfo> time_sources_;
+  MeasuredBootState measured_boot_;
+  std::map<std::string, std::vector<CanFrame>> can_rx_;
+  std::map<std::string, std::vector<CanFrame>> can_tx_;
+  std::map<std::string, bool> can_present_;
   FactoryIdentity identity_;
   bool entropy_ = true;
   std::vector<StorageDevice> storage_;

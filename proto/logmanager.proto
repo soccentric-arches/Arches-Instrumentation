@@ -34,6 +34,8 @@ message LogSpokeFrame {
     common.Ack ack              = 4;
     common.LivenessPong pong    = 5;
     string status_json          = 6;
+    common.ConfigRequest config_request = 7;
+    common.ConfigAck config_ack = 8;
   }
 }
 
@@ -43,6 +45,7 @@ message LogHubFrame {
     common.Backpressure backpressure = 2;
     common.RelayedData relay    = 3;
     common.TimeStamp time_sync  = 4;
+    common.ConfigDelivery config = 5;
   }
 }
 

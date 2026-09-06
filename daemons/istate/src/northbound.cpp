@@ -1,3 +1,30 @@
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file daemons/istate/src/northbound.cpp
+ * @brief istate northbound implementation (REQ §7.1, §3.4, §11): spool drain with backoff and backpressure, drop reporting, event timeline, and live log tail fanout.
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
 #include "instr/istate/northbound.h"
 
 #include "instr/istate/pst.h"
@@ -97,16 +124,10 @@ NorthboundSpool::DrainReport NorthboundSpool::drain(
       break;
     }
     ++rep.sent;
-    switch (r.priority) {
-      case SpoolPriority::Telemetry: ++rep.dropped_telemetry; break;
-      case SpoolPriority::LogRef: ++rep.dropped_logref; break;
-      case SpoolPriority::Event: ++rep.dropped_event; break;
-      default: break;
-      case SpoolPriority::Fault:
-      case SpoolPriority::Alarm: break;
-    }
   }
+  // Only the entries HQ acked are removed; a paused drain retains the rest.
   if (rep.sent > 0) spool_.pop_front(rep.sent);
+  // Drop counters are cumulative spool statistics, not per-drain figures.
   const auto& st = spool_.stats();
   rep.dropped_telemetry = st.dropped_telemetry;
   rep.dropped_logref = st.dropped_logref;

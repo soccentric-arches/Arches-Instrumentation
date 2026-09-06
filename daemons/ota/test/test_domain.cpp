@@ -1,6 +1,35 @@
-// Unit tests — ota domain (REQ §12). Full lifecycle: receive → verify →
-// stage → apply → confirm / auto-rollback; anti-rollback; maintenance
-// windows; resume; bandwidth limiter.
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file daemons/ota/test/test_domain.cpp
+ * @brief ota domain (REQ §12). Full lifecycle: receive → verify →
+ *
+ * stage → apply → confirm / auto-rollback; anti-rollback; maintenance
+ * windows; resume; bandwidth limiter.
+ *
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
+
 #include <gtest/gtest.h>
 
 #include "instr/common/filesystem.h"
@@ -19,9 +48,27 @@ struct Fixture {
   OtaConfig cfg;
   std::unique_ptr<OtaEngine> eng;
   std::vector<OtaProgressEvent> events;
+  // What the install engine was asked to do. SWUpdate itself is never run
+  // here: the seam lets us assert the manager's half of the contract —
+  // which artifact, into which slot — without touching the host.
+  struct InstallCall {
+    std::string artifact;
+    std::string slot;
+    std::string version;
+  };
+  std::vector<InstallCall> installs;
+  bool install_should_fail = false;
+
   Fixture() {
     cfg.confirm_timeout_s = 600;
     eng = std::make_unique<OtaEngine>(fs, plat, ts, cfg);
+    eng->set_install_fn([&](const std::string& artifact, const std::string& slot,
+                            const ArtifactManifest& m) -> Result<int> {
+      installs.push_back({artifact, slot, m.version});
+      if (install_should_fail)
+        return Result<int>::fail(Errc::Io, "simulated swupdate failure", "install");
+      return Result<int>::good(0);
+    });
     eng->set_event_sink([&](const OtaProgressEvent& e) { events.push_back(e); });
     eng->set_enrollment_secret_provider([] { return std::string("enrollment-secret"); });
     plat.set_factory_identity([]() {
@@ -60,6 +107,11 @@ TEST(OtaPipeline, ReceiveVerifyStageApplyConfirm) {
   EXPECT_EQ(*r2, body.size());
   EXPECT_TRUE(f.eng->stage(m, "enrollment-secret", "1.0.0").ok());
   EXPECT_EQ(f.eng->state().state, "staged");
+  // The artifact went to the install engine, aimed at the inactive slot.
+  ASSERT_EQ(f.installs.size(), 1u);
+  EXPECT_EQ(f.installs[0].version, "2.0.0");
+  EXPECT_EQ(f.installs[0].slot, f.eng->state().staged_slot);
+  EXPECT_FALSE(f.installs[0].artifact.empty());
   EXPECT_EQ(f.eng->state().staged_slot, "B");
   EXPECT_TRUE(f.eng->apply().ok());
   EXPECT_EQ(f.eng->state().state, "applied_pending_confirm");
@@ -157,4 +209,32 @@ TEST(OtaCanary, ReportsStateForStagedRollouts) {
   ASSERT_TRUE(j.ok());
   EXPECT_DOUBLE_EQ((*j).find("health_score")->as_number(), 87.5);
   EXPECT_EQ((*j).find("fault_rate_24h")->as_number(), 2.0);
+}
+
+// §7.9: SWUpdate is the install engine. A failing install must not leave a
+// staged update behind for apply() to promote — it fails loudly and is
+// recorded in history so HQ can see it.
+TEST(OtaPipeline, InstallFailureIsRecordedAndNothingIsStaged) {
+  Fixture f;
+  std::string body = "SWU-PAYLOAD-IMAGE";
+  auto m = f.make_manifest(body, "2.0.0");
+  ASSERT_TRUE(f.eng->receive_chunk(body, 0).ok());
+  f.install_should_fail = true;
+  Error e = f.eng->stage(m, "enrollment-secret", "1.0.0");
+  EXPECT_FALSE(e.ok());
+  EXPECT_EQ(f.eng->state().state, "failed");
+  EXPECT_NE(f.eng->state().error.find("swupdate"), std::string::npos);
+  // apply() must refuse: there is nothing staged.
+  EXPECT_FALSE(f.eng->apply().ok());
+  ASSERT_EQ(f.eng->history().size(), 1u);
+  EXPECT_EQ(f.eng->history()[0].result, "failed");
+}
+
+// The install engine is pointed at a configured binary, so an image can ship
+// SWUpdate somewhere other than /usr/bin without a code change (§7.9).
+TEST(OtaPipeline, SwupdateBinaryIsConfigurable) {
+  Fixture f;
+  EXPECT_EQ(f.eng->swupdate_binary(), "/usr/bin/swupdate");
+  f.eng->set_swupdate_binary("/opt/swupdate/bin/swupdate");
+  EXPECT_EQ(f.eng->swupdate_binary(), "/opt/swupdate/bin/swupdate");
 }

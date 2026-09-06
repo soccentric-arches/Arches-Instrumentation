@@ -1,7 +1,36 @@
-// Unit tests — alarms domain (REQ §12). Covers the state machine, severity
-// change, escalation, persistence, snapshot-on-fault, catalog merge with
-// operator-edit preservation, and the "alarms are declared, never inferred"
-// rule (R5).
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file daemons/alarms/test/test_domain.cpp
+ * @brief alarms domain (REQ §12). Covers the state machine, severity
+ *
+ * change, escalation, persistence, snapshot-on-fault, catalog merge with
+ * operator-edit preservation, and the "alarms are declared, never inferred"
+ * rule (R5).
+ *
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
+
 #include <gtest/gtest.h>
 
 #include "instr/alarms/domain.h"

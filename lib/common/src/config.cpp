@@ -1,4 +1,34 @@
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file lib/common/src/config.cpp
+ * @brief Implementation of configuration loading: YAML parsing with JSON Schema validation, origin tracking, and merge semantics that preserve operator edits (REQ §, §).
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
 #include "instr/common/config.h"
+
+#include "instr/common/config_sink.h"
+#include "instr/common/filesystem.h"
 
 #include <yaml-cpp/yaml.h>
 
@@ -371,6 +401,23 @@ void ConfigDocument::load_origins_yaml(const std::string& text) {
   } catch (const std::exception&) {
     // Origins sidecar unreadable: keys stay at their parsed default origin.
   }
+}
+
+}  // namespace instr
+// ---- spoke-side schema loading (config_sink.h) ----
+
+namespace instr {
+
+Result<JValue> load_daemon_schema(IFileSystem& fs, const std::string& sysroot,
+                                  const std::string& daemon) {
+  const std::string path =
+      sysroot + "/usr/share/instrumentation/schemas/" + daemon + ".schema.json";
+  auto text = fs.read(path);
+  if (!text.ok())
+    return Result<JValue>::fail(Errc::NotFound, "schema not installed", path);
+  auto schema = load_schema_text(*text);
+  if (!schema.ok()) return schema;
+  return schema;
 }
 
 }  // namespace instr

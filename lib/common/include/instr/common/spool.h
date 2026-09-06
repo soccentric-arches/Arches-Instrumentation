@@ -1,11 +1,40 @@
-// Arches Instrumentation — bounded, disk-backed spool with explicit drop
-// policy (REQ §4, §7.1, §11). Nothing northbound depends on the tunnel being
-// available at the moment it is produced.
+// ============================================================================
+//  Arches Instrumentation
 //
-// Drop policy when the spool is full: oldest telemetry first, then log refs,
-// then timeline events; alarms and faults are NEVER dropped. If only
-// protected records remain and the spool is still full, the append is
-// refused with BudgetExceeded so the caller can raise the alarm.
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file lib/common/include/instr/common/spool.h
+ * @brief bounded, disk-backed spool with explicit drop
+ *
+ * policy (REQ §4, §7.1, §11). Nothing northbound depends on the tunnel being
+ * available at the moment it is produced.
+ * 
+ * Drop policy when the spool is full: oldest telemetry first, then log refs,
+ * then timeline events; alarms and faults are NEVER dropped. If only
+ * protected records remain and the spool is still full, the append is
+ * refused with BudgetExceeded so the caller can raise the alarm.
+ *
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
+
 #pragma once
 #include <cstdint>
 #include <deque>

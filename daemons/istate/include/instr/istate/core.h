@@ -1,6 +1,35 @@
-// istate — the hub core (REQ §7.1). Owns system state, provisioning,
-// persistent configuration, orchestration, and every external interface
-// (R2: the only process with an external interface).
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file daemons/istate/include/instr/istate/core.h
+ * @brief the hub core (REQ §7.1). Owns system state, provisioning,
+ *
+ * persistent configuration, orchestration, and every external interface
+ * (R2: the only process with an external interface).
+ *
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
+
 #pragma once
 #include <memory>
 #include <mutex>
@@ -105,6 +134,23 @@ class IstateCore {
   // Drain the northbound spool toward HQ (called when connected).
   NorthboundSpool::DrainReport drain_northbound(size_t max_batch = 50);
 
+  // ---- configuration delivery to spokes (R4, §7, §9) ----
+  // istate is the sole reader of /pst: a spoke asks on registration and is
+  // pushed a new delivery whenever its config changes. Returns false when
+  // the spoke has no session to push into (it will ask again on reconnect).
+  bool deliver_config(const std::string& daemon);
+  // Push the current config to every spoke with an open session.
+  void deliver_config_all();
+  // Revision of the config last delivered to a daemon (0 = never).
+  uint64_t config_revision(const std::string& daemon) const;
+  // Last delivery outcome reported by a spoke (§9: a rejected push is loud).
+  struct ConfigAckState {
+    uint64_t revision = 0;
+    bool applied = false;
+    std::string reason;
+  };
+  ConfigAckState config_ack_state(const std::string& daemon) const;
+
   // ---- system info (Configuration API) ----
   std::string system_info_json() const;
   std::string budgets_json() const;
@@ -113,10 +159,12 @@ class IstateCore {
   Result<bool> system_reset(const std::string& actor);
   Result<bool> factory_reset(const std::string& actor, const std::string& confirmation);
 
-  // Unclean shutdown detection (§11): clean-shutdown marker. boot() observes
-  // the marker from the previous run and clears it; last_shutdown_clean()
-  // reports what boot observed.
+  // Unclean shutdown detection (§11): clean-shutdown marker under
+  // /pst/state (persistent — /run is tmpfs and would look unclean every
+  // boot). boot() observes the previous run's marker, reports an unclean
+  // shutdown northbound, then clears it; shutdown() writes it again.
   void write_clean_shutdown_marker();
+  std::string clean_shutdown_marker_path() const;
   bool last_shutdown_clean() const { return observed_clean_shutdown_; }
 
   void push_event_to_spool(const std::string& payload_json) {
@@ -142,6 +190,10 @@ class IstateCore {
   AuditLog audit_;
   TimeReconciler reconciler_;
   TimePolicyState time_policy_;
+
+  mutable std::mutex config_mu_;
+  std::map<std::string, uint64_t> config_revisions_;
+  std::map<std::string, ConfigAckState> config_acks_;
 
   std::map<uint64_t, std::shared_ptr<PendingRelay>> pending_relays_;
   std::mutex relay_mu_;

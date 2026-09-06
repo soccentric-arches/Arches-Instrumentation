@@ -1,8 +1,37 @@
-// Arches Instrumentation — raw-UDS control server/client framework (§3.2).
-// Each daemon exposes <daemon>-ctrl.sock, mode 0600, root-only. The ctrl
-// server dispatches from the same command table the gRPC surface uses.
-// Streaming ops (live tail) push frames until the client disconnects or the
-// op's timeout elapses.
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file lib/ctrl/include/instr/ctrl/ctrl.h
+ * @brief raw-UDS control server/client framework (§3.2)
+ *
+ * Each daemon exposes <daemon>-ctrl.sock, mode 0600, root-only. The ctrl
+ * server dispatches from the same command table the gRPC surface uses.
+ * Streaming ops (live tail) push frames until the client disconnects or the
+ * op's timeout elapses.
+ *
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
+
 #pragma once
 #include <atomic>
 #include <functional>
@@ -80,6 +109,9 @@ class CtrlClient {
 
   std::string path_;
   int fd_ = -1;
+  // One decoder per connection: a single read() often carries several frames
+  // (a stream burst), and a fresh decoder per call would discard the tail.
+  frames::FrameDecoder dec_;
 };
 
 // Shared _ctrl main: --help, --help <op>, --json, --socket PATH, completion.

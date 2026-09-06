@@ -1,6 +1,35 @@
-// Contract tests (REQ §12): a breaking .proto schema change fails CI rather
-// than a field device. The golden descriptor hash pins the wire contract;
-// the registration/ctrl contracts pin the runtime behaviour on top of it.
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file test/contract/contract_tests.cpp
+ * @brief Contract tests (REQ §12): a breaking .proto schema change fails CI rather
+ *
+ * than a field device. The golden descriptor hash pins the wire contract;
+ * the registration/ctrl contracts pin the runtime behaviour on top of it.
+ *
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
+
 #include <fstream>
 #include <sstream>
 
@@ -44,8 +73,12 @@ TEST(ContractProtos, DescriptorHashMatchesGolden) {
 
 TEST(ContractHandshake, SchemaVersionIsSuiteWide) {
   // One wire format for services: every spoke and istate share one schema
-  // version; the constant is the single point of truth (§3.1, R3).
-  EXPECT_EQ(transport::kProtoSchemaVersion, 1u);
+  // version; the constant is the single point of truth (§3.1, R3). Pinning
+  // it here is a deliberate tripwire — bumping the constant must be a
+  // conscious act paired with a regenerated descriptor golden above.
+  //   v1 → v2: spokes receive their configuration over the channel (§9),
+  //            so a v1 spoke against a v2 istate would run unconfigured.
+  EXPECT_EQ(transport::kProtoSchemaVersion, 2u);
 }
 
 TEST(ContractHandshake, RegistrationFieldsAreStable) {

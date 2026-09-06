@@ -1,3 +1,30 @@
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file daemons/alarms/src/daemon.cpp
+ * @brief alarms daemon facade: core state, shared command table construction, and spoke wiring over the gRPC-over-UDS transport (REQ §7.6).
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
 #include "instr/alarms/daemon.h"
 
 namespace instr {
@@ -144,6 +171,18 @@ AlarmsSpoke::AlarmsSpoke(AlarmsCore* core, Logger* log, const CommandTable* tabl
   });
   // Alarm state changes go to istate directly as events (§7.6).
   core_->set_spoke_sink([this](const AlarmStateEvent& ev) { send_event(ev); });
+  // Until a schema is installed, deliveries still apply — just unvalidated.
+  // A packaging slip must not leave a daemon running unconfigured (R10).
+  set_schema(JValue::object());
+}
+
+void AlarmsSpoke::set_schema(JValue schema) {
+  config_sink_ = std::make_unique<ConfigSink>(
+      "alarms", std::move(schema),
+      [this](const ConfigDocument& doc) { return core_->apply_config(doc); });
+  channel_->set_config_handler([this](const common::ConfigDelivery& delivery) {
+    return config_sink_->deliver(delivery.yaml(), delivery.revision());
+  });
 }
 
 void AlarmsSpoke::start() { channel_->start(); }

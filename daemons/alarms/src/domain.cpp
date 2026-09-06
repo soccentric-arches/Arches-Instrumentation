@@ -1,3 +1,30 @@
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file daemons/alarms/src/domain.cpp
+ * @brief alarms domain implementation (REQ §7.6): alarm state machine, severity change on active alarms, time-based escalation, persistence, snapshot-on-fault, and catalog merge that preserves operator edits.
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
 #include "instr/alarms/domain.h"
 
 #include <yaml-cpp/yaml.h>
@@ -131,7 +158,7 @@ Result<AlarmStateEvent> AlarmManager::raise(uint32_t alarm_id, const std::string
   ev.action = "raise";
   ev.record = r;
   // Snapshot-on-fault: CRITICAL fires → trigger bounded diagnostic capture.
-  if (sev == common::SEV_CRITICAL) {
+  if (sev == common::SEV_CRITICAL && snapshot_on_critical_) {
     ev.needs_snapshot = true;
     if (snapshot_sink_) snapshot_sink_(alarm_id);
     // The snapshot request is itself an event to istate.

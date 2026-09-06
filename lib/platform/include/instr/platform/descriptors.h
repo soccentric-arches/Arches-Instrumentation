@@ -1,9 +1,38 @@
-// Arches Instrumentation — declarative descriptors (REQ §5.1).
-// Board-specific content is data, never code:
-//   devices.yaml        — board devices + their checks and controls
-//   resource profile    — sampling intervals, retention, budgets by class
-//   capability manifest — which features exist, so istate reports honestly
-// Adding a board means adding descriptors, not editing daemons.
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file lib/platform/include/instr/platform/descriptors.h
+ * @brief declarative descriptors (REQ §5.1)
+ *
+ * Board-specific content is data, never code:
+ * devices.yaml        — board devices + their checks and controls
+ * resource profile    — sampling intervals, retention, budgets by class
+ * capability manifest — which features exist, so istate reports honestly
+ * Adding a board means adding descriptors, not editing daemons.
+ *
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
+
 #pragma once
 #include <map>
 #include <string>

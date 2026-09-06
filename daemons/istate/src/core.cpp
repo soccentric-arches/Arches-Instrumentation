@@ -1,3 +1,30 @@
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file daemons/istate/src/core.cpp
+ * @brief istate hub core implementation (REQ §7.1): composition of provisioning, configuration, orchestration, northbound paths, and the external interface (R2: the only process with an external interface).
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
 #include "instr/istate/core.h"
 
 #include <future>
@@ -46,15 +73,17 @@ bool IstateCore::boot(const std::map<std::string, std::string>& default_yaml) {
                   {{"files", std::to_string(mount.corrupt.size())}});
     timeline_.append("boot", "istate", "{\"pst_corrupt\":true}", ts_);
   }
-  // Unclean shutdown detection via the clean-shutdown marker (§11): observe
-  // the marker from the previous run, then reset it for this run.
-  observed_clean_shutdown_ = fs_.exists(opts_.run_dir + "/clean-shutdown");
+  // Unclean shutdown detection via the clean-shutdown marker (§11). The
+  // marker lives under /pst/state — /run is tmpfs and would be empty on
+  // every boot, which would report every boot as unclean.
+  observed_clean_shutdown_ = fs_.exists(clean_shutdown_marker_path());
   if (!observed_clean_shutdown_) {
     log_.warning("istate", "previous shutdown was not clean");
     timeline_.append("boot", "istate", "{\"unclean_shutdown\":true}", ts_);
     northbound_spool_.enqueue(SpoolPriority::Event, "{\"kind\":\"unclean_shutdown\"}", ts_.mono_ns());
   }
-  fs_.remove(opts_.run_dir + "/clean-shutdown", false);
+  // Clear it for this run: a crash now leaves no marker for the next boot.
+  fs_.remove(clean_shutdown_marker_path(), false);
   // 2. Virgin detection + default seeding.
   if (mount.virgin) {
     Error e = pst_.seed_defaults(default_yaml);
@@ -90,6 +119,17 @@ bool IstateCore::boot(const std::map<std::string, std::string>& default_yaml) {
     log_.warning("istate", "enrollment deferred: " + enrolled.error.str());
 
   // 5. Orchestrate the spokes (observation daemons start first, §7.1).
+  // Liveness is a ping over each spoke's own channel; the answer arrives as
+  // a pong in on_spoke_msg.
+  orchestrator_.set_ping_fn([this](const std::string& daemon, uint64_t nonce) {
+    if (!relay_to_spoke_) return false;
+    transport::GenericHubMsg m;
+    m.has_command = true;
+    m.command.set_op("liveness-ping");
+    m.command.set_json_args("{\"nonce\":" + std::to_string(nonce) + "}");
+    m.command.set_issued_by("istate");
+    return relay_to_spoke_(daemon, m);
+  });
   orchestrator_.declare_spokes(startup_order());
   orchestrator_.start_all();
 
@@ -126,6 +166,45 @@ size_t IstateCore::on_time_lock(const std::string& source, int64_t offset_ns) {
 void IstateCore::on_spoke_msg(const transport::GenericSpokeMsg& msg) {
   // First message from a spoke ⇒ it is alive and attached.
   orchestrator_.note_spoke_activity(msg.daemon);
+  if (msg.type == "config_request") {
+    // R4: the spoke never opens /pst; istate reads and delivers.
+    deliver_config(msg.daemon);
+    return;
+  } else if (msg.type == "pong") {
+    // Liveness answer (§3.1, §7.1): proves the spoke's event loop is turning,
+    // not merely that its process exists.
+    uint64_t nonce = 0;
+    auto j = json_parse(msg.payload_json);
+    if (j.ok()) {
+      if (const JValue* v = (*j).find("nonce")) nonce = uint64_t(v->as_number());
+    }
+    orchestrator_.note_pong(msg.daemon, nonce);
+    return;
+  } else if (msg.type == "config_ack") {
+    auto j = json_parse(msg.payload_json);
+    ConfigAckState st;
+    if (j.ok()) {
+      if (const JValue* v = (*j).find("revision")) st.revision = uint64_t(v->as_number());
+      if (const JValue* v = (*j).find("applied")) st.applied = v->as_bool();
+      if (const JValue* v = (*j).find("reason")) st.reason = v->as_string();
+    }
+    {
+      std::lock_guard<std::mutex> lk(config_mu_);
+      config_acks_[msg.daemon] = st;
+    }
+    if (!st.applied) {
+      // A spoke that refused its configuration is running on the previous
+      // one: say so loudly rather than assuming the push landed (§9).
+      log_.error("istate", "config rejected by " + msg.daemon + ": " + st.reason);
+      timeline_.append("config", msg.daemon,
+                       "{\"config_rejected\":true,\"reason\":\"" + st.reason + "\"}", ts_);
+      northbound_spool_.enqueue(SpoolPriority::Event,
+                                "{\"kind\":\"config_rejected\",\"daemon\":\"" + msg.daemon +
+                                    "\"}",
+                                ts_.mono_ns());
+    }
+    return;
+  }
   if (msg.type == "sample") {
     // monitord → telemetry relay (R1: all traffic through istate).
     transport::GenericHubMsg relay;
@@ -260,6 +339,55 @@ void IstateCore::set_hq_backpressure(bool pause) {
   }
 }
 
+bool IstateCore::deliver_config(const std::string& daemon) {
+  auto doc = pst_.load_config(daemon);
+  if (!doc.ok()) {
+    // No config yet (virgin, or unrecoverable): the spoke keeps its compiled
+    // defaults and stays up — never block on configuration (R10).
+    log_.warning("istate", "no deliverable config for " + daemon + ": " + doc.error.str());
+    return false;
+  }
+  uint64_t rev;
+  {
+    std::lock_guard<std::mutex> lk(config_mu_);
+    rev = ++config_revisions_[daemon];
+  }
+  transport::GenericHubMsg m;
+  m.has_config = true;
+  m.config.set_daemon(daemon);
+  m.config.set_yaml((*doc).to_yaml());
+  m.config.set_schema_version(pst_.schema_version());
+  m.config.set_revision(rev);
+  for (const auto& kv : (*doc).origins()) {
+    common::Origin o = common::ORIGIN_DEFAULT;
+    switch (kv.second) {
+      case Origin::Default: o = common::ORIGIN_DEFAULT; break;
+      case Origin::App: o = common::ORIGIN_APP; break;
+      case Origin::Local: o = common::ORIGIN_LOCAL; break;
+      case Origin::Hq: o = common::ORIGIN_HQ; break;
+    }
+    (*m.config.mutable_origins())[kv.first] = o;
+  }
+  if (!relay_to_spoke_) return false;
+  return relay_to_spoke_(daemon, m);
+}
+
+void IstateCore::deliver_config_all() {
+  for (const auto& name : startup_order()) (void)deliver_config(name);
+}
+
+uint64_t IstateCore::config_revision(const std::string& daemon) const {
+  std::lock_guard<std::mutex> lk(config_mu_);
+  auto it = config_revisions_.find(daemon);
+  return it == config_revisions_.end() ? 0 : it->second;
+}
+
+IstateCore::ConfigAckState IstateCore::config_ack_state(const std::string& daemon) const {
+  std::lock_guard<std::mutex> lk(config_mu_);
+  auto it = config_acks_.find(daemon);
+  return it == config_acks_.end() ? ConfigAckState{} : it->second;
+}
+
 std::string IstateCore::system_info_json() const {
   auto fid = plat_.read_factory_identity();
   JValue o = JValue::object();
@@ -326,8 +454,15 @@ Result<bool> IstateCore::factory_reset(const std::string& actor, const std::stri
   return Result<bool>::good(true);
 }
 
+std::string IstateCore::clean_shutdown_marker_path() const {
+  return opts_.pst_root + "/state/clean-shutdown";
+}
+
 void IstateCore::write_clean_shutdown_marker() {
-  fs_.write(opts_.run_dir + "/clean-shutdown", std::to_string(ts_.wall_ns()));
+  fs_.mkdirs(opts_.pst_root + "/state");
+  fs_.write(clean_shutdown_marker_path(), std::to_string(ts_.wall_ns()));
+  // The suite is now in a clean-shutdown state; system_info reports it.
+  observed_clean_shutdown_ = true;
 }
 
 }  // namespace istate

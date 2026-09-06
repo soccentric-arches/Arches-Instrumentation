@@ -27,6 +27,8 @@ message BackupSpokeFrame {
     common.Ack ack              = 2;
     common.LivenessPong pong    = 3;
     string status_json          = 4;
+    common.ConfigRequest config_request = 5;
+    common.ConfigAck config_ack = 6;
   }
 }
 
@@ -36,6 +38,7 @@ message BackupHubFrame {
     common.Backpressure backpressure = 2;
     common.RelayedData relay    = 3;
     common.TimeStamp time_sync  = 4;
+    common.ConfigDelivery config = 5;
   }
 }
 

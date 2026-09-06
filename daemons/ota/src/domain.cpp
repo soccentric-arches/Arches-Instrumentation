@@ -1,4 +1,33 @@
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file daemons/ota/src/domain.cpp
+ * @brief ota domain implementation (REQ §7.9): signature and integrity verification, staging to the inactive slot, post-boot confirmation with automatic rollback, anti-rollback, and progress streaming.
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
 #include "instr/ota/domain.h"
+
+#include <cstdio>
 
 #include "instr/common/json.h"
 
@@ -124,6 +153,37 @@ Error OtaEngine::verify(const ArtifactManifest& m, const std::string& enrollment
   return Error::none();
 }
 
+Result<int> OtaEngine::run_install(const std::string& artifact, const std::string& target_slot,
+                                   const ArtifactManifest& m) {
+  if (install_fn_) return install_fn_(artifact, target_slot, m);
+
+  // Default engine: SWUpdate (§7.9). We are a thin manager on top of it —
+  // it owns writing the image into the slot, we own verification, policy
+  // and the boot-slot lifecycle around it.
+  //   -i <file>   install this artifact
+  //   -e <sel>    software selection: which slot to install into
+  //   -p          post-install: we handle the reboot decision ourselves
+  std::string cmd = swupdate_binary_ + " -i " + artifact + " -e stable," + target_slot;
+  if (m.preserve_pst || m.preserve_home) {
+    // /home and /pst are preserved unless the update explicitly asks
+    // otherwise (§6, §7.9); SWUpdate honours this through the selection.
+    cmd += " -e preserve,data";
+  }
+  cmd += " 2>&1";
+  FILE* pipe = ::popen(cmd.c_str(), "r");
+  if (!pipe)
+    return Result<int>::fail(Errc::Unavailable, "cannot launch " + swupdate_binary_, "install");
+  std::string output;
+  char buf[512];
+  while (std::fgets(buf, sizeof(buf), pipe)) output += buf;
+  int rc = ::pclose(pipe);
+  if (rc != 0)
+    return Result<int>::fail(Errc::Io,
+                             "swupdate failed (rc=" + std::to_string(rc) + "): " + output,
+                             "install");
+  return Result<int>::good(0);
+}
+
 Error OtaEngine::stage(const ArtifactManifest& m, const std::string& enrollment_secret,
                        const std::string& running_version) {
   Error e = verify(m, enrollment_secret, running_version);
@@ -135,15 +195,27 @@ Error OtaEngine::stage(const ArtifactManifest& m, const std::string& enrollment_
   emit("staging", 0.4, "stage to inactive slot");
   auto slots = plat_.boot_slots();
   if (!slots.ok()) return slots.error;
-  std::string inactive = slots->inactive;
-  // Stage: copy the artifact into the slot store (simulated slot images).
-  fs_.mkdirs("/mnt/boot");
-  Error se = fs_.write("/mnt/boot/slot-" + inactive + ".img", *fs_.read(staging_path()));
-  if (!se.ok()) return se;
-  se = plat_.set_boot_slot(inactive, /*trial=*/true);
-  if (!se.ok()) return se;
+  const std::string inactive = slots->inactive;
+
+  // Hand the verified artifact to SWUpdate, which writes the inactive slot.
+  auto installed = run_install(staging_path(), inactive, m);
+  if (!installed.ok()) {
+    state_.state = "failed";
+    state_.error = installed.error.str();
+    emit("failed", 0.4, state_.error);
+    HistoryEntry h;
+    h.from_version = running_version;
+    h.to_version = m.version;
+    h.result = "failed";
+    h.finished_unix_s = ts_.wall_ns() / 1'000'000'000ll;
+    history_.push_back(h);
+    fs_.write(history_path(), history_json());
+    return installed.error;
+  }
   state_.state = "staged";
   state_.staged_slot = inactive;
+  state_.from_version = running_version;
+  state_.to_version = m.version;
   emit("staged", 0.5, "staged to slot " + inactive);
   return Error::none();
 }

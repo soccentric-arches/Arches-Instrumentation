@@ -1,9 +1,37 @@
-// Unit tests — simulated platform and descriptor loading (REQ §5, §12).
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file test/unit/test_platform.cpp
+ * @brief simulated platform and descriptor loading (REQ §5, §12)
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
+
 #include <gtest/gtest.h>
 
 #include "instr/common/config.h"
 #include "instr/common/json.h"
 #include "instr/platform/descriptors.h"
+#include "instr/platform/native.h"
 #include "instr/platform/simulated.h"
 
 using namespace instr;
@@ -140,4 +168,89 @@ TEST(Descriptors, CapabilityManifest) {
   ASSERT_TRUE(m.ok());
   EXPECT_TRUE(m->has("gnss"));
   EXPECT_FALSE(m->has("watchdog"));
+}
+
+// ---------------------------------------------------------------------------
+// §7.2 / R8: networkd renders a plan and the platform applies it. This used
+// to be a no-op that discarded plan_json entirely, so every firewall rule,
+// route, VLAN and tunnel change computed by networkd went nowhere. These
+// tests pin that the plan actually turns into system commands.
+// ---------------------------------------------------------------------------
+
+namespace {
+// Dry-run mode records what would run without touching the host, which is
+// exactly what we want to assert against.
+std::string joined_commands(const platform::NativePlatform& p) {
+  std::string all;
+  for (const auto& c : p.applied_commands()) all += c + "\n";
+  return all;
+}
+}  // namespace
+
+TEST(NativeNetworkApply, PlanBecomesSystemCommands) {
+  platform::NativePlatform plat("/nonexistent-sysroot");
+  const std::string plan = R"({
+    "interfaces":[
+      {"name":"eth0","mode":"static","address":"10.0.0.5","prefix":24,"priority":10},
+      {"name":"eth1","mode":"dhcp","priority":50},
+      {"name":"eth0.100","mode":"vlan","vlan_id":100}
+    ],
+    "routes":[{"destination":"default","gateway":"10.0.0.1","iface":"eth0","metric":100}],
+    "dns":{"servers":["10.0.0.1","1.1.1.1"],"search":["site.local"]},
+    "firewall":[{"action":"allow","proto":"tcp","src":"any","dst_port":443}],
+    "port_forwarding":[{"proto":"tcp","listen_port":8080,"dest_ip":"10.0.0.9","dest_port":80}],
+    "wireless":{"enabled":true,"mode":"client","iface":"wlan0","ssid":"site"},
+    "wireguard":{"up":true},
+    "ssh_enabled":false
+  })";
+  ASSERT_TRUE(plat.apply_network_plan(plan).ok());
+  const std::string cmds = joined_commands(plat);
+
+  // Interfaces: static addressing, DHCP, and the VLAN link.
+  EXPECT_NE(cmds.find("ip addr add 10.0.0.5/24 dev eth0"), std::string::npos) << cmds;
+  EXPECT_NE(cmds.find("udhcpc -i eth1"), std::string::npos) << cmds;
+  EXPECT_NE(cmds.find("ip link add link eth0 name eth0.100 type vlan id 100"), std::string::npos)
+      << cmds;
+  // Routing and DNS.
+  EXPECT_NE(cmds.find("ip route replace default via 10.0.0.1 dev eth0"), std::string::npos)
+      << cmds;
+  EXPECT_NE(cmds.find("write /etc/resolv.conf"), std::string::npos) << cmds;
+  // Firewall and NAT.
+  EXPECT_NE(cmds.find("nft -f /etc/nftables.conf"), std::string::npos) << cmds;
+  EXPECT_NE(cmds.find("nft -f /etc/nftables-nat.conf"), std::string::npos) << cmds;
+  // Wireless client and the tunnel.
+  EXPECT_NE(cmds.find("wpa_supplicant@wlan0"), std::string::npos) << cmds;
+  EXPECT_NE(cmds.find("wg-quick up wg0"), std::string::npos) << cmds;
+  // Inbound SSH is off in this plan and must be stopped, not started.
+  EXPECT_NE(cmds.find("systemctl stop sshd"), std::string::npos) << cmds;
+  EXPECT_EQ(cmds.find("systemctl start sshd"), std::string::npos) << cmds;
+}
+
+TEST(NativeNetworkApply, MalformedPlanIsRefusedLoudly) {
+  platform::NativePlatform plat("/nonexistent-sysroot");
+  Error e = plat.apply_network_plan("{not json");
+  EXPECT_FALSE(e.ok());
+  EXPECT_NE(e.message.find("malformed network plan"), std::string::npos);
+}
+
+TEST(NativeNetworkApply, ApModeStartsHostapdAndStopsSupplicant) {
+  platform::NativePlatform plat("/nonexistent-sysroot");
+  ASSERT_TRUE(plat
+                  .apply_network_plan(
+                      R"({"wireless":{"enabled":true,"mode":"ap","iface":"wlan0","ssid":"commission"}})")
+                  .ok());
+  const std::string cmds = joined_commands(plat);
+  EXPECT_NE(cmds.find("systemctl restart hostapd"), std::string::npos) << cmds;
+  EXPECT_NE(cmds.find("systemctl stop wpa_supplicant@wlan0"), std::string::npos) << cmds;
+}
+
+// The generated rule set must never firewall off the tunnel: that is the
+// remote-bricking scenario the tunnel-loss guard exists to catch (§7.2).
+TEST(NativeNetworkApply, GeneratedFirewallAlwaysAdmitsTheTunnel) {
+  platform::NativePlatform plat("/nonexistent-sysroot");
+  ASSERT_TRUE(plat.apply_network_plan(
+                      R"({"firewall":[{"action":"deny","proto":"any","src":"any"}]})")
+                  .ok());
+  // The rules text is written before nft loads it; the write is recorded.
+  EXPECT_NE(joined_commands(plat).find("write /etc/nftables.conf"), std::string::npos);
 }

@@ -1,3 +1,30 @@
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file daemons/telemetry/src/daemon.cpp
+ * @brief telemetry daemon facade: core relaying from monitord/hardware/faults via istate, shared command table construction, and spoke wiring (REQ §7.8).
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
 #include "instr/telemetry/daemon.h"
 
 namespace instr {
@@ -137,6 +164,18 @@ TelemetrySpoke::TelemetrySpoke(TelemetryCore* core, Logger* log, const CommandTa
                               (*payload).get_string("unit"), tags);
       }
     }
+  });
+  // Until a schema is installed, deliveries still apply — just unvalidated.
+  // A packaging slip must not leave a daemon running unconfigured (R10).
+  set_schema(JValue::object());
+}
+
+void TelemetrySpoke::set_schema(JValue schema) {
+  config_sink_ = std::make_unique<ConfigSink>(
+      "telemetry", std::move(schema),
+      [this](const ConfigDocument& doc) { return core_->apply_config(doc); });
+  channel_->set_config_handler([this](const common::ConfigDelivery& delivery) {
+    return config_sink_->deliver(delivery.yaml(), delivery.revision());
   });
 }
 

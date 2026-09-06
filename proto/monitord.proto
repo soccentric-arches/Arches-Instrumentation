@@ -33,6 +33,8 @@ message MonitorSpokeFrame {
     common.Ack ack              = 3;
     common.LivenessPong pong    = 4;
     string status_json          = 5;  // MonitorStatus as JSON
+    common.ConfigRequest config_request = 6;
+    common.ConfigAck config_ack = 7;
   }
 }
 
@@ -42,6 +44,7 @@ message MonitorHubFrame {
     common.Backpressure backpressure = 2;
     common.RelayedData relay    = 3;
     common.TimeStamp time_sync  = 4;
+    common.ConfigDelivery config = 5;
   }
 }
 

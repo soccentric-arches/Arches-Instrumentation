@@ -1,6 +1,35 @@
-// telemetry — aggregation from monitord, Hardware, Faults and applications;
-// batch shaping; bounded retention with drop policy; per-device health score
-// with contributing factors; reproducibility metadata (REQ §7.8).
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file daemons/telemetry/include/instr/telemetry/domain.h
+ * @brief aggregation from monitord, Hardware, Faults and applications;
+ *
+ * batch shaping; bounded retention with drop policy; per-device health score
+ * with contributing factors; reproducibility metadata (REQ §7.8).
+ *
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
+
 #pragma once
 #include <deque>
 #include <optional>
@@ -99,6 +128,10 @@ class RetentionBuffer {
  public:
   RetentionBuffer(size_t max_records) : max_records_(max_records) {}
   enum class Class { Telemetry, Protected };
+  // Bounded local retention of unsent data; oldest telemetry dropped first
+  // (§7.8, §11). Shrinking the bound drops immediately, never lazily.
+  void set_max_records(size_t n);
+  size_t max_records() const { return max_records_; }
   void push(const MetricBatch& b, Class cls);
   // Returns dropped telemetry batches count since last query.
   uint64_t dropped() const { return dropped_; }
@@ -143,6 +176,11 @@ class BatchShaper {
                                        const std::map<std::string, std::string>& tags);
   std::optional<MetricBatch> flush(uint64_t now_mono_ns);
   void set_health(const HealthScoreValue& h) { pending_health_ = h; }
+  // Retuned when configuration arrives from istate (§7.8, §9).
+  void set_max_records(size_t n) { max_records_ = n; }
+  void set_flush_interval_s(double s) { flush_interval_s_ = s; }
+  double flush_interval_s() const { return flush_interval_s_; }
+  size_t max_records() const { return max_records_; }
   void set_repro(const ReproMetadata& m) { repro_ = m; }
   size_t pending_samples() const { return total_pending_; }
 

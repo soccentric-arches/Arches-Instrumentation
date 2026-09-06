@@ -1,3 +1,30 @@
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file daemons/istate/src/hubs.cpp
+ * @brief istate gRPC server wiring (REQ §3.1, §3.3): nine per-spoke hub services (one socket per daemon), the Configuration API, and the HQ session client.
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
 #include "instr/istate/hubs.h"
 
 #include "instr/common/version_gen.h"
@@ -75,6 +102,16 @@ class MonitorHubImpl : public TypedHub<monitord::MonitorHub::Service, monitord::
     } else if (f.has_pong()) {
       m.type = "pong";
       m.payload_json = "{\"nonce\":" + std::to_string(f.pong().nonce()) + "}";
+    } else if (f.has_config_request()) {
+      m.type = "config_request";
+      m.payload_json = "{}";
+    } else if (f.has_config_ack()) {
+      m.type = "config_ack";
+      JValue o = JValue::object();
+      o.set("revision", JValue(double(f.config_ack().revision())));
+      o.set("applied", JValue(f.config_ack().applied()));
+      o.set("reason", JValue(f.config_ack().reason()));
+      m.payload_json = o.dump();
     } else if (!f.status_json().empty()) {
       m.type = "status";
       m.payload_json = f.status_json();
@@ -86,6 +123,7 @@ class MonitorHubImpl : public TypedHub<monitord::MonitorHub::Service, monitord::
     if (m.has_backpressure) *f.mutable_backpressure() = m.backpressure;
     if (m.has_relay) *f.mutable_relay() = m.relay;
     if (m.has_time_sync) *f.mutable_time_sync() = m.time_sync;
+    if (m.has_config) *f.mutable_config() = m.config;
   }
 };
 
@@ -109,6 +147,16 @@ class NetworkHubImpl : public TypedHub<networkd::NetworkHub::Service, networkd::
     } else if (f.has_pong()) {
       m.type = "pong";
       m.payload_json = "{\"nonce\":" + std::to_string(f.pong().nonce()) + "}";
+    } else if (f.has_config_request()) {
+      m.type = "config_request";
+      m.payload_json = "{}";
+    } else if (f.has_config_ack()) {
+      m.type = "config_ack";
+      JValue o = JValue::object();
+      o.set("revision", JValue(double(f.config_ack().revision())));
+      o.set("applied", JValue(f.config_ack().applied()));
+      o.set("reason", JValue(f.config_ack().reason()));
+      m.payload_json = o.dump();
     } else if (!f.status_json().empty()) {
       m.type = "status";
       m.payload_json = f.status_json();
@@ -120,6 +168,7 @@ class NetworkHubImpl : public TypedHub<networkd::NetworkHub::Service, networkd::
     if (m.has_backpressure) *f.mutable_backpressure() = m.backpressure;
     if (m.has_relay) *f.mutable_relay() = m.relay;
     if (m.has_time_sync) *f.mutable_time_sync() = m.time_sync;
+    if (m.has_config) *f.mutable_config() = m.config;
   }
 };
 
@@ -145,6 +194,16 @@ class HardwareHubImpl : public TypedHub<hardware::HardwareHub::Service, hardware
     } else if (f.has_pong()) {
       m.type = "pong";
       m.payload_json = "{\"nonce\":" + std::to_string(f.pong().nonce()) + "}";
+    } else if (f.has_config_request()) {
+      m.type = "config_request";
+      m.payload_json = "{}";
+    } else if (f.has_config_ack()) {
+      m.type = "config_ack";
+      JValue o = JValue::object();
+      o.set("revision", JValue(double(f.config_ack().revision())));
+      o.set("applied", JValue(f.config_ack().applied()));
+      o.set("reason", JValue(f.config_ack().reason()));
+      m.payload_json = o.dump();
     } else if (!f.status_json().empty()) {
       m.type = "status";
       m.payload_json = f.status_json();
@@ -156,6 +215,7 @@ class HardwareHubImpl : public TypedHub<hardware::HardwareHub::Service, hardware
     if (m.has_backpressure) *f.mutable_backpressure() = m.backpressure;
     if (m.has_relay) *f.mutable_relay() = m.relay;
     if (m.has_time_sync) *f.mutable_time_sync() = m.time_sync;
+    if (m.has_config) *f.mutable_config() = m.config;
   }
 };
 
@@ -186,6 +246,16 @@ class FaultHubImpl : public TypedHub<faults::FaultHub::Service, faults::FaultSpo
     } else if (f.has_pong()) {
       m.type = "pong";
       m.payload_json = "{\"nonce\":" + std::to_string(f.pong().nonce()) + "}";
+    } else if (f.has_config_request()) {
+      m.type = "config_request";
+      m.payload_json = "{}";
+    } else if (f.has_config_ack()) {
+      m.type = "config_ack";
+      JValue o = JValue::object();
+      o.set("revision", JValue(double(f.config_ack().revision())));
+      o.set("applied", JValue(f.config_ack().applied()));
+      o.set("reason", JValue(f.config_ack().reason()));
+      m.payload_json = o.dump();
     } else if (!f.status_json().empty()) {
       m.type = "status";
       m.payload_json = f.status_json();
@@ -197,6 +267,7 @@ class FaultHubImpl : public TypedHub<faults::FaultHub::Service, faults::FaultSpo
     if (m.has_backpressure) *f.mutable_backpressure() = m.backpressure;
     if (m.has_relay) *f.mutable_relay() = m.relay;
     if (m.has_time_sync) *f.mutable_time_sync() = m.time_sync;
+    if (m.has_config) *f.mutable_config() = m.config;
   }
 };
 
@@ -227,6 +298,16 @@ class AlarmHubImpl : public TypedHub<alarms::AlarmHub::Service, alarms::AlarmSpo
     } else if (f.has_pong()) {
       m.type = "pong";
       m.payload_json = "{\"nonce\":" + std::to_string(f.pong().nonce()) + "}";
+    } else if (f.has_config_request()) {
+      m.type = "config_request";
+      m.payload_json = "{}";
+    } else if (f.has_config_ack()) {
+      m.type = "config_ack";
+      JValue o = JValue::object();
+      o.set("revision", JValue(double(f.config_ack().revision())));
+      o.set("applied", JValue(f.config_ack().applied()));
+      o.set("reason", JValue(f.config_ack().reason()));
+      m.payload_json = o.dump();
     } else if (!f.status_json().empty()) {
       m.type = "status";
       m.payload_json = f.status_json();
@@ -238,6 +319,7 @@ class AlarmHubImpl : public TypedHub<alarms::AlarmHub::Service, alarms::AlarmSpo
     if (m.has_backpressure) *f.mutable_backpressure() = m.backpressure;
     if (m.has_relay) *f.mutable_relay() = m.relay;
     if (m.has_time_sync) *f.mutable_time_sync() = m.time_sync;
+    if (m.has_config) *f.mutable_config() = m.config;
   }
 };
 
@@ -278,6 +360,16 @@ class LogHubImpl : public TypedHub<logmanager::LogHub::Service, logmanager::LogS
     } else if (f.has_pong()) {
       m.type = "pong";
       m.payload_json = "{\"nonce\":" + std::to_string(f.pong().nonce()) + "}";
+    } else if (f.has_config_request()) {
+      m.type = "config_request";
+      m.payload_json = "{}";
+    } else if (f.has_config_ack()) {
+      m.type = "config_ack";
+      JValue o = JValue::object();
+      o.set("revision", JValue(double(f.config_ack().revision())));
+      o.set("applied", JValue(f.config_ack().applied()));
+      o.set("reason", JValue(f.config_ack().reason()));
+      m.payload_json = o.dump();
     } else if (!f.status_json().empty()) {
       m.type = "status";
       m.payload_json = f.status_json();
@@ -289,6 +381,7 @@ class LogHubImpl : public TypedHub<logmanager::LogHub::Service, logmanager::LogS
     if (m.has_backpressure) *f.mutable_backpressure() = m.backpressure;
     if (m.has_relay) *f.mutable_relay() = m.relay;
     if (m.has_time_sync) *f.mutable_time_sync() = m.time_sync;
+    if (m.has_config) *f.mutable_config() = m.config;
   }
 };
 
@@ -314,6 +407,16 @@ class TelemetryHubImpl : public TypedHub<telemetry::TelemetryHub::Service,
     } else if (f.has_pong()) {
       m.type = "pong";
       m.payload_json = "{\"nonce\":" + std::to_string(f.pong().nonce()) + "}";
+    } else if (f.has_config_request()) {
+      m.type = "config_request";
+      m.payload_json = "{}";
+    } else if (f.has_config_ack()) {
+      m.type = "config_ack";
+      JValue o = JValue::object();
+      o.set("revision", JValue(double(f.config_ack().revision())));
+      o.set("applied", JValue(f.config_ack().applied()));
+      o.set("reason", JValue(f.config_ack().reason()));
+      m.payload_json = o.dump();
     } else if (!f.status_json().empty()) {
       m.type = "status";
       m.payload_json = f.status_json();
@@ -325,6 +428,7 @@ class TelemetryHubImpl : public TypedHub<telemetry::TelemetryHub::Service,
     if (m.has_backpressure) *f.mutable_backpressure() = m.backpressure;
     if (m.has_relay) *f.mutable_relay() = m.relay;
     if (m.has_time_sync) *f.mutable_time_sync() = m.time_sync;
+    if (m.has_config) *f.mutable_config() = m.config;
   }
 };
 
@@ -350,6 +454,16 @@ class OtaHubImpl : public TypedHub<ota::OtaHub::Service, ota::OtaSpokeFrame, ota
     } else if (f.has_pong()) {
       m.type = "pong";
       m.payload_json = "{\"nonce\":" + std::to_string(f.pong().nonce()) + "}";
+    } else if (f.has_config_request()) {
+      m.type = "config_request";
+      m.payload_json = "{}";
+    } else if (f.has_config_ack()) {
+      m.type = "config_ack";
+      JValue o = JValue::object();
+      o.set("revision", JValue(double(f.config_ack().revision())));
+      o.set("applied", JValue(f.config_ack().applied()));
+      o.set("reason", JValue(f.config_ack().reason()));
+      m.payload_json = o.dump();
     } else if (!f.status_json().empty()) {
       m.type = "status";
       m.payload_json = f.status_json();
@@ -361,6 +475,7 @@ class OtaHubImpl : public TypedHub<ota::OtaHub::Service, ota::OtaSpokeFrame, ota
     if (m.has_backpressure) *f.mutable_backpressure() = m.backpressure;
     if (m.has_relay) *f.mutable_relay() = m.relay;
     if (m.has_time_sync) *f.mutable_time_sync() = m.time_sync;
+    if (m.has_config) *f.mutable_config() = m.config;
   }
 };
 
@@ -387,6 +502,16 @@ class BackupHubImpl : public TypedHub<backup::BackupHub::Service, backup::Backup
     } else if (f.has_pong()) {
       m.type = "pong";
       m.payload_json = "{\"nonce\":" + std::to_string(f.pong().nonce()) + "}";
+    } else if (f.has_config_request()) {
+      m.type = "config_request";
+      m.payload_json = "{}";
+    } else if (f.has_config_ack()) {
+      m.type = "config_ack";
+      JValue o = JValue::object();
+      o.set("revision", JValue(double(f.config_ack().revision())));
+      o.set("applied", JValue(f.config_ack().applied()));
+      o.set("reason", JValue(f.config_ack().reason()));
+      m.payload_json = o.dump();
     } else if (!f.status_json().empty()) {
       m.type = "status";
       m.payload_json = f.status_json();
@@ -398,6 +523,7 @@ class BackupHubImpl : public TypedHub<backup::BackupHub::Service, backup::Backup
     if (m.has_backpressure) *f.mutable_backpressure() = m.backpressure;
     if (m.has_relay) *f.mutable_relay() = m.relay;
     if (m.has_time_sync) *f.mutable_time_sync() = m.time_sync;
+    if (m.has_config) *f.mutable_config() = m.config;
   }
 };
 

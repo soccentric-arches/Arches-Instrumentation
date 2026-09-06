@@ -1,3 +1,30 @@
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file lib/common/src/json.cpp
+ * @brief Implementation of the JSON value model, parser, and serialiser (REQ §, §).
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
 #include "instr/common/json.h"
 
 #include <yaml-cpp/yaml.h>
@@ -372,12 +399,18 @@ void check(const JValue& schema, const JValue& v, const std::string& path,
     }
     const JValue* props = schema.find("properties");
     const JValue* addl = schema.find("additionalProperties");
+    // additionalProperties is either a boolean (allow / forbid) or a schema
+    // every unlisted property must satisfy — the latter is how open maps such
+    // as monitord's per-resource-class intervals are constrained.
+    const bool addl_is_schema = addl && addl->is_object();
     bool allow_addl = true;
     if (addl && addl->is_bool()) allow_addl = addl->as_bool();
     for (const auto& kv : v.members()) {
       const JValue* ps = props ? props->find(kv.first) : nullptr;
       if (ps) {
         check(*ps, kv.second, path + "/" + kv.first, issues);
+      } else if (addl_is_schema) {
+        check(*addl, kv.second, path + "/" + kv.first, issues);
       } else if (!allow_addl) {
         add_issue(issues, path + "/" + kv.first, "additional property not allowed: " + kv.first);
       }

@@ -119,6 +119,35 @@ message EnrollReply {
   WgTunnel tunnel = 3;
 }
 
+// ---- Configuration delivery to a spoke (R4, §7, §9) -----------------------
+// istate is the sole reader/writer of /pst. A spoke never opens its own
+// config.yaml: it asks for its configuration on registration and is pushed a
+// new one whenever it changes. The YAML is validated against the daemon's
+// JSON Schema on both sides — istate rejects a bad write, the spoke rejects
+// a bad delivery and keeps running on its previous config (R10).
+message ConfigDelivery {
+  string daemon         = 1;
+  string yaml           = 2;   // effective config, merged, with origins applied
+  string schema_version = 3;   // /pst .schema-version at the time of delivery
+  uint64 revision       = 4;   // increments on every accepted change
+  map<string, Origin> origins = 5;  // per-key origin (§9)
+}
+
+// Spoke → hub: "send me my configuration". Sent right after registration and
+// again whenever a spoke wants to re-read (e.g. after a ctrl-driven reset).
+message ConfigRequest {
+  string daemon = 1;
+}
+
+// Spoke → hub: the outcome of applying a delivered config. A rejection is
+// loud: istate raises it northbound rather than assuming the push landed.
+message ConfigAck {
+  string daemon   = 1;
+  uint64 revision = 2;
+  bool   applied  = 3;
+  string reason   = 4;  // schema/validation error when applied = false
+}
+
 // Signed configuration push (REQ §9): verified on device before apply.
 message SignedConfig {
   string daemon    = 1;

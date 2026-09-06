@@ -1,3 +1,30 @@
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file daemons/networkd/src/domain.cpp
+ * @brief networkd domain implementation (REQ §7.2, R8): plan rendering, firewall rules, remote-access windows, tunnel guard, time daemon state, and failover ranking.
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
 #include "instr/networkd/domain.h"
 
 #include <algorithm>
@@ -45,6 +72,35 @@ JValue render_plan_json(const NetworkPlan& plan) {
     pf.push(o);
   }
   j.set("port_forwarding", pf);
+  JValue routes = JValue::array();
+  for (const auto& r : plan.routes) {
+    JValue o = JValue::object();
+    o.set("destination", JValue(r.destination));
+    o.set("gateway", JValue(r.gateway));
+    o.set("iface", JValue(r.iface));
+    o.set("metric", JValue(double(r.metric)));
+    routes.push(o);
+  }
+  j.set("routes", routes);
+  JValue dns = JValue::object();
+  JValue dns_servers = JValue::array();
+  for (const auto& d : plan.dns.servers) dns_servers.push(JValue(d));
+  dns.set("servers", dns_servers);
+  JValue dns_search = JValue::array();
+  for (const auto& d : plan.dns.search) dns_search.push(JValue(d));
+  dns.set("search", dns_search);
+  j.set("dns", dns);
+  JValue wifi = JValue::object();
+  wifi.set("enabled", JValue(plan.wireless.enabled));
+  wifi.set("mode", JValue(plan.wireless.mode));
+  wifi.set("iface", JValue(plan.wireless.iface));
+  wifi.set("ssid", JValue(plan.wireless.ssid));
+  wifi.set("country", JValue(plan.wireless.country));
+  wifi.set("ap_channel", JValue(double(plan.wireless.ap_channel)));
+  wifi.set("hidden", JValue(plan.wireless.hidden));
+  // psk_ref names a key in /pst; the secret itself never enters the plan.
+  wifi.set("psk_ref", JValue(plan.wireless.psk_ref));
+  j.set("wireless", wifi);
   j.set("ssh_enabled", JValue(plan.ssh_enabled));
   JValue wg = JValue::object();
   wg.set("endpoint", JValue(plan.wg.hq_endpoint));
@@ -109,6 +165,9 @@ Result<SshWindow> RemoteAccessManager::open(const std::string& operator_name, ui
                                    "remote access must be attributed to a named operator", "");
   if (ttl_s == 0 || ttl_s > 24ull * 3600)
     return Result<SshWindow>::fail(Errc::InvalidArgument, "ttl must be 1s..24h", "");
+  // Clamp to the configured ceiling rather than refusing: the operator still
+  // gets access, just not for longer than policy allows (§7.2).
+  if (max_ttl_s_ > 0 && ttl_s > max_ttl_s_) ttl_s = max_ttl_s_;
   SshWindow w;
   w.operator_name = operator_name;
   w.opened_unix_s = now_unix_s;
@@ -210,6 +269,60 @@ std::string plan_status_json(const NetworkPlan& plan, const std::vector<SshWindo
   }
   j.set("ssh_windows", arr);
   return j.dump();
+}
+
+}  // namespace domain
+}  // namespace networkd
+}  // namespace instr
+namespace instr {
+namespace networkd {
+namespace domain {
+
+WirelessRender render_wireless(const WirelessConfig& w, const std::string& psk) {
+  WirelessRender r;
+  r.iface = w.iface;
+  r.mode = w.mode;
+  if (!w.enabled || w.mode == "off") return r;
+
+  if (w.mode == "client") {
+    std::ostringstream o;
+    o << "ctrl_interface=/run/wpa_supplicant\n";
+    o << "update_config=1\n";
+    if (!w.country.empty()) o << "country=" << w.country << "\n";
+    o << "network={\n";
+    o << "\tssid=\"" << w.ssid << "\"\n";
+    if (w.hidden) o << "\tscan_ssid=1\n";
+    if (psk.empty()) {
+      o << "\tkey_mgmt=NONE\n";
+    } else {
+      o << "\tkey_mgmt=WPA-PSK\n";
+      o << "\tpsk=\"" << psk << "\"\n";
+    }
+    o << "}\n";
+    r.wpa_supplicant_conf = o.str();
+    return r;
+  }
+
+  if (w.mode == "ap") {
+    // AP mode exists for field commissioning: an engineer on site brings the
+    // device up with no wired network and configures it from a phone.
+    std::ostringstream o;
+    o << "interface=" << w.iface << "\n";
+    o << "driver=nl80211\n";
+    o << "ssid=" << w.ssid << "\n";
+    o << "hw_mode=g\n";
+    o << "channel=" << w.ap_channel << "\n";
+    if (!w.country.empty()) o << "country_code=" << w.country << "\n";
+    o << "ignore_broadcast_ssid=" << (w.hidden ? 1 : 0) << "\n";
+    if (psk.empty()) {
+      o << "auth_algs=1\n";  // open: commissioning only, behind the firewall
+    } else {
+      o << "auth_algs=1\nwpa=2\nwpa_key_mgmt=WPA-PSK\nrsn_pairwise=CCMP\n";
+      o << "wpa_passphrase=" << psk << "\n";
+    }
+    r.hostapd_conf = o.str();
+  }
+  return r;
 }
 
 }  // namespace domain

@@ -1,9 +1,40 @@
-// backup daemon main (thin shell, REQ §7.10). All /pst writes happen under
-// istate's direction (R4): the commit function is wired by istate's relay.
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file daemons/backup/src/main.cpp
+ * @brief backup daemon main (thin shell, REQ §7.10). All /pst writes happen under
+ *
+ * istate's direction (R4): the commit function is wired by istate's relay.
+ *
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
+
 #include <cstdio>
 
+#include "instr/common/config_sink.h"
 #include "instr/common/daemon_skeleton.h"
 #include "instr/common/log.h"
+#include "instr/common/periodic.h"
 #include "instr/common/version_gen.h"
 #include "instr/ctrl/ctrl.h"
 #include "instr/backup/daemon.h"
@@ -13,7 +44,8 @@ int main(int argc, char** argv) {
   auto args = instr::parse_daemon_args(argc, argv, "backup");
   if (args.help) {
     std::printf("backup — snapshot /pst/system, archive, restore (Arches Instrumentation)\n"
-                "usage: backup [--socket PATH] [--hub PATH] [--root PATH] [--help]\n");
+                "usage: backup [--socket PATH] [--hub PATH] [--root PATH]\n"
+                "       [--platform native|simulated] [--help]\n");
     return 0;
   }
   std::atomic<bool> stop{false};
@@ -40,6 +72,11 @@ int main(int argc, char** argv) {
   opts.identity_secret = secret.ok() ? *secret : "";
   instr::backup::BackupCore core(fs, opts, ts);
   core.set_archive_dir(root + "/pst/backup");
+  auto cfg_schema = instr::load_daemon_schema(fs, root, "backup");
+  if (!cfg_schema.ok())
+    log.warning("backup", "no JSON Schema installed: " + cfg_schema.error.str() +
+                              " — deliveries will be applied unvalidated");
+
   auto table = instr::backup::build_backup_table(&core);
   std::string run_dir = root + "/run/instrumentation";
   std::string ctrl_path =
@@ -53,9 +90,33 @@ int main(int argc, char** argv) {
   std::string hub = args.hub_socket.empty() ? run_dir + "/backup.sock" : args.hub_socket;
   instr::backup::BackupSpoke spoke(&core, &log, &table, instr::transport::uds_target(hub),
                                    INSTR_VERSION);
+  if (cfg_schema.ok()) spoke.set_schema(*cfg_schema);
   spoke.start();
+
+  // Scheduled backups (§7.10). schedule_enabled in the config only means
+  // something if something acts on it; the worker idles when it is off.
+  instr::PeriodicWorker scheduler(
+      "backup-schedule",
+      core.config().schedule_enabled ? core.config().schedule_interval_s : 0.0, [&] {
+        const auto& c = core.config();
+        auto info = core.engine().create(c.paths, c.excludes, core.archive_dir(),
+                                         ts.wall_ns() / 1'000'000'000ll);
+        if (!info.ok()) {
+          log.error("backup", "scheduled backup failed: " + info.error.str());
+          core.emit_event("scheduled", "{}", false, info.error.str());
+          return;
+        }
+        log.info("backup", "scheduled archive " + info->name);
+        core.emit_event("scheduled", "{\"archive\":\"" + info->name + "\"}", true, "");
+      });
+  core.set_config_listener([&](const instr::backup::BackupCore::Config& c) {
+    scheduler.set_interval_s(c.enabled && c.schedule_enabled ? c.schedule_interval_s : 0.0);
+  });
+  scheduler.start();
+
   instr::sd_notify_ready();
   instr::run_until_stop(stop, {});
+  scheduler.stop();
   spoke.stop();
   ctrl.stop();
   return 0;

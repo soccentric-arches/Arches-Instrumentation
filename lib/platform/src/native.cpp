@@ -1,13 +1,49 @@
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file lib/platform/src/native.cpp
+ * @brief Implementation of the native platform backend: sysfs/procfs sensors, storage and memory probes, factory identity, and dry-run network/systemd mutations (REQ §, R9).
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
 #include "instr/platform/native.h"
+
+#include "instr/common/json.h"
 
 #include <dirent.h>
 #include <fcntl.h>
+#include <linux/can.h>
+#include <linux/can/raw.h>
+#include <net/if.h>
+#include <sys/socket.h>
+#include <sys/statvfs.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/utsname.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <cstring>
+#include <map>
 #include <fstream>
 #include <sstream>
 
@@ -15,6 +51,17 @@ namespace instr {
 namespace platform {
 
 NativePlatform::NativePlatform(std::string sysroot) : sysroot_(std::move(sysroot)) {}
+
+NativePlatform::~NativePlatform() {
+  if (kmsg_follow_fd_ >= 0) ::close(kmsg_follow_fd_);
+  if (watchdog_fd_ >= 0) {
+    // Magic close: tell the kernel this was a deliberate stop, so a clean
+    // shutdown of istate does not trip the watchdog into a reboot.
+    ssize_t n = ::write(watchdog_fd_, "V", 1);
+    (void)n;
+    ::close(watchdog_fd_);
+  }
+}
 
 Result<std::string> NativePlatform::read_file(const std::string& path) {
   std::ifstream f(sysroot_ + path);
@@ -111,6 +158,7 @@ std::vector<StorageDevice> NativePlatform::storage_devices() {
     else if (name.rfind("sd", 0) == 0) d.kind = "sd";
     else if (name.rfind("nvme", 0) == 0) d.kind = "nvme";
     else d.kind = "block";
+    read_smart(&d);
     out.push_back(d);
   }
   return out;
@@ -315,19 +363,89 @@ std::vector<IfaceInfo> NativePlatform::interfaces() {
   return out;
 }
 
+// ---- boot slots (§5, §7.9) ------------------------------------------------
+// The bootloader environment is the source of truth, not a file we invent.
+// U-Boot exposes it through fw_printenv/fw_setenv; where those are absent we
+// fall back to the flag files under /mnt/boot so a board without a U-Boot
+// environment (an EFI x86 target, say) still reports a coherent state.
+//
+// Variables (the names the boot script reads):
+//   boot_slot       active slot, "A" or "B"
+//   boot_slot_next  slot to try on the next boot (trial)
+//   boot_trial      1 while an update is unconfirmed
+//   boot_attempts   trial boot counter, reset on confirmation
+//   boot_golden     the known-good fallback slot
+
+Result<std::string> NativePlatform::fw_getenv(const std::string& var) {
+  std::string cmd = "fw_printenv -n " + var + " 2>/dev/null";
+  FILE* p = ::popen(cmd.c_str(), "r");
+  if (!p) return Result<std::string>::fail(Errc::Unavailable, "fw_printenv unavailable", var);
+  char buf[256];
+  std::string out;
+  while (std::fgets(buf, sizeof(buf), p)) out += buf;
+  int rc = ::pclose(p);
+  while (!out.empty() && (out.back() == '\n' || out.back() == ' ' || out.back() == '\r'))
+    out.pop_back();
+  if (rc != 0 || out.empty())
+    return Result<std::string>::fail(Errc::NotFound, "unset in bootloader env", var);
+  return Result<std::string>::good(out);
+}
+
+Error NativePlatform::fw_setenv(const std::string& var, const std::string& value) {
+  if (!apply_enabled())
+    return Error::make(Errc::Unavailable,
+                       "bootloader env write disabled on host (INSTR_APPLY_NETWORK!=1)", var);
+  std::string cmd = "fw_setenv " + var + " " + value + " 2>/dev/null";
+  int rc = std::system(cmd.c_str());
+  if (rc != 0) return Error::make(Errc::Io, "fw_setenv failed", var);
+  return Error::none();
+}
+
+bool NativePlatform::have_fw_env() {
+  if (fw_env_checked_) return fw_env_present_;
+  fw_env_checked_ = true;
+  fw_env_present_ = fw_getenv("boot_slot").ok();
+  return fw_env_present_;
+}
+
 Result<BootSlotState> NativePlatform::boot_slots() {
   BootSlotState s;
+  auto trim = [](std::string v) {
+    while (!v.empty() && (v.back() == '\n' || v.back() == ' ' || v.back() == '\r')) v.pop_back();
+    return v;
+  };
+
+  if (have_fw_env()) {
+    auto active = fw_getenv("boot_slot");
+    if (!active.ok())
+      return Result<BootSlotState>::fail(Errc::NotFound, "boot_slot unset", "boot");
+    s.active = *active;
+    s.inactive = s.active == "A" ? "B" : "A";
+    auto next = fw_getenv("boot_slot_next");
+    auto trial = fw_getenv("boot_trial");
+    // A pending slot only counts while the trial flag is actually set;
+    // a leftover boot_slot_next is not an unconfirmed update.
+    if (next.ok() && trial.ok() && *trial == "1" && *next != s.active) s.pending = *next;
+    auto golden = fw_getenv("boot_golden");
+    s.golden = golden.ok() ? *golden : s.active;
+    auto att = fw_getenv("boot_attempts");
+    if (att.ok()) {
+      try {
+        s.boot_attempts = uint32_t(std::stoul(*att));
+      } catch (...) {}
+    }
+    return Result<BootSlotState>::good(s);
+  }
+
+  // Fallback: flag files written by the boot script.
   auto cur = read_file("/mnt/boot/current-slot");
   if (!cur.ok()) return Result<BootSlotState>::fail(Errc::NotFound, "no slot state", "boot");
-  s.active = *cur;
-  while (!s.active.empty() && (s.active.back() == '\n' || s.active.back() == ' ')) s.active.pop_back();
+  s.active = trim(*cur);
   s.inactive = s.active == "A" ? "B" : "A";
   auto pend = read_file("/mnt/boot/pending-slot");
-  if (pend.ok()) {
-    s.pending = *pend;
-    while (!s.pending.empty() && (s.pending.back() == '\n' || s.pending.back() == ' ')) s.pending.pop_back();
-  }
-  s.golden = "A";
+  if (pend.ok()) s.pending = trim(*pend);
+  auto golden = read_file("/mnt/boot/golden-slot");
+  s.golden = golden.ok() ? trim(*golden) : s.active;
   auto att = read_file("/mnt/boot/boot-attempts");
   if (att.ok()) {
     try {
@@ -339,22 +457,65 @@ Result<BootSlotState> NativePlatform::boot_slots() {
 
 Error NativePlatform::set_boot_slot(const std::string& slot, bool trial) {
   if (slot != "A" && slot != "B") return Error::make(Errc::InvalidArgument, "bad slot", slot);
-  FILE* f = std::fopen((sysroot_ + "/mnt/boot/pending-slot").c_str(), "w");
-  if (!f) return Error::make(Errc::Io, "cannot write pending-slot", "boot");
-  std::fprintf(f, "%s\n", slot.c_str());
-  std::fclose(f);
-  (void)trial;
-  return Error::none();
+
+  if (have_fw_env()) {
+    // trial = true is the whole point of the rollback contract: the boot
+    // script must know this boot is on probation, so that a device that
+    // fails to reach confirm() comes back on the previous slot (§11).
+    Error e = fw_setenv("boot_slot_next", slot);
+    if (!e.ok()) return e;
+    e = fw_setenv("boot_trial", trial ? "1" : "0");
+    if (!e.ok()) return e;
+    e = fw_setenv("boot_attempts", "0");
+    if (!e.ok()) return e;
+    if (!trial) {
+      // Not a trial: this slot is the active one from here on.
+      e = fw_setenv("boot_slot", slot);
+      if (!e.ok()) return e;
+    }
+    return Error::none();
+  }
+
+  Error e = write_boot_file("/mnt/boot/pending-slot", slot);
+  if (!e.ok()) return e;
+  e = write_boot_file("/mnt/boot/boot-trial", trial ? "1" : "0");
+  if (!e.ok()) return e;
+  if (!trial) e = write_boot_file("/mnt/boot/current-slot", slot);
+  return e;
 }
 
 Error NativePlatform::confirm_boot_slot() {
   auto cur = boot_slots();
   if (!cur.ok()) return cur.error;
-  FILE* f = std::fopen((sysroot_ + "/mnt/boot/current-slot").c_str(), "w");
-  if (!f) return Error::make(Errc::Io, "cannot write current-slot", "boot");
-  std::fprintf(f, "%s\n", cur->active.c_str());
-  std::fclose(f);
+  // Confirmation promotes the slot we are actually running from, and clears
+  // the trial state so the next boot is not treated as a probation boot.
+  const std::string running = cur->pending.empty() ? cur->active : cur->pending;
+
+  if (have_fw_env()) {
+    Error e = fw_setenv("boot_slot", running);
+    if (!e.ok()) return e;
+    e = fw_setenv("boot_trial", "0");
+    if (!e.ok()) return e;
+    e = fw_setenv("boot_attempts", "0");
+    if (!e.ok()) return e;
+    // A confirmed slot becomes the golden fallback for the next update.
+    return fw_setenv("boot_golden", running);
+  }
+
+  Error e = write_boot_file("/mnt/boot/current-slot", running);
+  if (!e.ok()) return e;
+  e = write_boot_file("/mnt/boot/golden-slot", running);
+  if (!e.ok()) return e;
+  (void)write_boot_file("/mnt/boot/boot-trial", "0");
   ::unlink((sysroot_ + "/mnt/boot/pending-slot").c_str());
+  return Error::none();
+}
+
+Error NativePlatform::write_boot_file(const std::string& rel, const std::string& value) {
+  FILE* f = std::fopen((sysroot_ + rel).c_str(), "w");
+  if (!f) return Error::make(Errc::Io, "cannot write " + rel, "boot");
+  std::fprintf(f, "%s\n", value.c_str());
+  std::fclose(f);
   return Error::none();
 }
 
@@ -479,41 +640,71 @@ Result<bool> NativePlatform::unit_active(const std::string& unit) {
 }
 
 Result<std::vector<std::string>> NativePlatform::kernel_log_lines(bool from_start) {
-  // /dev/kmsg: open and read from the start when from_start; otherwise seek
-  // to the end for follow mode.
-  int fd = ::open((sysroot_ + "/dev/kmsg").c_str(), O_RDONLY | O_NONBLOCK);
+  std::lock_guard<std::mutex> lk(kmsg_mu_);
   std::vector<std::string> out;
-  if (fd < 0) {
-    // Fallback: dmesg buffer via /proc/kmsg is unreadable unprivileged; use
-    // the journal's kernel messages instead.
-    return journal_lines("kernel", from_start ? 100000 : 200);
+
+  // Backfill: a fresh descriptor reads /dev/kmsg from the head of the ring.
+  if (from_start) {
+    int fd = ::open((sysroot_ + "/dev/kmsg").c_str(), O_RDONLY | O_NONBLOCK);
+    if (fd < 0) {
+      // /proc/kmsg is unreadable unprivileged; the journal carries the same
+      // kernel messages, so fall back rather than losing the boot window.
+      return journal_lines("kernel", 100000);
+    }
+    read_kmsg_into(fd, &out, 200000);
+    ::close(fd);
+    // Park the follow descriptor at the end so the follower that runs next
+    // does not re-report everything we just backfilled.
+    open_follow_fd();
+    return Result<std::vector<std::string>>::good(std::move(out));
   }
-  if (!from_start) {
-    // SYSLOG_ACTION_SIZE_BUFFER equivalent: seek to end for follow.
-    ::lseek(fd, 0, SEEK_END);
+
+  // Follow: one long-lived descriptor. Re-opening and seeking to the end on
+  // every poll — as this used to do — reads nothing, ever.
+  if (kmsg_follow_fd_ < 0 && !open_follow_fd())
+    return Result<std::vector<std::string>>::good({});
+  read_kmsg_into(kmsg_follow_fd_, &out, 50000);
+  return Result<std::vector<std::string>>::good(std::move(out));
+}
+
+bool NativePlatform::open_follow_fd() {
+  if (kmsg_follow_fd_ >= 0) {
+    ::close(kmsg_follow_fd_);
+    kmsg_follow_fd_ = -1;
   }
-  char buf[4096];
+  int fd = ::open((sysroot_ + "/dev/kmsg").c_str(), O_RDONLY | O_NONBLOCK);
+  if (fd < 0) return false;
+  // SEEK_END on /dev/kmsg means "only messages arriving from now on".
+  ::lseek(fd, 0, SEEK_END);
+  kmsg_follow_fd_ = fd;
+  return true;
+}
+
+void NativePlatform::read_kmsg_into(int fd, std::vector<std::string>* out, int max_lines) {
+  char buf[8192];
   ssize_t n;
   int count = 0;
-  while ((n = ::read(fd, buf, sizeof(buf) - 1)) > 0 && count < 50000) {
+  // /dev/kmsg delivers one record per read(); EAGAIN means "nothing more
+  // right now", which for a non-blocking follow is the normal exit.
+  while (count < max_lines && (n = ::read(fd, buf, sizeof(buf) - 1)) > 0) {
     buf[n] = '\0';
     std::string chunk(buf, size_t(n));
     size_t pos = 0;
     while (pos < chunk.size()) {
       size_t nl = chunk.find('\n', pos);
       if (nl == std::string::npos) nl = chunk.size();
-      out.push_back(chunk.substr(pos, nl - pos));
+      if (nl > pos) out->push_back(chunk.substr(pos, nl - pos));
       pos = nl + 1;
       ++count;
     }
   }
-  ::close(fd);
-  return Result<std::vector<std::string>>::good(std::move(out));
 }
 
 Result<std::vector<std::string>> NativePlatform::journal_lines(const std::string& unit,
                                                                size_t max_lines) {
-  if (!apply_enabled()) return Result<std::vector<std::string>>::good({});
+  // Reading the journal is an observation, not a mutation: it must work on a
+  // real device regardless of INSTR_APPLY_NETWORK, or LogManager collects
+  // nothing (§7.7). journalctl simply yields nothing where it is absent.
   std::string cmd = "journalctl -u " + unit + " -n " + std::to_string(max_lines) +
                     " --no-pager -o short 2>/dev/null";
   FILE* p = ::popen(cmd.c_str(), "r");
@@ -529,18 +720,466 @@ Result<std::vector<std::string>> NativePlatform::journal_lines(const std::string
   return Result<std::vector<std::string>>::good(std::move(out));
 }
 
-Error NativePlatform::apply_network_plan(const std::string& plan_json) {
+// ---- network application (§7.2, R8) ---------------------------------------
+// networkd renders a complete plan; this is where it reaches the system.
+// Everything runs through run_cmd, which is inert unless INSTR_APPLY_NETWORK
+// is set, so building and testing on a workstation never mutates the host —
+// but on a device the plan is genuinely applied, not recorded and dropped.
+
+Error NativePlatform::run_cmd(const std::string& cmd) {
   if (!apply_enabled()) {
-    // Dry-run: record only. Real application is done by rendering
-    // fwupd/networkd config files via the plan renderer in networkd domain.
+    applied_commands_.push_back(cmd);  // dry run: observable, not executed
     return Error::none();
   }
-  (void)plan_json;
+  applied_commands_.push_back(cmd);
+  int rc = std::system((cmd + " >/dev/null 2>&1").c_str());
+  if (rc != 0) return Error::make(Errc::Io, "command failed: " + cmd, "network");
   return Error::none();
+}
+
+Error NativePlatform::write_conf(const std::string& path, const std::string& text) {
+  if (!apply_enabled()) {
+    applied_commands_.push_back("write " + path);
+    return Error::none();
+  }
+  FILE* f = std::fopen((sysroot_ + path).c_str(), "w");
+  if (!f) return Error::make(Errc::Io, "cannot write " + path, "network");
+  std::fwrite(text.data(), 1, text.size(), f);
+  std::fclose(f);
+  return Error::none();
+}
+
+Error NativePlatform::apply_network_plan(const std::string& plan_json) {
+  auto parsed = json_parse(plan_json);
+  if (!parsed.ok())
+    return Error::make(Errc::InvalidArgument, "malformed network plan: " + parsed.error.message,
+                       "network");
+  const JValue& p = *parsed;
+  applied_commands_.clear();
+  std::vector<std::string> failures;
+  auto attempt = [&](const Error& e) {
+    // One failing rule must not abandon the rest of the plan: a device with
+    // a partially applied network is still reachable, one with none is not.
+    if (!e.ok()) failures.push_back(e.message);
+  };
+
+  // ---- interfaces: DHCP / static / VLAN / bond ----
+  if (const JValue* ifaces = p.find("interfaces")) {
+    for (const auto& i : ifaces->items()) {
+      const std::string name = i.find("name") ? i.find("name")->as_string() : "";
+      const std::string mode = i.find("mode") ? i.find("mode")->as_string() : "dhcp";
+      if (name.empty() || mode == "unused") continue;
+
+      if (mode == "vlan") {
+        const uint32_t vid = i.find("vlan_id") ? uint32_t(i.find("vlan_id")->as_number()) : 0;
+        const std::string parent = name.substr(0, name.find('.'));
+        attempt(run_cmd("ip link add link " + parent + " name " + name + " type vlan id " +
+                        std::to_string(vid)));
+      } else if (mode == "bond") {
+        const std::string member = i.find("bond_member") ? i.find("bond_member")->as_string() : "";
+        attempt(run_cmd("ip link add " + name + " type bond"));
+        if (!member.empty()) {
+          attempt(run_cmd("ip link set " + member + " down"));
+          attempt(run_cmd("ip link set " + member + " master " + name));
+        }
+      }
+
+      attempt(run_cmd("ip link set " + name + " up"));
+      if (mode == "static") {
+        const std::string addr = i.find("address") ? i.find("address")->as_string() : "";
+        const uint32_t prefix = i.find("prefix") ? uint32_t(i.find("prefix")->as_number()) : 24;
+        if (!addr.empty()) {
+          attempt(run_cmd("ip addr flush dev " + name));
+          attempt(run_cmd("ip addr add " + addr + "/" + std::to_string(prefix) + " dev " + name));
+        }
+      } else if (mode == "dhcp") {
+        attempt(run_cmd("udhcpc -i " + name + " -b -q"));
+      }
+    }
+  }
+
+  // ---- routes ----
+  if (const JValue* routes = p.find("routes")) {
+    for (const auto& r : routes->items()) {
+      const std::string dest = r.find("destination") ? r.find("destination")->as_string() : "";
+      const std::string gw = r.find("gateway") ? r.find("gateway")->as_string() : "";
+      const std::string dev = r.find("iface") ? r.find("iface")->as_string() : "";
+      const uint32_t metric = r.find("metric") ? uint32_t(r.find("metric")->as_number()) : 0;
+      if (dest.empty()) continue;
+      std::string cmd = "ip route replace " + dest;
+      if (!gw.empty()) cmd += " via " + gw;
+      if (!dev.empty()) cmd += " dev " + dev;
+      if (metric) cmd += " metric " + std::to_string(metric);
+      attempt(run_cmd(cmd));
+    }
+  }
+
+  // ---- DNS ----
+  if (const JValue* dns = p.find("dns")) {
+    std::string resolv;
+    if (const JValue* search = dns->find("search")) {
+      std::string line;
+      for (const auto& d : search->items()) line += (line.empty() ? "" : " ") + d.as_string();
+      if (!line.empty()) resolv += "search " + line + "\n";
+    }
+    if (const JValue* servers = dns->find("servers")) {
+      for (const auto& d : servers->items()) resolv += "nameserver " + d.as_string() + "\n";
+    }
+    if (!resolv.empty()) attempt(write_conf("/etc/resolv.conf", resolv));
+  }
+
+  // ---- firewall (nftables) ----
+  if (const JValue* fw = p.find("firewall")) {
+    std::string rules = "flush ruleset\n";
+    rules += "table inet filter {\n";
+    rules += "  chain input {\n";
+    rules += "    type filter hook input priority 0; policy drop;\n";
+    rules += "    ct state established,related accept\n";
+    rules += "    iif lo accept\n";
+    // The tunnel is never firewalled off by a generated rule set: losing it
+    // is precisely what the tunnel-loss guard exists to prevent (§7.2).
+    rules += "    udp dport 51820 accept\n";
+    for (const auto& r : fw->items()) {
+      const std::string action = r.find("action") ? r.find("action")->as_string() : "deny";
+      const std::string proto = r.find("proto") ? r.find("proto")->as_string() : "any";
+      const std::string src = r.find("src") ? r.find("src")->as_string() : "any";
+      const uint32_t port = r.find("dst_port") ? uint32_t(r.find("dst_port")->as_number()) : 0;
+      std::string line = "    ";
+      if (src != "any" && !src.empty()) line += "ip saddr " + src + " ";
+      if (proto != "any") line += proto + " ";
+      if (port) line += "dport " + std::to_string(port) + " ";
+      line += (action == "allow" ? "accept" : "drop");
+      rules += line + "\n";
+    }
+    rules += "  }\n}\n";
+    attempt(write_conf("/etc/nftables.conf", rules));
+    attempt(run_cmd("nft -f /etc/nftables.conf"));
+  }
+
+  // ---- port forwarding ----
+  if (const JValue* pf = p.find("port_forwarding")) {
+    if (!pf->items().empty()) {
+      std::string nat = "table ip nat {\n  chain prerouting {\n";
+      nat += "    type nat hook prerouting priority -100;\n";
+      for (const auto& f : pf->items()) {
+        const std::string proto = f.find("proto") ? f.find("proto")->as_string() : "tcp";
+        const uint32_t lp = f.find("listen_port") ? uint32_t(f.find("listen_port")->as_number()) : 0;
+        const std::string dip = f.find("dest_ip") ? f.find("dest_ip")->as_string() : "";
+        const uint32_t dp = f.find("dest_port") ? uint32_t(f.find("dest_port")->as_number()) : 0;
+        if (!lp || dip.empty() || !dp) continue;
+        nat += "    " + proto + " dport " + std::to_string(lp) + " dnat to " + dip + ":" +
+               std::to_string(dp) + "\n";
+      }
+      nat += "  }\n}\n";
+      attempt(write_conf("/etc/nftables-nat.conf", nat));
+      attempt(run_cmd("nft -f /etc/nftables-nat.conf"));
+    }
+  }
+
+  // ---- wireless: client (wpa_supplicant) or AP (hostapd) ----
+  if (const JValue* w = p.find("wireless")) {
+    const bool enabled = w->find("enabled") && w->find("enabled")->as_bool();
+    const std::string mode = w->find("mode") ? w->find("mode")->as_string() : "off";
+    const std::string wif = w->find("iface") ? w->find("iface")->as_string() : "";
+    if (!enabled || mode == "off" || wif.empty()) {
+      attempt(run_cmd("systemctl stop wpa_supplicant@" + (wif.empty() ? "wlan0" : wif)));
+      attempt(run_cmd("systemctl stop hostapd"));
+    } else if (mode == "client") {
+      // The rendered supplicant config (with the PSK resolved from /pst) is
+      // written by networkd through write_wireless_conf; here we bring the
+      // service up against it.
+      attempt(run_cmd("systemctl stop hostapd"));
+      attempt(run_cmd("ip link set " + wif + " up"));
+      attempt(run_cmd("systemctl restart wpa_supplicant@" + wif));
+    } else if (mode == "ap") {
+      attempt(run_cmd("systemctl stop wpa_supplicant@" + wif));
+      attempt(run_cmd("ip link set " + wif + " up"));
+      attempt(run_cmd("systemctl restart hostapd"));
+    }
+  }
+
+  // ---- WireGuard tunnel ----
+  if (const JValue* wg = p.find("wireguard")) {
+    const bool up = wg->find("up") && wg->find("up")->as_bool();
+    if (up) {
+      attempt(run_cmd("wg-quick up wg0"));
+    } else {
+      attempt(run_cmd("wg-quick down wg0"));
+    }
+  }
+
+  // ---- inbound SSH: off unless a window is open (§7.2, §10) ----
+  if (const JValue* ssh = p.find("ssh_enabled")) {
+    attempt(run_cmd(ssh->as_bool() ? "systemctl start sshd" : "systemctl stop sshd"));
+  }
+
+  if (!failures.empty()) {
+    std::string msg = std::to_string(failures.size()) + " plan step(s) failed: " + failures.front();
+    if (failures.size() > 1) msg += " (and " + std::to_string(failures.size() - 1) + " more)";
+    return Error::make(Errc::Io, msg, "network");
+  }
+  return Error::none();
+}
+
+Error NativePlatform::write_wireless_conf(const std::string& mode, const std::string& iface,
+                                          const std::string& text) {
+  if (mode == "client")
+    return write_conf("/etc/wpa_supplicant/wpa_supplicant-" + iface + ".conf", text);
+  if (mode == "ap") return write_conf("/etc/hostapd/hostapd.conf", text);
+  return Error::make(Errc::InvalidArgument, "unknown wireless mode", mode);
 }
 
 bool NativePlatform::hq_reachable() {
   return read_file("/run/instrumentation/tunnel-up").ok();
+}
+
+}  // namespace platform
+}  // namespace instr
+// ---- §5 additions: partition topology, SMART, time sources, CAN, attestation ----
+
+namespace instr {
+namespace platform {
+
+std::vector<Partition> NativePlatform::partitions() {
+  std::vector<Partition> out;
+  // /proc/self/mountinfo gives the mount point and fs type; sysfs gives the
+  // size and the parent device. Together they are the partition topology.
+  std::map<std::string, std::pair<std::string, std::string>> mounts;  // dev → (mount, fstype)
+  {
+    std::ifstream f(sysroot_ + "/proc/mounts");
+    std::string dev, mnt, fstype, rest;
+    while (f >> dev >> mnt >> fstype) {
+      std::getline(f, rest);
+      if (dev.rfind("/dev/", 0) == 0) mounts[dev.substr(5)] = {mnt, fstype};
+    }
+  }
+  for (const auto& parent : list_dir("/sys/class/block")) {
+    if (parent.rfind("loop", 0) == 0 || parent.rfind("ram", 0) == 0) continue;
+    for (const auto& child : list_dir("/sys/class/block/" + parent)) {
+      // A partition directory of a block device carries its own "partition".
+      if (!read_file("/sys/class/block/" + parent + "/" + child + "/partition").ok()) continue;
+      Partition p;
+      p.name = child;
+      p.device_path = "/dev/" + child;
+      p.parent = parent;
+      auto size = read_file("/sys/class/block/" + parent + "/" + child + "/size");
+      if (size.ok()) {
+        try {
+          p.bytes = std::stoull(*size) * 512;
+        } catch (...) {}
+      }
+      auto ro = read_file("/sys/class/block/" + parent + "/" + child + "/ro");
+      p.read_only = ro.ok() && !ro->empty() && (*ro)[0] == '1';
+      auto mit = mounts.find(child);
+      if (mit != mounts.end()) {
+        p.mount_point = mit->second.first;
+        p.fs_type = mit->second.second;
+        struct statvfs vfs;
+        if (::statvfs((sysroot_ + p.mount_point).c_str(), &vfs) == 0)
+          p.used_bytes = uint64_t(vfs.f_blocks - vfs.f_bfree) * vfs.f_frsize;
+      }
+      out.push_back(p);
+    }
+  }
+  return out;
+}
+
+std::vector<TimeSourceInfo> NativePlatform::time_sources() {
+  std::vector<TimeSourceInfo> out;
+
+  // GNSS: present when gpsd has a device, locked when it reports a fix.
+  TimeSourceInfo gnss;
+  gnss.kind = "gnss";
+  gnss.present = read_file("/dev/gps0").ok() || read_file("/run/gpsd.sock").ok() ||
+                 !list_dir("/sys/class/gnss").empty();
+  if (gnss.present) {
+    auto fix = read_file("/run/instrumentation/gnss-fix");
+    gnss.locked = fix.ok() && fix->find("1") != std::string::npos;
+    gnss.quality = gnss.locked ? 1.0 : 0.0;
+  }
+  out.push_back(gnss);
+
+  // PTP: present when the kernel exposes a PHC.
+  TimeSourceInfo ptp;
+  ptp.kind = "ptp";
+  ptp.present = !list_dir("/sys/class/ptp").empty();
+  if (ptp.present) {
+    auto st = read_file("/run/instrumentation/ptp-state");
+    ptp.locked = st.ok() && st->find("SLAVE") != std::string::npos;
+    ptp.quality = ptp.locked ? 0.9 : 0.0;
+  }
+  out.push_back(ptp);
+
+  // NTP: chrony is a userspace daemon, so "present" means configured.
+  TimeSourceInfo ntp;
+  ntp.kind = "ntp";
+  ntp.present = read_file("/etc/chrony/chrony.conf").ok() || read_file("/etc/chrony.conf").ok();
+  ntp.locked = ntp.present && time_locked();
+  ntp.quality = ntp.locked ? 0.7 : 0.0;
+  out.push_back(ntp);
+
+  TimeSourceInfo rtc;
+  rtc.kind = "rtc";
+  rtc.present = read_file("/dev/rtc0").ok() || !list_dir("/sys/class/rtc").empty();
+  rtc.locked = rtc.present;
+  rtc.quality = rtc.present ? 0.2 : 0.0;
+  out.push_back(rtc);
+
+  return out;
+}
+
+Error NativePlatform::can_send(const std::string& iface, const CanFrame& frame) {
+  int fd = ::socket(PF_CAN, SOCK_RAW, CAN_RAW);
+  if (fd < 0) return Error::make(Errc::NotSupported, "no CAN support in kernel", iface);
+  struct ifreq ifr;
+  std::memset(&ifr, 0, sizeof(ifr));
+  std::strncpy(ifr.ifr_name, iface.c_str(), IFNAMSIZ - 1);
+  if (::ioctl(fd, SIOCGIFINDEX, &ifr) < 0) {
+    ::close(fd);
+    return Error::make(Errc::NotFound, "no such CAN interface", iface);
+  }
+  struct sockaddr_can addr;
+  std::memset(&addr, 0, sizeof(addr));
+  addr.can_family = AF_CAN;
+  addr.can_ifindex = ifr.ifr_ifindex;
+  if (::bind(fd, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) < 0) {
+    ::close(fd);
+    return Error::make(Errc::Io, "cannot bind CAN socket", iface);
+  }
+  struct can_frame cf;
+  std::memset(&cf, 0, sizeof(cf));
+  cf.can_id = frame.id | (frame.extended ? CAN_EFF_FLAG : 0);
+  cf.can_dlc = uint8_t(std::min<size_t>(frame.data.size(), 8));
+  std::memcpy(cf.data, frame.data.data(), cf.can_dlc);
+  ssize_t n = ::write(fd, &cf, sizeof(cf));
+  ::close(fd);
+  if (n != sizeof(cf)) return Error::make(Errc::Io, "CAN write failed", iface);
+  return Error::none();
+}
+
+Result<std::vector<NativePlatform::CanFrame>> NativePlatform::can_recv(const std::string& iface,
+                                                                       size_t max_frames) {
+  int fd = ::socket(PF_CAN, SOCK_RAW, CAN_RAW);
+  if (fd < 0)
+    return Result<std::vector<CanFrame>>::fail(Errc::NotSupported, "no CAN support in kernel",
+                                               iface);
+  struct ifreq ifr;
+  std::memset(&ifr, 0, sizeof(ifr));
+  std::strncpy(ifr.ifr_name, iface.c_str(), IFNAMSIZ - 1);
+  if (::ioctl(fd, SIOCGIFINDEX, &ifr) < 0) {
+    ::close(fd);
+    return Result<std::vector<CanFrame>>::fail(Errc::NotFound, "no such CAN interface", iface);
+  }
+  struct sockaddr_can addr;
+  std::memset(&addr, 0, sizeof(addr));
+  addr.can_family = AF_CAN;
+  addr.can_ifindex = ifr.ifr_ifindex;
+  if (::bind(fd, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) < 0) {
+    ::close(fd);
+    return Result<std::vector<CanFrame>>::fail(Errc::Io, "cannot bind CAN socket", iface);
+  }
+  // Non-blocking: a health check must not stall on a quiet bus.
+  int flags = ::fcntl(fd, F_GETFL, 0);
+  ::fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+  std::vector<CanFrame> out;
+  struct can_frame cf;
+  while (out.size() < max_frames && ::read(fd, &cf, sizeof(cf)) == sizeof(cf)) {
+    CanFrame f;
+    f.extended = (cf.can_id & CAN_EFF_FLAG) != 0;
+    f.id = cf.can_id & (f.extended ? CAN_EFF_MASK : CAN_SFF_MASK);
+    f.data.assign(cf.data, cf.data + cf.can_dlc);
+    out.push_back(f);
+  }
+  ::close(fd);
+  return Result<std::vector<CanFrame>>::good(std::move(out));
+}
+
+MeasuredBootState NativePlatform::measured_boot() {
+  MeasuredBootState m;
+  // TPM 2.0 exposes PCRs through securityfs. Absent hardware is reported as
+  // unavailable rather than faked (§10: report where the platform supports it).
+  const std::string pcr_base = "/sys/class/tpm/tpm0/pcr-sha256";
+  auto entries = list_dir(pcr_base);
+  if (!entries.empty()) {
+    m.available = true;
+    m.mechanism = "tpm2";
+    for (const auto& e : entries) {
+      auto v = read_file(pcr_base + "/" + e);
+      if (!v.ok()) continue;
+      std::string digest = *v;
+      while (!digest.empty() && (digest.back() == '\n' || digest.back() == ' ')) digest.pop_back();
+      try {
+        m.pcrs[uint32_t(std::stoul(e))] = digest;
+      } catch (...) {}
+    }
+  }
+  // UEFI SecureBoot state, where the firmware exposes it.
+  for (const auto& e : list_dir("/sys/firmware/efi/efivars")) {
+    if (e.rfind("SecureBoot-", 0) != 0) continue;
+    auto v = read_file("/sys/firmware/efi/efivars/" + e);
+    // 4-byte attribute prefix, then the value byte.
+    if (v.ok() && v->size() >= 5) m.secure_boot_enabled = (*v)[4] == 1;
+  }
+  if (!m.available && !m.secure_boot_enabled) m.mechanism = "none";
+  return m;
+}
+
+}  // namespace platform
+}  // namespace instr
+
+namespace instr {
+namespace platform {
+
+// SMART / NVMe health (§5 wear indicators). eMMC exposes life_time in sysfs
+// (already read above); NVMe and SATA need smartctl, which is why this is
+// best-effort and marks smart_available rather than inventing numbers.
+void NativePlatform::read_smart(StorageDevice* d) {
+  if (d->kind == "nvme") {
+    // NVMe exposes health directly in sysfs on modern kernels.
+    auto used = read_file("/sys/class/nvme/" + d->name + "/percent_used");
+    if (used.ok()) {
+      try {
+        d->wear_pct = std::stod(*used);
+        d->smart_available = true;
+      } catch (...) {}
+    }
+  }
+  if (!apply_enabled()) return;  // smartctl is a subprocess: host-safe guard
+
+  std::string cmd = "smartctl -A -j " + d->device_path + " 2>/dev/null";
+  FILE* p = ::popen(cmd.c_str(), "r");
+  if (!p) return;
+  std::string out;
+  char buf[1024];
+  while (std::fgets(buf, sizeof(buf), p)) out += buf;
+  ::pclose(p);
+  if (out.empty()) return;
+  auto j = json_parse(out);
+  if (!j.ok() || !(*j).is_object()) return;
+  d->smart_available = true;
+  if (const JValue* t = (*j).find("temperature"))
+    if (const JValue* c = t->find("current")) d->temperature_c = int32_t(c->as_number());
+  if (const JValue* poh = (*j).find("power_on_time"))
+    if (const JValue* h = poh->find("hours")) d->power_on_hours = uint64_t(h->as_number());
+  if (const JValue* health = (*j).find("smart_status"))
+    if (const JValue* passed = health->find("passed")) d->smart_ok = passed->as_bool();
+  if (const JValue* log = (*j).find("nvme_smart_health_information_log")) {
+    if (const JValue* me = log->find("media_errors")) d->media_errors = uint64_t(me->as_number());
+    if (const JValue* pu = log->find("percentage_used")) d->wear_pct = pu->as_number();
+  }
+  if (const JValue* attrs = (*j).find("ata_smart_attributes")) {
+    if (const JValue* table = attrs->find("table")) {
+      for (const auto& a : table->items()) {
+        const JValue* nm = a.find("name");
+        const JValue* raw = a.find("raw");
+        if (!nm || !raw) continue;
+        const JValue* val = raw->find("value");
+        if (!val) continue;
+        if (nm->as_string() == "Reallocated_Sector_Ct")
+          d->reallocated_sectors = uint64_t(val->as_number());
+      }
+    }
+  }
 }
 
 }  // namespace platform

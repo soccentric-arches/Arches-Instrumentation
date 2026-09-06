@@ -1,6 +1,35 @@
-// faults — purely passive kernel-log observation (REQ §7.5, R6). Never
-// configures hardware, never raises an alarm. Rule-based matching, dedup,
-// hard rate limiting with "suppressed N events" summaries.
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file daemons/faults/include/instr/faults/domain.h
+ * @brief purely passive kernel-log observation (REQ §7.5, R6). Never
+ *
+ * configures hardware, never raises an alarm. Rule-based matching, dedup,
+ * hard rate limiting with "suppressed N events" summaries.
+ *
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
+
 #pragma once
 #include <map>
 #include <optional>
@@ -101,13 +130,31 @@ class FaultProcessor {
   const Stats& stats() const { return stats_; }
   const std::vector<FaultRule>& engine_rules() const { return engine_.rules(); }
 
+  // Daemon-wide ceiling on emitted faults, on top of the per-rule limits
+  // (§7.5: a stuck driver emitting 10k lines a second must not drown the
+  // system, even when it trips several rules at once). 0 disables it.
+  void set_global_rate_limit(double per_s) {
+    global_rate_per_s_ = per_s;
+    global_tokens_ = per_s;
+    global_last_mono_ = 0;
+  }
+  double global_rate_limit() const { return global_rate_per_s_; }
+  uint64_t globally_suppressed() const { return global_suppressed_; }
+
  private:
+  // Returns false when the global ceiling is exhausted for this instant.
+  bool global_allow(uint64_t mono_ns);
+
   RuleEngine engine_;
   Deduplicator dedup_;
   std::map<std::string, double> bucket_tokens_;
   std::map<std::string, uint64_t> bucket_last_mono_;
   std::map<std::string, uint64_t> suppressed_streak_;
   Stats stats_;
+  double global_rate_per_s_ = 0;
+  double global_tokens_ = 0;
+  uint64_t global_last_mono_ = 0;
+  uint64_t global_suppressed_ = 0;
 };
 
 }  // namespace domain

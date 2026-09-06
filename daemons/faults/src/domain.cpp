@@ -1,3 +1,30 @@
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file daemons/faults/src/domain.cpp
+ * @brief faults domain implementation (REQ §7.5): rule-based kernel-log matching, dedup, and hard rate limiting with suppressed-event summaries.
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
 #include "instr/faults/domain.h"
 
 #include <yaml-cpp/yaml.h>
@@ -139,6 +166,24 @@ std::pair<uint32_t, bool> Deduplicator::observe(const std::string& key, uint64_t
   return {1, true};
 }
 
+bool FaultProcessor::global_allow(uint64_t mono_ns) {
+  if (global_rate_per_s_ <= 0) return true;  // disabled
+  const double burst = std::max(global_rate_per_s_, 1.0);
+  if (global_last_mono_ == 0) {
+    global_tokens_ = burst;
+    global_last_mono_ = mono_ns;
+  }
+  const double dt_s = std::max(0.0, (double(mono_ns) - double(global_last_mono_)) / 1e9);
+  global_tokens_ = std::min(burst, global_tokens_ + dt_s * global_rate_per_s_);
+  global_last_mono_ = mono_ns;
+  if (global_tokens_ < 1.0) {
+    ++global_suppressed_;
+    return false;
+  }
+  global_tokens_ -= 1.0;
+  return true;
+}
+
 std::vector<FaultRecord> FaultProcessor::feed(const std::vector<std::string>& lines,
                                               uint64_t mono_ns, bool backfill) {
   std::vector<FaultRecord> out;
@@ -199,6 +244,9 @@ std::vector<FaultRecord> FaultProcessor::feed(const std::vector<std::string>& li
       }
       if (merged) continue;
     }
+    // Daemon-wide ceiling, applied after per-rule limiting and dedup so the
+    // cheap filters run first.
+    if (!global_allow(mono_ns)) continue;
     FaultRecord fr;
     fr.fault_id = rule->fault_id;
     fr.mono_ns = mono_ns;

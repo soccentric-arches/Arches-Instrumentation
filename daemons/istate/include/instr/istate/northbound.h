@@ -1,8 +1,37 @@
-// istate — northbound: persistent spool, HQ session with jittered backoff
-// and backpressure, event timeline, live log tail fanout (REQ §7.1, §3.4).
-// Nothing northbound depends on the tunnel being available at the moment it
-// is produced (§3.4). Drop policy: oldest telemetry first, never alarms or
-// faults; drops are reported (§11).
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file daemons/istate/include/instr/istate/northbound.h
+ * @brief northbound: persistent spool, HQ session with jittered backoff
+ *
+ * and backpressure, event timeline, live log tail fanout (REQ §7.1, §3.4).
+ * Nothing northbound depends on the tunnel being available at the moment it
+ * is produced (§3.4). Drop policy: oldest telemetry first, never alarms or
+ * faults; drops are reported (§11).
+ *
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
+
 #pragma once
 #include <deque>
 #include <functional>
@@ -124,6 +153,8 @@ class HqSession {
   void set_draining() { state_ = State::Draining; }
   void set_disconnected() { state_ = State::Disconnected; }
   uint64_t attempts() const { return backoff_.attempts(); }
+  // Deterministic jitter for tests; production uses the seeded RNG.
+  void set_backoff_rng(std::function<double()> rng01) { backoff_.set_rng(std::move(rng01)); }
 
  private:
   State state_ = State::Disconnected;

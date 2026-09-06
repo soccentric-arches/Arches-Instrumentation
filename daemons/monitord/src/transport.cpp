@@ -1,3 +1,30 @@
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file daemons/monitord/src/transport.cpp
+ * @brief monitord core facade implementation: sampler, high-resolution window, and schedule state wired into the shared command table (REQ §3.2, §7.3).
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
 #include "instr/monitord/transport.h"
 
 #include "instr/monitord/table.h"
@@ -48,6 +75,43 @@ std::string MonitorCore::status_json() const {
 }
 
 // ---------------- command table ----------------
+
+Error MonitorCore::apply_config(const ConfigDocument& doc) {
+  Config c;
+  c.enabled = doc.get_bool("enabled", true);
+  c.interval = doc.get_double("interval", 5.0);
+  c.thermal_warn_c = doc.get_double("thermal_warn_c", 75.0);
+  c.thermal_critical_c = doc.get_double("thermal_critical_c", 85.0);
+  c.storage_warn_pct = doc.get_double("storage_warn_pct", 90.0);
+  c.wear_projection_threshold_days =
+      uint32_t(doc.get_int("wear_projection_threshold_days", 180));
+  c.highres_window_s = doc.get_double("highres_window_s", 60.0);
+  c.highres_interval_s = doc.get_double("highres_interval_s", 1.0);
+  if (c.interval <= 0)
+    return Error::make(Errc::InvalidArgument, "interval must be > 0", "monitord config");
+  if (c.thermal_critical_c <= c.thermal_warn_c)
+    return Error::make(Errc::InvalidArgument,
+                       "thermal_critical_c must exceed thermal_warn_c", "monitord config");
+  for (const char* cls : {"cpu", "memory", "storage", "thermal", "load", "system"}) {
+    const std::string key = std::string("intervals_per_class.") + cls;
+    if (doc.has(key)) {
+      double v = doc.get_double(key, c.interval);
+      if (v <= 0)
+        return Error::make(Errc::InvalidArgument,
+                           std::string("interval for class ") + cls + " must be > 0",
+                           "monitord config");
+      c.intervals_per_class[cls] = v;
+    }
+  }
+
+  std::lock_guard<std::mutex> lk(mu_);
+  cfg_ = c;
+  sampler_.set_default_interval_s(c.interval);
+  for (const auto& kv : c.intervals_per_class) sampler_.set_interval_for(kv.first, kv.second);
+  window_ = RollingWindow(c.highres_window_s, c.highres_interval_s);
+  if (on_config_) on_config_(cfg_);
+  return Error::none();
+}
 
 CommandTable build_monitor_table(MonitorCore* core) {
   CommandTable t;

@@ -1,3 +1,30 @@
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file lib/platform/src/simulated.cpp
+ * @brief Implementation of the simulated platform: in-memory, scriptable reality covering every failure mode for hosts, CI, and fault-injection tests (REQ §, §11).
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
 #include "instr/platform/simulated.h"
 
 namespace instr {
@@ -186,12 +213,16 @@ Result<bool> SimulatedPlatform::unit_active(const std::string& unit) {
 }
 Result<std::vector<std::string>> SimulatedPlatform::kernel_log_lines(bool from_start) {
   std::lock_guard<std::mutex> lk(mu_);
-  if (from_start) return Result<std::vector<std::string>>::good(kernel_log_);
-  // Follow mode: return the tail (last 100 lines).
-  size_t n = kernel_log_.size();
-  size_t start = n > 100 ? n - 100 : 0;
-  return Result<std::vector<std::string>>::good(
-      std::vector<std::string>(kernel_log_.begin() + long(start), kernel_log_.end()));
+  if (from_start) {
+    // Backfill hands back the whole ring and parks the cursor at the end, so
+    // the follower that runs next does not re-report the boot window.
+    follow_cursor_ = kernel_log_.size();
+    return Result<std::vector<std::string>>::good(kernel_log_);
+  }
+  if (follow_cursor_ > kernel_log_.size()) follow_cursor_ = kernel_log_.size();
+  std::vector<std::string> fresh(kernel_log_.begin() + long(follow_cursor_), kernel_log_.end());
+  follow_cursor_ = kernel_log_.size();
+  return Result<std::vector<std::string>>::good(std::move(fresh));
 }
 Result<std::vector<std::string>> SimulatedPlatform::journal_lines(const std::string& unit,
                                                                   size_t max_lines) {
@@ -208,6 +239,97 @@ Error SimulatedPlatform::apply_network_plan(const std::string& plan_json) {
   return Error::none();
 }
 bool SimulatedPlatform::hq_reachable() { return hq_reachable_; }
+
+}  // namespace platform
+}  // namespace instr
+// ---- §5 additions: partition topology, time sources, CAN, measured boot ----
+// The simulated platform must be complete enough to run the whole suite on a
+// build host with no hardware, so each of these has a working default rather
+// than an empty stub.
+
+namespace instr {
+namespace platform {
+
+std::vector<Partition> SimulatedPlatform::partitions() {
+  std::lock_guard<std::mutex> lk(mu_);
+  if (!partitions_.empty()) return partitions_;
+  // A representative A/B layout with a separate /pst and a state partition —
+  // the topology §6 recommends, so budget logic has something real to read.
+  std::vector<Partition> out;
+  auto mk = [](const char* name, const char* mount, uint64_t total, uint64_t used,
+               bool ro) {
+    Partition p;
+    p.name = name;
+    p.device_path = std::string("/dev/") + name;
+    p.parent = "mmcblk0";
+    p.mount_point = mount;
+    p.fs_type = ro ? "squashfs" : "ext4";
+    p.bytes = total;
+    p.used_bytes = used;
+    p.read_only = ro;
+    return p;
+  };
+  out.push_back(mk("mmcblk0p1", "/boot", 256ull << 20, 64ull << 20, false));
+  out.push_back(mk("mmcblk0p2", "/", 2ull << 30, 1ull << 30, true));       // slot A
+  out.push_back(mk("mmcblk0p3", "", 2ull << 30, 0, true));                  // slot B
+  out.push_back(mk("mmcblk0p4", "/pst", 512ull << 20, 32ull << 20, false));
+  out.push_back(mk("mmcblk0p5", "/pst/state", 1ull << 30, 64ull << 20, false));
+  return out;
+}
+
+std::vector<TimeSourceInfo> SimulatedPlatform::time_sources() {
+  std::lock_guard<std::mutex> lk(mu_);
+  if (!time_sources_.empty()) return time_sources_;
+  std::vector<TimeSourceInfo> out;
+  TimeSourceInfo ntp;
+  ntp.kind = "ntp";
+  ntp.present = true;
+  ntp.locked = time_locked_;
+  ntp.offset_ms = 0.5;
+  ntp.quality = time_locked_ ? 0.8 : 0.0;
+  out.push_back(ntp);
+  TimeSourceInfo rtc;
+  rtc.kind = "rtc";
+  rtc.present = true;
+  rtc.locked = true;
+  rtc.quality = 0.2;
+  out.push_back(rtc);
+  // GNSS and PTP are absent unless a test declares them: reporting a source
+  // the board does not have is exactly the dishonesty §5.1 forbids.
+  return out;
+}
+
+Error SimulatedPlatform::can_send(const std::string& iface, const CanFrame& frame) {
+  std::lock_guard<std::mutex> lk(mu_);
+  auto it = can_present_.find(iface);
+  if (it != can_present_.end() && !it->second)
+    return Error::make(Errc::NotSupported, "no CAN controller", iface);
+  can_tx_[iface].push_back(frame);
+  // Loopback by default: a health check that sends and reads back sees its
+  // own frame, which is the cheap behavioural check §7.4 asks for.
+  can_rx_[iface].push_back(frame);
+  return Error::none();
+}
+
+Result<std::vector<SimulatedPlatform::CanFrame>> SimulatedPlatform::can_recv(
+    const std::string& iface, size_t max_frames) {
+  std::lock_guard<std::mutex> lk(mu_);
+  auto it = can_present_.find(iface);
+  if (it != can_present_.end() && !it->second)
+    return Result<std::vector<CanFrame>>::fail(Errc::NotSupported, "no CAN controller", iface);
+  auto& q = can_rx_[iface];
+  std::vector<CanFrame> out;
+  while (!q.empty() && out.size() < max_frames) {
+    out.push_back(q.front());
+    q.erase(q.begin());
+  }
+  return Result<std::vector<CanFrame>>::good(std::move(out));
+}
+
+MeasuredBootState SimulatedPlatform::measured_boot() {
+  std::lock_guard<std::mutex> lk(mu_);
+  return measured_boot_;
+}
 
 }  // namespace platform
 }  // namespace instr

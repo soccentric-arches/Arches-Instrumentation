@@ -1,3 +1,30 @@
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file daemons/networkd/src/daemon.cpp
+ * @brief networkd daemon facade: core state, shared command table construction, and spoke channel wiring (REQ §7.2, R8).
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
 #include "instr/networkd/daemon.h"
 
 #include <sstream>
@@ -57,6 +84,165 @@ std::string NetworkdCore::status_json() const {
 }
 
 // ---------------- command table (full coverage; runtime-only) ----------------
+
+Result<NetworkPlan> NetworkdCore::plan_from_config(const ConfigDocument& doc) {
+  NetworkPlan p;
+  for (size_t i = 0;; ++i) {
+    const std::string b = "interfaces." + std::to_string(i) + ".";
+    if (!doc.has(b + "name")) break;
+    IfaceConfig ic;
+    ic.name = doc.get_string(b + "name");
+    ic.mode = doc.get_string(b + "mode", "dhcp");
+    ic.address = doc.get_string(b + "address");
+    ic.prefix = uint32_t(doc.get_int(b + "prefix", 24));
+    ic.vlan_id = uint32_t(doc.get_int(b + "vlan_id", 0));
+    ic.bond_member = doc.get_string(b + "bond_member");
+    ic.priority = uint32_t(doc.get_int(b + "priority", 100));
+    if (ic.mode == "static" && ic.address.empty())
+      return Result<NetworkPlan>::fail(Errc::InvalidArgument,
+                                       "static interface " + ic.name + " has no address",
+                                       "networkd config");
+    if (ic.mode == "vlan" && ic.vlan_id == 0)
+      return Result<NetworkPlan>::fail(Errc::InvalidArgument,
+                                       "vlan interface " + ic.name + " has no vlan_id",
+                                       "networkd config");
+    p.ifaces.push_back(ic);
+  }
+  for (size_t i = 0;; ++i) {
+    const std::string b = "firewall." + std::to_string(i) + ".";
+    if (!doc.has(b + "action")) break;
+    FirewallRule r;
+    r.action = doc.get_string(b + "action");
+    r.proto = doc.get_string(b + "proto", "any");
+    r.src = doc.get_string(b + "src", "any");
+    r.dst_port = uint32_t(doc.get_int(b + "dst_port", 0));
+    r.comment = doc.get_string(b + "comment");
+    p.firewall.push_back(r);
+  }
+  for (size_t i = 0;; ++i) {
+    const std::string b = "port_forwards." + std::to_string(i) + ".";
+    if (!doc.has(b + "listen_port")) break;
+    PortForward f;
+    f.proto = doc.get_string(b + "proto", "tcp");
+    f.listen_port = uint32_t(doc.get_int(b + "listen_port", 0));
+    f.dest_ip = doc.get_string(b + "dest_ip");
+    f.dest_port = uint32_t(doc.get_int(b + "dest_port", 0));
+    p.forwards.push_back(f);
+  }
+  for (size_t i = 0;; ++i) {
+    const std::string b = "routes." + std::to_string(i) + ".";
+    if (!doc.has(b + "destination")) break;
+    RouteConfig r;
+    r.destination = doc.get_string(b + "destination");
+    r.gateway = doc.get_string(b + "gateway");
+    r.iface = doc.get_string(b + "iface");
+    r.metric = uint32_t(doc.get_int(b + "metric", 0));
+    p.routes.push_back(r);
+  }
+  p.dns.servers = doc.get_list("dns.servers");
+  p.dns.search = doc.get_list("dns.search");
+
+  p.wireless.enabled = doc.get_bool("wireless.enabled", false);
+  p.wireless.mode = doc.get_string("wireless.mode", "off");
+  p.wireless.iface = doc.get_string("wireless.interface");
+  p.wireless.ssid = doc.get_string("wireless.ssid");
+  p.wireless.country = doc.get_string("wireless.country");
+  p.wireless.ap_channel = uint32_t(doc.get_int("wireless.ap_channel", 6));
+  // The PSK is referenced, never carried: credentials live in /pst (§7.2).
+  p.wireless.psk_ref = p.wireless.ssid.empty() ? "" : ("wifi-psk-" + p.wireless.ssid);
+  if (p.wireless.enabled && p.wireless.mode != "off" && p.wireless.iface.empty())
+    return Result<NetworkPlan>::fail(Errc::InvalidArgument,
+                                     "wireless enabled without an interface", "networkd config");
+
+  // Inbound SSH is off by default and is never turned on by configuration
+  // alone — it is opened per device, time-boxed and attributed (§7.2, §10).
+  p.ssh_enabled = false;
+  return Result<NetworkPlan>::good(std::move(p));
+}
+
+Error NetworkdCore::apply_config(const ConfigDocument& doc) {
+  Config c;
+  c.enabled = doc.get_bool("enabled", true);
+  c.tunnel_guard_timeout_s = doc.get_double("tunnel_guard_timeout_s", 30.0);
+  c.remote_ssh_default_enabled = doc.get_bool("remote_ssh_default_enabled", false);
+  c.remote_ssh_max_ttl_s = uint32_t(doc.get_int("remote_ssh_max_ttl_s", 8 * 3600));
+  c.connectivity_probe_interval_s = doc.get_double("connectivity_probe_interval_s", 10.0);
+  c.ssh_sweep_interval_s = doc.get_double("ssh_sweep_interval_s", 30.0);
+  if (c.tunnel_guard_timeout_s <= 0)
+    return Error::make(Errc::InvalidArgument, "tunnel_guard_timeout_s must be > 0",
+                       "networkd config");
+
+  auto next = plan_from_config(doc);
+  if (!next.ok()) return next.error;
+  // Preserve what configuration does not own: the tunnel parameters come
+  // from enrollment, and the time policy comes from istate (R8).
+  (*next).wg = plan_.wg;
+  (*next).wg_up = plan_.wg_up;
+  (*next).time = plan_.time;
+  (*next).ssh_enabled = plan_.ssh_enabled;
+
+  // A configuration change is a network change: it goes through the same
+  // tunnel-loss guard as any other, so a bad push auto-reverts (§7.2).
+  auto res = guarded_apply(*next, c.tunnel_guard_timeout_s);
+  cfg_ = c;
+  ssh_.set_max_ttl_s(c.remote_ssh_max_ttl_s);
+  if (on_config_) on_config_(cfg_);
+  if (res.reverted)
+    return Error::make(Errc::Unavailable,
+                       "configuration reverted: it made HQ unreachable (" + res.detail + ")",
+                       "networkd config");
+  return Error::none();
+}
+
+std::vector<std::pair<std::string, std::string>> NetworkdCore::sweep_remote_access() {
+  std::vector<std::pair<std::string, std::string>> events;
+  for (const auto& w : ssh_.sweep(wall_now_s())) {
+    // Expiry is customer-visible: the window was alarm-visible when opened,
+    // so its close must be too (§7.2, §10).
+    events.emplace_back("remote_access_expired",
+                        "{\"operator\":\"" + w.operator_name + "\"}");
+  }
+  if (!ssh_.any_active(wall_now_s()) && plan_.ssh_enabled) {
+    plan_.ssh_enabled = false;
+    (void)apply();
+    events.emplace_back("remote_access_closed", "{}");
+  }
+  for (const auto& e : events)
+    if (event_sink_) event_sink_(e.first, e.second);
+  return events;
+}
+
+std::vector<std::pair<std::string, std::string>> NetworkdCore::probe_connectivity() {
+  std::vector<std::pair<std::string, std::string>> events;
+  const bool up = reachability_ ? reachability_() : plat_.hq_reachable();
+  if (up != tunnel_up_) {
+    tunnel_up_ = up;
+    events.emplace_back("tunnel_state",
+                        std::string("{\"up\":") + (up ? "true" : "false") + "}");
+  }
+  // Re-rank interfaces so failover reflects what is actually reachable.
+  std::vector<Reachability> probes;
+  for (const auto& i : plat_.interfaces()) {
+    Reachability r;
+    r.iface = i.name;
+    r.reachable = i.up && i.link;
+    probes.push_back(r);
+  }
+  auto ranked = ConnectivityRanker::rank(plan_.ifaces, probes);
+  if (ranked != last_rank_) {
+    last_rank_ = ranked;
+    std::string detail = "{\"order\":[";
+    for (size_t i = 0; i < ranked.size(); ++i) {
+      if (i) detail += ",";
+      detail += "\"" + ranked[i] + "\"";
+    }
+    detail += "]}";
+    events.emplace_back("interface_priority", detail);
+  }
+  for (const auto& e : events)
+    if (event_sink_) event_sink_(e.first, e.second);
+  return events;
+}
 
 CommandTable build_networkd_table(NetworkdCore* core) {
   CommandTable t;
@@ -208,6 +394,18 @@ NetworkdSpoke::NetworkdSpoke(NetworkdCore* core, Logger* log, const CommandTable
     ev.set_kind(kind);
     ev.set_detail_json(detail);
     send_event(ev);
+  });
+  // Until a schema is installed, deliveries still apply — just unvalidated.
+  // A packaging slip must not leave a daemon running unconfigured (R10).
+  set_schema(JValue::object());
+}
+
+void NetworkdSpoke::set_schema(JValue schema) {
+  config_sink_ = std::make_unique<ConfigSink>(
+      "networkd", std::move(schema),
+      [this](const ConfigDocument& doc) { return core_->apply_config(doc); });
+  channel_->set_config_handler([this](const common::ConfigDelivery& delivery) {
+    return config_sink_->deliver(delivery.yaml(), delivery.revision());
   });
 }
 

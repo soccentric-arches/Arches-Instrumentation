@@ -1,15 +1,44 @@
-// Arches Instrumentation — gRPC-over-UDS transport plumbing (R3: one wire
-// format; §3.1 spokes dial istate, register, stay connected).
+// ============================================================================
+//  Arches Instrumentation
 //
-//   SpokeChannel<Stub, SpokeFrame, HubFrame>  — spoke client side:
-//     dial → Register (schema verified) → bidi Channel; writer thread pumps
-//     frames; reader thread dispatches HubFrames; reconnect with jittered
-//     backoff; liveness ping answered automatically.
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
 //
-//   HubServiceBase<Service, SpokeFrame, HubFrame> — istate server side per
-//     spoke socket (Service = <X>Hub::Service, the generated nested service
-//     class); converts typed frames to GenericSpokeMsg so the istate core
-//     stays proto-agnostic.
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file lib/transport/include/instr/transport/transport.h
+ * @brief gRPC-over-UDS transport plumbing (R3: one wire
+ *
+ * format; §3.1 spokes dial istate, register, stay connected).
+ * 
+ * SpokeChannel<Stub, SpokeFrame, HubFrame>  — spoke client side:
+ * dial → Register (schema verified) → bidi Channel; writer thread pumps
+ * frames; reader thread dispatches HubFrames; reconnect with jittered
+ * backoff; liveness ping answered automatically.
+ * 
+ * HubServiceBase<Service, SpokeFrame, HubFrame> — istate server side per
+ * spoke socket (Service = <X>Hub::Service, the generated nested service
+ * class); converts typed frames to GenericSpokeMsg so the istate core
+ * stays proto-agnostic.
+ *
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
+
 #pragma once
 #include <atomic>
 #include <condition_variable>
@@ -35,7 +64,7 @@ namespace transport {
 
 // Proto schema version of this suite. istate verifies each registration
 // against it and refuses mismatches with an alarm (REQ §3.1, §11).
-constexpr uint32_t kProtoSchemaVersion = 1;
+constexpr uint32_t kProtoSchemaVersion = 2;  // v2: config delivery (§9)
 
 struct GenericSpokeMsg {
   std::string daemon;   // which spoke sent it
@@ -45,7 +74,7 @@ struct GenericSpokeMsg {
 };
 
 struct GenericHubMsg {
-  // oneof: command / backpressure / relay / time_sync
+  // oneof: command / backpressure / relay / time_sync / config
   bool has_command = false;
   common::Command command;
   bool has_backpressure = false;
@@ -54,6 +83,8 @@ struct GenericHubMsg {
   common::RelayedData relay;
   bool has_time_sync = false;
   common::TimeStamp time_sync;
+  bool has_config = false;
+  common::ConfigDelivery config;
 };
 
 // ---- spoke client ----
@@ -76,8 +107,13 @@ class SpokeChannel {  // StubOuter = the generated service stub factory.
 
   using HubHandler = std::function<void(const HubFrame&)>;
   using MakeFrame = std::function<void(SpokeFrame&)>;  // mutates oneof payload
+  // Applies a delivered config; returns an empty string on success or a
+  // diagnosable reason on rejection. The spoke keeps its previous config on
+  // rejection and never opens /pst itself (R4).
+  using ConfigHandler = std::function<std::string(const common::ConfigDelivery&)>;
 
   void set_hub_handler(HubHandler h) { hub_handler_ = std::move(h); }
+  void set_config_handler(ConfigHandler h) { config_handler_ = std::move(h); }
 
   void start() {
     running_ = true;
@@ -113,6 +149,13 @@ class SpokeChannel {  // StubOuter = the generated service stub factory.
   void send_status_json(const std::string& status_json) {
     enqueue([&](SpokeFrame& f) { f.set_status_json(status_json); });
   }
+  // Ask istate for this daemon's configuration (§R4: istate is the sole
+  // reader of /pst; a spoke asks rather than opening the file).
+  void request_config() {
+    enqueue([this](SpokeFrame& f) { f.mutable_config_request()->set_daemon(opts_.daemon); });
+  }
+  // Revision of the last config successfully applied (0 = none yet).
+  uint64_t config_revision() const { return config_revision_.load(); }
 
  private:
   void run_loop() {
@@ -179,8 +222,35 @@ class SpokeChannel {  // StubOuter = the generated service stub factory.
       }
     });
     // Reader loop (this thread).
+    // Registration is complete: ask for our configuration straight away, so
+    // the daemon is running on /pst state rather than compiled defaults.
+    request_config();
+
     HubFrame hf;
     while (running_.load() && rw->Read(&hf)) {
+      if (hf.has_config()) {
+        std::string reason;
+        if (config_handler_) reason = config_handler_(hf.config());
+        if (reason.empty()) {
+          config_revision_ = hf.config().revision();
+          log_.info(opts_.daemon,
+                    "config applied, revision " + std::to_string(hf.config().revision()));
+        } else {
+          // Loud rejection: keep the previous config and tell istate why.
+          log_.error(opts_.daemon, "config delivery rejected: " + reason);
+        }
+        SpokeFrame ack;
+        common::ConfigAck* ca = ack.mutable_config_ack();
+        ca->set_daemon(opts_.daemon);
+        ca->set_revision(hf.config().revision());
+        ca->set_applied(reason.empty());
+        ca->set_reason(reason);
+        {
+          std::lock_guard<std::mutex> lk(mu_);
+          queue_.push_back(std::move(ack));
+        }
+        cv_.notify_one();
+      }
       if (hub_handler_) hub_handler_(hf);
       // Built-in liveness: a command op "liveness-ping" must be answered even
       // when the domain layer is busy — respond here directly.
@@ -215,6 +285,8 @@ class SpokeChannel {  // StubOuter = the generated service stub factory.
   std::deque<SpokeFrame> queue_;
   std::atomic<bool> running_{false};
   std::atomic<bool> registered_{false};
+  ConfigHandler config_handler_;
+  std::atomic<uint64_t> config_revision_{0};
 };
 
 // ---- istate-side hub service base ----

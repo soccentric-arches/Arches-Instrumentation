@@ -1,3 +1,30 @@
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file daemons/telemetry/src/domain.cpp
+ * @brief telemetry domain implementation (REQ §7.8): metric registry, aggregation, batch shaping, bounded retention with drop policy, and per-device health scoring.
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
 #include "instr/telemetry/domain.h"
 
 #include <algorithm>
@@ -179,6 +206,30 @@ std::optional<MetricBatch> BatchShaper::flush(uint64_t now_mono_ns) {
   total_pending_ = 0;
   last_flush_ns_ = now_mono_ns;
   return b;
+}
+
+}  // namespace domain
+}  // namespace telemetry
+}  // namespace instr
+namespace instr {
+namespace telemetry {
+namespace domain {
+
+void RetentionBuffer::set_max_records(size_t n) {
+  max_records_ = n;
+  // Apply the new bound now: telemetry first, protected classes never.
+  while (buf_.size() > max_records_) {
+    bool dropped_one = false;
+    for (auto it = buf_.begin(); it != buf_.end(); ++it) {
+      if (it->cls == Class::Telemetry) {
+        buf_.erase(it);
+        ++dropped_;
+        dropped_one = true;
+        break;
+      }
+    }
+    if (!dropped_one) break;  // only protected entries remain: keep them all
+  }
 }
 
 }  // namespace domain

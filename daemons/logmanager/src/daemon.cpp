@@ -1,3 +1,30 @@
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file daemons/logmanager/src/daemon.cpp
+ * @brief logmanager daemon facade: core state, shared command table construction, spoke wiring, and the bulk payload data socket (REQ §7.7).
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
 #include "instr/logmanager/daemon.h"
 
 #include "instr/common/crypto.h"
@@ -12,6 +39,43 @@ static JValue bundle_json(const BundleMeta& m) {
   o.set("sha256", JValue(m.sha256));
   o.set("meta", JValue(m.window_json));
   return o;
+}
+
+Error LogCore::apply_config(const ConfigDocument& doc) {
+  Config c;
+  c.enabled = doc.get_bool("enabled", true);
+  c.budget_bytes = uint64_t(doc.get_int("budget_bytes", 128ll * 1024 * 1024));
+  c.prune_interval_s = doc.get_double("prune_interval_s", 300.0);
+  c.tail_max_rate_per_s = uint32_t(doc.get_int("tail_max_rate_per_s", 50));
+  c.coredump_max_bytes = uint64_t(doc.get_int("coredump_max_bytes", 32ll * 1024 * 1024));
+  if (c.prune_interval_s <= 0)
+    return Error::make(Errc::InvalidArgument, "prune_interval_s must be > 0", "logmanager config");
+
+  // sources[] is a list of objects; the flattened document exposes them as
+  // "sources.<i>.<key>". Walk until an index has no name.
+  for (size_t i = 0;; ++i) {
+    const std::string base = "sources." + std::to_string(i) + ".";
+    if (!doc.has(base + "name")) break;
+    SourceSpec sp;
+    sp.name = doc.get_string(base + "name");
+    sp.kind = doc.get_string(base + "kind", "journal");
+    sp.path = doc.get_string(base + "path");
+    sp.level = doc.get_string(base + "level", "INFO");
+    sp.rotate_size_bytes = uint64_t(doc.get_int(base + "rotate_size_bytes", 8ll * 1024 * 1024));
+    sp.retention_files = uint32_t(doc.get_int(base + "retention_files", 5));
+    sp.max_age_s = uint64_t(doc.get_int(base + "retention_age_s", 7ll * 24 * 3600));
+    sp.compress = doc.get_bool(base + "compress", true);
+    if (sp.rotate_size_bytes < 1024)
+      return Error::make(Errc::InvalidArgument,
+                         "rotate_size_bytes too small for source " + sp.name,
+                         "logmanager config");
+    c.sources.push_back(sp);
+  }
+  cfg_ = c;
+  store_.configure(c.sources);
+  store_.set_budget_bytes(c.budget_bytes);
+  if (on_config_) on_config_(cfg_);
+  return Error::none();
 }
 
 CommandTable build_log_table(LogCore* core) {
@@ -208,6 +272,18 @@ LogSpoke::LogSpoke(LogCore* core, Logger* log, const CommandTable* table,
     }
   });
   core_->set_sink([this](const LogLine& l) { send_line(l); });
+  // Until a schema is installed, deliveries still apply — just unvalidated.
+  // A packaging slip must not leave a daemon running unconfigured (R10).
+  set_schema(JValue::object());
+}
+
+void LogSpoke::set_schema(JValue schema) {
+  config_sink_ = std::make_unique<ConfigSink>(
+      "logmanager", std::move(schema),
+      [this](const ConfigDocument& doc) { return core_->apply_config(doc); });
+  channel_->set_config_handler([this](const common::ConfigDelivery& delivery) {
+    return config_sink_->deliver(delivery.yaml(), delivery.revision());
+  });
 }
 
 void LogSpoke::start() { channel_->start(); }

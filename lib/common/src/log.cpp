@@ -1,3 +1,30 @@
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file lib/common/src/log.cpp
+ * @brief Implementation of structured, levelled logging with per-source runtime levels, rate limiting, and secret redaction (REQ §, §10).
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
 #include "instr/common/log.h"
 
 #include <algorithm>
@@ -76,32 +103,66 @@ std::string Redactor::redact_value(const std::string& key, const std::string& va
   return redact_text(value);
 }
 
+namespace {
+
+// Characters that may appear inside a key token ("wg-private.key", "api_key").
+inline bool is_key_char(char c) {
+  return std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '-' || c == '.';
+}
+// A value ends at the first structural delimiter.
+inline bool ends_value(char c) {
+  return std::isspace(static_cast<unsigned char>(c)) || c == ',' || c == '"' || c == '\'' ||
+         c == '}' || c == ']' || c == ')' || c == ';';
+}
+
+}  // namespace
+
 std::string Redactor::redact_text(const std::string& text) {
+  const std::string lowered = lower(text);
   std::string out;
   size_t i = 0;
   while (i < text.size()) {
-    // Redact "key=value" / "key: value" pairs where key looks like a secret.
-    bool matched = false;
+    // Find a secret name at this position. The name may be only part of a
+    // longer key token — "wg-private.key" and "api_key_v2" both count — so
+    // after matching we run to the end of the key token before looking for
+    // the separator.
+    size_t name_len = 0;
     for (const auto& n : secret_key_names()) {
-      if (text.size() - i >= n.size() && lower(text.substr(i, n.size())) == n) {
-        size_t j = i + n.size();
-        if (j < text.size() && (text[j] == '=' || text[j] == ':' || text[j] == ' ')) {
-          while (j < text.size() && (text[j] == ' ' || text[j] == '=' || text[j] == ':')) ++j;
-          size_t end = j;
-          while (end < text.size() && !std::isspace(static_cast<unsigned char>(text[end])) &&
-                 text[end] != ',' && text[end] != '"' && text[end] != ')')
-            ++end;
-          out += text.substr(i, j - i) + "[REDACTED]";
-          i = end;
-          matched = true;
-          break;
-        }
+      if (lowered.compare(i, n.size(), n) == 0) {
+        name_len = n.size();
+        break;
       }
     }
-    if (!matched) {
+    if (name_len == 0) {
       out += text[i];
       ++i;
+      continue;
     }
+    // A match must start at a key boundary, else "reset_token" style
+    // substrings inside unrelated words would trigger.
+    if (i > 0 && is_key_char(text[i - 1])) {
+      out += text[i];
+      ++i;
+      continue;
+    }
+    size_t j = i + name_len;
+    while (j < text.size() && is_key_char(text[j])) ++j;  // rest of the key
+    size_t k = j;
+    if (k < text.size() && (text[k] == '"' || text[k] == '\'')) ++k;  // closing quote
+    while (k < text.size() && std::isspace(static_cast<unsigned char>(text[k]))) ++k;
+    if (k >= text.size() || (text[k] != '=' && text[k] != ':')) {
+      // Not a key=value pair; emit the key verbatim and carry on.
+      out += text.substr(i, j - i);
+      i = j;
+      continue;
+    }
+    ++k;  // the separator
+    while (k < text.size() && std::isspace(static_cast<unsigned char>(text[k]))) ++k;
+    if (k < text.size() && (text[k] == '"' || text[k] == '\'')) ++k;  // opening quote
+    size_t end = k;
+    while (end < text.size() && !ends_value(text[end])) ++end;
+    out += text.substr(i, k - i) + "[REDACTED]";
+    i = end;
   }
   return out;
 }

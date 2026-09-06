@@ -1,9 +1,38 @@
-// ota — thin manager on top of SWUpdate (REQ §7.9). Artifacts land on disk
-// before applying; the interface is shaped so true streaming can be added
-// later without breaking callers. Signature verification before staging;
-// integrity verification; download resume; stage to the inactive slot,
-// apply, set boot slot; explicit post-boot confirmation with automatic
-// rollback; anti-rollback; /home and /pst preserved; progress as a stream.
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file daemons/ota/include/instr/ota/domain.h
+ * @brief thin manager on top of SWUpdate (REQ §7.9). Artifacts land on disk
+ *
+ * before applying; the interface is shaped so true streaming can be added
+ * later without breaking callers. Signature verification before staging;
+ * integrity verification; download resume; stage to the inactive slot,
+ * apply, set boot slot; explicit post-boot confirmation with automatic
+ * rollback; anti-rollback; /home and /pst preserved; progress as a stream.
+ *
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
+
 #pragma once
 #include <functional>
 #include <map>
@@ -80,6 +109,20 @@ class OtaEngine {
   OtaEngine(IFileSystem& fs, platform::IPlatform& plat, TimeSource& ts, OtaConfig cfg)
       : fs_(fs), plat_(plat), ts_(ts), cfg_(cfg) {}
 
+  // Configuration arrives from istate while the engine is live (§9).
+  void set_config(const OtaConfig& c) { cfg_ = c; }
+  const OtaConfig& config() const { return cfg_; }
+  // SWUpdate is the install engine (§7.9); the path is configurable so a
+  // test can point at a stub and CI never shells out to the real thing.
+  void set_swupdate_binary(std::string p) { swupdate_binary_ = std::move(p); }
+  const std::string& swupdate_binary() const { return swupdate_binary_; }
+  // Seam for tests and for the simulated platform: runs the installer and
+  // returns its exit status. Default implementation execs SWUpdate.
+  using InstallFn = std::function<Result<int>(const std::string& artifact,
+                                              const std::string& target_slot,
+                                              const ArtifactManifest& m)>;
+  void set_install_fn(InstallFn f) { install_fn_ = std::move(f); }
+
   const UpdateState& state() const { return state_; }
   const std::vector<HistoryEntry>& history() const { return history_; }
 
@@ -124,6 +167,9 @@ class OtaEngine {
 
  private:
   Error emit(const std::string& stage, double progress, const std::string& message);
+  // Runs the install engine (SWUpdate by default, install_fn_ when set).
+  Result<int> run_install(const std::string& artifact, const std::string& target_slot,
+                          const ArtifactManifest& m);
   std::string staging_path() const { return "/pst/state/ota/artifact.bin"; }
   std::string offset_path() const { return "/pst/state/ota/offset"; }
   std::string manifest_path() const { return "/pst/state/ota/manifest.json"; }
@@ -138,6 +184,8 @@ class OtaEngine {
   std::vector<HistoryEntry> history_;
   std::function<void(const OtaProgressEvent&)> event_sink_;
   std::function<std::string()> secret_provider_;
+  std::string swupdate_binary_ = "/usr/bin/swupdate";
+  InstallFn install_fn_;
   TokenBucket bandwidth_{0, 0};
   double last_bw_now_s_ = 0;
   double tokens_ = 0;

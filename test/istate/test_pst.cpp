@@ -1,5 +1,34 @@
-// istate — /pst store tests (REQ §6, §11): virgin detection, seeding,
-// corrupt fallback, budgets, migration, reset semantics.
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file test/istate/test_pst.cpp
+ * @brief /pst store tests (REQ §6, §11): virgin detection, seeding,
+ *
+ * corrupt fallback, budgets, migration, reset semantics.
+ *
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
+
 #include <gtest/gtest.h>
 
 #include "instr/common/filesystem.h"

@@ -1,8 +1,37 @@
-// Arches Instrumentation — cryptographic primitives for device identity,
-// signing, and encrypted backups (REQ §6.2, §9, §10).
-// SHA-256 / HMAC-SHA256 (FIPS 180-4, RFC 2104), X25519 (RFC 7748),
-// ChaCha20 (RFC 8439), HKDF-SHA256 (RFC 5869). Self-contained, no external
-// crypto dependency; every primitive is tested against published vectors.
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file lib/common/include/instr/common/crypto.h
+ * @brief cryptographic primitives for device identity,
+ *
+ * signing, and encrypted backups (REQ §6.2, §9, §10).
+ * SHA-256 / HMAC-SHA256 (FIPS 180-4, RFC 2104), X25519 (RFC 7748),
+ * ChaCha20 (RFC 8439), HKDF-SHA256 (RFC 5869). Self-contained, no external
+ * crypto dependency; every primitive is tested against published vectors.
+ *
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
+
 #pragma once
 #include <array>
 #include <cstdint>

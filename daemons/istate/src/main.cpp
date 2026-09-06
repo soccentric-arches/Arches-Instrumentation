@@ -1,5 +1,34 @@
-// istate daemon main (REQ §7.1). The hub: /pst, provisioning, orchestration,
-// config service, spool, HQ session, hub gRPC server, ctrl server.
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file daemons/istate/src/main.cpp
+ * @brief istate daemon main (REQ §7.1). The hub: /pst, provisioning, orchestration,
+ *
+ * config service, spool, HQ session, hub gRPC server, ctrl server.
+ *
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
+
 #include <cstdio>
 
 #include "instr/common/daemon_skeleton.h"
@@ -9,7 +38,7 @@
 #include "instr/istate/core.h"
 #include "instr/istate/table.h"
 #include "instr/istate/hubs.h"
-#include "instr/platform/native.h"
+#include "instr/platform/factory.h"
 #include "instr/common/filesystem.h"
 #include <grpcpp/grpcpp.h>
 
@@ -53,7 +82,12 @@ int main(int argc, char** argv) {
   opts.pst_root = root + "/pst";
   opts.run_dir = run_dir;
   opts.build_version = INSTR_VERSION;
-  instr::platform::NativePlatform plat(root);
+  // §5: the same binary runs against the simulated platform on a build host.
+  bool platform_known = true;
+  auto plat_owned = instr::platform::make_platform(args.platform, root, &platform_known);
+  if (!platform_known)
+    log.warning(args.name, "unknown --platform '" + args.platform + "', using native");
+  instr::platform::IPlatform& plat = *plat_owned;
   instr::istate::IstateCore core(opts, fs, plat, ts, log);
 
   auto defaults = load_defaults(fs, root + "/usr/share/instrumentation/defaults");

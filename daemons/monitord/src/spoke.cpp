@@ -1,3 +1,30 @@
+// ============================================================================
+//  Arches Instrumentation
+//
+//  Copyright (C) 2026 Soccentric. All rights reserved.
+//  Author: Sandesh Ghimire (sandesh@soccentric)
+//
+//  This file is part of a proprietary product of Soccentric.
+//
+//  NO WARRANTY:
+//  This software is provided "AS IS", without warranty of any kind, either
+//  express or implied, including but not limited to the warranties of
+//  merchantability, fitness for a particular purpose, and non-infringement.
+//  In no event shall Soccentric be liable for any claim, damages, or other
+//  liability arising from the use of this software.
+//
+//  This software may not be used, copied, modified, distributed, or
+//  disclosed, in whole or in part, without the express prior written
+//  consent of Soccentric.
+// ============================================================================
+/**
+ * @file daemons/monitord/src/spoke.cpp
+ * @brief monitord spoke runner: periodic sampling loop, spoke channel to istate, and ctrl server wiring (REQ §3.1, §7.3).
+ * @author Sandesh Ghimire (sandesh@soccentric)
+ * @date 2026
+ * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
+ */
+
 #include "instr/monitord/spoke.h"
 
 #include <algorithm>
@@ -34,6 +61,17 @@ MonitorSpoke::MonitorSpoke(MonitorCore* core, Logger* log, const CommandTable* t
       }
       channel_->send_ack(ack);
     }
+  });
+  // Until a schema is installed, deliveries still apply — just unvalidated.
+  set_schema(JValue::object());
+}
+
+void MonitorSpoke::set_schema(JValue schema) {
+  config_sink_ = std::make_unique<ConfigSink>(
+      "monitord", std::move(schema),
+      [this](const ConfigDocument& doc) { return core_->apply_config(doc); });
+  channel_->set_config_handler([this](const common::ConfigDelivery& delivery) {
+    return config_sink_->deliver(delivery.yaml(), delivery.revision());
   });
 }
 
