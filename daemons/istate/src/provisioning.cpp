@@ -35,6 +35,7 @@ namespace instr
 namespace istate
 {
 
+/// @brief Canonical name of a lifecycle state.
 const char* Provisioner::state_name(State s) const
 {
     switch (s)
@@ -48,6 +49,7 @@ const char* Provisioner::state_name(State s) const
     return "unknown";
 }
 
+/// @brief Derive a hostname from the factory identity.
 std::string Provisioner::derive_hostname(const platform::FactoryIdentity& id)
 {
     // Deterministic from the serial: arch-<last 6 hex of serial>.
@@ -57,6 +59,7 @@ std::string Provisioner::derive_hostname(const platform::FactoryIdentity& id)
     return h + "-" + serial;
 }
 
+/// @brief First-boot sequence: identity, keygen, enrollment, hostname.
 Result<DeviceIdentity> Provisioner::run_first_boot(const EnrollFn& enroll_fn)
 {
     // 1. Mount and validate /pst; detect virgin state (done by PstStore::mount).
@@ -112,6 +115,7 @@ Result<DeviceIdentity> Provisioner::run_first_boot(const EnrollFn& enroll_fn)
     return generate_and_enroll(false, enroll_fn);
 }
 
+/// @brief Rotate the tunnel key and re-enroll without factory involvement.
 Result<DeviceIdentity> Provisioner::rotate_key(const EnrollFn& enroll_fn)
 {
     // Rotation: regenerate, re-enroll, no factory involvement (§6.2).
@@ -119,6 +123,7 @@ Result<DeviceIdentity> Provisioner::rotate_key(const EnrollFn& enroll_fn)
     return generate_and_enroll(true, enroll_fn);
 }
 
+/// @brief Shared body of first-boot and rotation.
 Result<DeviceIdentity> Provisioner::generate_and_enroll(bool rotation, const EnrollFn& enroll_fn)
 {
     // Keypair generated on device via X25519 (RFC 7748, own implementation).

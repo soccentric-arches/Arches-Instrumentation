@@ -45,112 +45,125 @@ namespace instr
 namespace istate
 {
 
-// The configuration schema version this build expects in /pst. Bump it in
-// the same commit that adds keys to system/defaults, so the first boot after
-// an update migrates rather than silently running without them (§6, §7.9).
+/// @brief The configuration schema version this build expects in /pst.
+///
+/// Bump it in the same commit that adds keys to system/defaults, so the first
+/// boot after an update migrates rather than silently running without them (§6, §7.9).
 inline constexpr const char* kConfigSchemaVersion = "1";
 
-// ---- per-consumer storage budgets (§6: spool, logs, OTA staging can never
-// fill the partition and wedge the device) ----
+/// @brief Per-consumer storage budgets (§6: spool, logs, OTA staging can never fill the partition and wedge the device).
 class BudgetManager
 {
   public:
+    /// @brief One consumer's budget.
     struct Budget
     {
-        std::string consumer; // spool / logs / ota / backup
-        uint64_t limit_bytes = 0;
-        double alarm_at_pct = 0.8; // alarm before the limit
+        std::string consumer;        ///< spool / logs / ota / backup.
+        uint64_t limit_bytes = 0;    ///< Hard cap.
+        double alarm_at_pct = 0.8;   ///< Alarm before the limit.
     };
+    /// @brief Bind the manager to storage and the /pst root.
     explicit BudgetManager(IFileSystem& fs, const std::string& root) : fs_(fs), root_(root)
     {
     }
 
+    /// @brief Set (or replace) a consumer's budget.
     void set_budget(const std::string& consumer, uint64_t limit_bytes)
     {
         budgets_[consumer] = Budget{consumer, limit_bytes};
     }
-    // Reserve bytes for a consumer: fails loudly when over budget.
+    /// @brief Reserve bytes for a consumer; fails loudly when over budget.
     Result<bool> reserve(const std::string& consumer, uint64_t bytes);
-    // Usage tracking per consumer (registered by the components themselves).
+    /// @brief Record a consumer's current usage (registered by the components themselves).
     void record_usage(const std::string& consumer, uint64_t bytes)
     {
         usage_[consumer] = bytes;
     }
+    /// @brief A consumer's recorded usage (0 when unregistered).
     uint64_t usage(const std::string& consumer) const
     {
         auto it = usage_.find(consumer);
         return it == usage_.end() ? 0 : it->second;
     }
-    // Consumers currently over their 80% warning line (alarm before the limit).
+    /// @brief Consumers over their 80% warning line (alarm before the limit).
     std::vector<std::string> over_warning() const;
+    /// @brief Consumers over their hard limit.
     std::vector<std::string> over_limit() const;
+    /// @brief All configured budgets.
     const std::map<std::string, Budget>& budgets() const
     {
         return budgets_;
     }
 
   private:
-    IFileSystem& fs_;
-    std::string root_;
-    std::map<std::string, Budget> budgets_;
-    std::map<std::string, uint64_t> usage_;
+    IFileSystem& fs_;                        ///< Storage backend.
+    std::string root_;                       ///< /pst root.
+    std::map<std::string, Budget> budgets_;   ///< Configured budgets.
+    std::map<std::string, uint64_t> usage_;   ///< Recorded usage per consumer.
 };
 
-// ---- the /pst store ----
+/// @brief The /pst store: sole reader and writer of device-persistent state (R4).
 class PstStore
 {
   public:
+    /// @brief Bind the store to a filesystem, root and budget manager.
     PstStore(IFileSystem& fs, const std::string& root, BudgetManager& budgets) : fs_(fs), root_(root), budgets_(budgets)
     {
     }
 
-    // Mount and validate: verify checksums with fallback to redundant copies
-    // (REQ §11: /pst corrupt → fall back; if both fail, boot unprovisioned).
+    /// @brief Mount-and-validate report.
     struct MountReport
     {
-        bool ok = false;
-        bool virgin = true; // no system/ yet
-        std::vector<std::string> recovered_from_backup;
-        std::vector<std::string> corrupt; // unrecoverable
+        bool ok = false;                            ///< Store usable.
+        bool virgin = true;                         ///< No system/ yet.
+        std::vector<std::string> recovered_from_backup;   ///< Files restored from .bak copies.
+        std::vector<std::string> corrupt;            ///< Unrecoverable files.
     };
+    /// @brief Mount and validate: verify checksums with fallback to redundant copies (REQ §11).
     MountReport mount();
-    // Seed system/ from the shipped default YAML set (first boot / system reset).
+    /// @brief Seed system/ from the shipped default YAML set (first boot / system reset).
     Error seed_defaults(const std::map<std::string, std::string>& daemon_default_yaml);
 
-    // ---- config access (sole writer) ----
+    /// @brief Load a daemon's configuration (sole reader).
     Result<ConfigDocument> load_config(const std::string& daemon) const;
+    /// @brief Persist a daemon's configuration atomically with checksum+backup.
     Error save_config(const std::string& daemon, const ConfigDocument& doc);
+    /// @brief Read a checksum-protected file with fallback to its .bak copy.
     Result<std::string> read_protected(const std::string& rel_path) const;
+    /// @brief Write a checksum-protected file atomically.
     Error write_protected(const std::string& rel_path, const std::string& data);
 
+    /// @brief Test whether a path exists under the root.
     bool exists(const std::string& rel_path) const
     {
         return fs_.exists(fs_.join(root_, rel_path));
     }
 
-    // ---- schema version and migration (§6: .schema-version drives migration) ----
+    /// @brief Current schema version on disk (§6: .schema-version drives migration).
     std::string schema_version() const;
+    /// @brief Record a new schema version.
     Error set_schema_version(const std::string& v);
-    // Merge a new release's defaults: adds missing keys, preserves existing
-    // values by origin. Returns added paths.
+    /// @brief Merge a new release's defaults: adds missing keys, preserves existing values by origin.
+    ///
+    /// @param new_defaults Release default YAML per daemon.
+    /// @return Added paths.
     std::vector<std::string> migrate(const std::map<std::string, std::string>& new_defaults);
 
-    // ---- reset semantics (§6.1) ----
-    // System reset: wipes system/ and state/; keeps factory/ and backup/;
-    // reseeds system/ from image defaults after.
+    /// @brief System reset (§6.1): wipes system/ and state/; keeps factory/ and backup/; reseeds system/ from image defaults after.
     Error system_reset(const std::map<std::string, std::string>& defaults);
-    // Factory reset: everything; manufacturing operation only, explicitly gated.
+    /// @brief Factory reset: everything; manufacturing operation only, explicitly gated.
     Error factory_reset();
 
+    /// @brief Absolute path of a relative path under the root.
     std::string path(const std::string& rel) const
     {
         return fs_.join(root_, rel);
     }
 
   private:
-    IFileSystem& fs_;
-    std::string root_;
-    BudgetManager& budgets_;
+    IFileSystem& fs_;            ///< Storage backend.
+    std::string root_;           ///< /pst root.
+    BudgetManager& budgets_;     ///< Budget enforcement (not owned).
 };
 
 } // namespace istate

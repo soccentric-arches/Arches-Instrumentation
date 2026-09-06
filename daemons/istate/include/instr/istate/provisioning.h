@@ -46,81 +46,94 @@ namespace instr
 namespace istate
 {
 
+/// @brief Device identity established at first boot.
 struct DeviceIdentity
 {
-    std::string hostname;
-    std::string serial;
-    std::string hw_revision;
-    std::string board_variant;
-    std::string mfg_date;
-    std::string wg_public_key; // base64
-    std::string factory_sig; // HMAC(factory secret, pubkey) — base64
+    std::string hostname;          ///< Derived from factory identity.
+    std::string serial;            ///< Factory serial.
+    std::string hw_revision;       ///< Board revision.
+    std::string board_variant;     ///< Board variant.
+    std::string mfg_date;          ///< Manufacture date.
+    std::string wg_public_key;     ///< WireGuard public key (base64).
+    std::string factory_sig;       ///< HMAC(factory secret, pubkey) — base64.
+    /// @brief The public key in base64 (identity accessor).
     std::string pubkey_b64() const
     {
         return wg_public_key;
     }
 };
 
+/// @brief WireGuard tunnel configuration returned by HQ enrollment.
 struct TunnelConfig
 {
-    std::string hq_endpoint;
-    std::string device_addr;
-    std::string hq_addr;
-    std::string peer_pubkey_b64;
-    bool valid = false;
+    std::string hq_endpoint;         ///< HQ tunnel endpoint.
+    std::string device_addr;         ///< Device tunnel address.
+    std::string hq_addr;             ///< HQ tunnel address.
+    std::string peer_pubkey_b64;     ///< HQ's public key.
+    bool valid = false;              ///< False until enrollment succeeds.
 };
 
+/// @brief First-boot provisioning state machine: key generation and HQ enrollment.
 class Provisioner
 {
   public:
+    /// @brief Provisioning lifecycle states.
     enum class State
     {
-        Virgin, // no system/ yet
-        Seeding, // defaults written
-        Keygen, // generating tunnel keypair
-        Enrolling, // enrolling with HQ
-        Operational,
+        Virgin,        ///< No system/ yet.
+        Seeding,       ///< Defaults written.
+        Keygen,        ///< Generating tunnel keypair.
+        Enrolling,     ///< Enrolling with HQ.
+        Operational,   ///< Fully provisioned.
     };
+    /// @brief Canonical name of a state.
     const char* state_name(State s) const;
 
+    /// @brief Bind the provisioner to the store, platform and filesystem.
     Provisioner(PstStore& pst, platform::IPlatform& plat, IFileSystem& fs) : pst_(pst), plat_(plat), fs_(fs)
     {
     }
 
+    /// @brief Current lifecycle state.
     State state() const
     {
         return state_;
     }
+    /// @brief Established identity (after first boot).
     const DeviceIdentity& identity() const
     {
         return identity_;
     }
+    /// @brief Tunnel configuration from enrollment.
     const TunnelConfig& tunnel() const
     {
         return tunnel_;
     }
 
-    // First-boot sequence (§6.2). enroll_fn performs the HQ round-trip:
-    // given the signed enrollment request, returns the tunnel configuration.
+    /// @brief First-boot sequence (§6.2).
+    ///
+    /// @p enroll_fn performs the HQ round-trip: given the signed enrollment
+    /// request, it returns the tunnel configuration.
     using EnrollFn = std::function<Result<TunnelConfig>(const DeviceIdentity&)>;
+    /// @brief Run first boot: identity, keygen, enrollment, hostname, /pst seed.
     Result<DeviceIdentity> run_first_boot(const EnrollFn& enroll_fn);
 
-    // Key rotation without a site visit: regenerate, re-enroll, no factory
-    // involvement.
+    /// @brief Key rotation without a site visit: regenerate, re-enroll, no factory involvement.
     Result<DeviceIdentity> rotate_key(const EnrollFn& enroll_fn);
 
-    //hostname derivation from factory identity.
+    /// @brief Hostname derivation from factory identity.
     static std::string derive_hostname(const platform::FactoryIdentity& id);
 
   private:
+    /// @brief Shared body of first-boot and rotation.
     Result<DeviceIdentity> generate_and_enroll(bool rotation, const EnrollFn& enroll_fn);
 
-    PstStore& pst_;
-    platform::IPlatform& plat_;
-    IFileSystem& fs_;
-    State state_ = State::Virgin;
-    DeviceIdentity identity_;
-    TunnelConfig tunnel_;
+    PstStore& pst_;                ///< /pst store (not owned).
+    platform::IPlatform& plat_;     ///< Factory identity + entropy (not owned).
+    IFileSystem& fs_;               ///< Storage backend.
+    State state_ = State::Virgin;  ///< Lifecycle state.
+    DeviceIdentity identity_;      ///< Established identity.
+    TunnelConfig tunnel_;          ///< Enrollment result.
 };
 
 } // namespace istate

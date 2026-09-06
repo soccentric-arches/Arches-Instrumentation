@@ -36,6 +36,7 @@ namespace istate
 
 // ---------------- BudgetManager ----------------
 
+/// @brief Reserve bytes for a consumer; fails loudly when over budget.
 Result<bool> BudgetManager::reserve(const std::string& consumer, uint64_t bytes)
 {
     auto it = budgets_.find(consumer);
@@ -45,6 +46,7 @@ Result<bool> BudgetManager::reserve(const std::string& consumer, uint64_t bytes)
     return Result<bool>::good(true);
 }
 
+/// @brief Consumers over their 80% warning line.
 std::vector<std::string> BudgetManager::over_warning() const
 {
     std::vector<std::string> out;
@@ -56,6 +58,7 @@ std::vector<std::string> BudgetManager::over_warning() const
     return out;
 }
 
+/// @brief Consumers over their hard limit.
 std::vector<std::string> BudgetManager::over_limit() const
 {
     std::vector<std::string> out;
@@ -69,6 +72,7 @@ std::vector<std::string> BudgetManager::over_limit() const
 
 // ---------------- PstStore ----------------
 
+/// @brief Mount and validate /pst with checksum fallback to redundant copies.
 PstStore::MountReport PstStore::mount()
 {
     MountReport rep;
@@ -111,6 +115,7 @@ PstStore::MountReport PstStore::mount()
     return rep;
 }
 
+/// @brief Seed system/ from the shipped default YAML set.
 Error PstStore::seed_defaults(const std::map<std::string, std::string>& daemon_default_yaml)
 {
     for (const auto& kv : daemon_default_yaml)
@@ -124,6 +129,7 @@ Error PstStore::seed_defaults(const std::map<std::string, std::string>& daemon_d
     return Error::none();
 }
 
+/// @brief Load a daemon's configuration document.
 Result<ConfigDocument> PstStore::load_config(const std::string& daemon) const
 {
     auto text = read_protected("system/" + daemon + "/config.yaml");
@@ -141,6 +147,7 @@ Result<ConfigDocument> PstStore::load_config(const std::string& daemon) const
     return parsed;
 }
 
+/// @brief Persist a daemon's configuration atomically (checksum + .bak).
 Error PstStore::save_config(const std::string& daemon, const ConfigDocument& doc)
 {
     fs_.mkdirs(path("system/" + daemon));
@@ -149,11 +156,13 @@ Error PstStore::save_config(const std::string& daemon, const ConfigDocument& doc
     return write_protected("system/" + daemon + "/origins.yaml", doc.origins_to_yaml());
 }
 
+/// @brief Read a protected file with .bak fallback.
 Result<std::string> PstStore::read_protected(const std::string& rel_path) const
 {
     return AtomicFile::read_protected(fs_, path(rel_path));
 }
 
+/// @brief Write a protected file atomically.
 Error PstStore::write_protected(const std::string& rel_path, const std::string& data)
 {
     size_t pos = rel_path.find_last_of('/');
@@ -161,6 +170,7 @@ Error PstStore::write_protected(const std::string& rel_path, const std::string& 
     return AtomicFile::write_protected(fs_, path(rel_path), data);
 }
 
+/// @brief Current on-disk schema version.
 std::string PstStore::schema_version() const
 {
     auto txt = read_protected("system/.schema-version");
@@ -170,11 +180,13 @@ std::string PstStore::schema_version() const
     return s;
 }
 
+/// @brief Record a new schema version.
 Error PstStore::set_schema_version(const std::string& v)
 {
     return write_protected("system/.schema-version", v + "\n");
 }
 
+/// @brief Merge a release's defaults, preserving existing values by origin.
 std::vector<std::string> PstStore::migrate(const std::map<std::string, std::string>& new_defaults)
 {
     std::vector<std::string> added;
@@ -200,6 +212,7 @@ std::vector<std::string> PstStore::migrate(const std::map<std::string, std::stri
     return added;
 }
 
+/// @brief System reset: wipe system/ and state/, keep factory/ and backup/.
 Error PstStore::system_reset(const std::map<std::string, std::string>& defaults)
 {
     // Wipes system/ and state/; keeps factory/ and backup/ (§6.1).
@@ -215,6 +228,7 @@ Error PstStore::system_reset(const std::map<std::string, std::string>& defaults)
     return seed_defaults(defaults);
 }
 
+/// @brief Factory reset: wipe everything (explicitly gated).
 Error PstStore::factory_reset()
 {
     // Everything; manufacturing operation only, must be explicitly gated by
