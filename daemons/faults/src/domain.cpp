@@ -39,6 +39,7 @@ namespace domain
 {
 
 // Fault ids arrive as "0x5_05_1_0001"-style text.
+/// @brief Parse a canonical "0x5_05_1_0001"-form fault id.
 Result<uint32_t> parse_fault_id_text(const std::string& text)
 {
     if (text.rfind("0x", 0) != 0) return Result<uint32_t>::fail(Errc::InvalidArgument, "fault id must start with 0x", text);
@@ -55,6 +56,7 @@ Result<uint32_t> parse_fault_id_text(const std::string& text)
     }
 }
 
+/// @brief Parse and validate a fault-rules.yaml document.
 Result<std::vector<FaultRule>> load_rules(const std::string& yaml_text)
 {
     try
@@ -117,6 +119,7 @@ Result<std::vector<FaultRule>> load_rules(const std::string& yaml_text)
     }
 }
 
+/// @brief First rule matching a kernel line.
 std::optional<const FaultRule*> RuleEngine::match(const std::string& line) const
 {
     for (const auto& r : rules_)
@@ -133,6 +136,7 @@ std::optional<const FaultRule*> RuleEngine::match(const std::string& line) const
     return std::nullopt;
 }
 
+/// @brief Render a dedup template, extracting $device tokens from the line.
 std::string RuleEngine::render_dedup_key(const std::string& tmpl, const std::string& line)
 {
     if (tmpl.find("$device") == std::string::npos && tmpl.find("$zone") == std::string::npos && tmpl.find("$process") == std::string::npos) return tmpl;
@@ -168,6 +172,7 @@ std::string RuleEngine::render_dedup_key(const std::string& tmpl, const std::str
     return out;
 }
 
+/// @brief Observe one key occurrence; merges counts inside the window.
 std::pair<uint32_t, bool> Deduplicator::observe(const std::string& key, uint64_t mono_ns, uint32_t window_s)
 {
     Entry& e = map_[key];
@@ -184,6 +189,7 @@ std::pair<uint32_t, bool> Deduplicator::observe(const std::string& key, uint64_t
     return {1, true};
 }
 
+/// @brief Token-bucket check of the daemon-wide emission ceiling.
 bool FaultProcessor::global_allow(uint64_t mono_ns)
 {
     if (global_rate_per_s_ <= 0) return true; // disabled
@@ -205,6 +211,7 @@ bool FaultProcessor::global_allow(uint64_t mono_ns)
     return true;
 }
 
+/// @brief Scan lines, dedup, rate-limit and emit fault records.
 std::vector<FaultRecord> FaultProcessor::feed(const std::vector<std::string>& lines, uint64_t mono_ns, bool backfill)
 {
     std::vector<FaultRecord> out;

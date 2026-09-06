@@ -49,147 +49,173 @@ namespace faults
 namespace domain
 {
 
+/// @brief One fault-detection rule from fault-rules.yaml (rules are data).
 struct FaultRule
 {
-    std::string name;
-    std::string pattern;
-    std::regex re;
-    uint32_t fault_id = 0;
-    common::Severity severity = common::SEV_MAJOR;
-    std::string x733_type;
-    std::string probable_cause;
-    std::string dedup_key; // template, e.g. "bus:$device"
-    uint32_t dedup_window_s = 60;
-    double rate_limit_per_s = 5;
+    std::string name;               ///< Rule name.
+    std::string pattern;            ///< Regex source text.
+    std::regex re;                  ///< Compiled pattern.
+    uint32_t fault_id = 0;          ///< Packed fault identity.
+    common::Severity severity = common::SEV_MAJOR;   ///< Severity to assign.
+    std::string x733_type;          ///< X.733 event type.
+    std::string probable_cause;     ///< Probable cause text.
+    std::string dedup_key;          ///< Template, e.g. "bus:$device".
+    uint32_t dedup_window_s = 60;   ///< Dedup merge window.
+    double rate_limit_per_s = 5;    ///< Per-rule emission cap.
 };
 
+/// @brief One detected fault as reported upward.
 struct FaultRecord
 {
-    uint32_t fault_id = 0;
-    uint64_t mono_ns = 0;
-    std::string rule;
-    common::Severity severity = common::SEV_MAJOR;
-    std::string raw_line;
-    uint32_t occurrences = 1;
-    std::string device_key;
-    std::string x733_type;
-    std::string probable_cause;
-    bool backfill = false;
+    uint32_t fault_id = 0;          ///< Packed fault identity.
+    uint64_t mono_ns = 0;           ///< Detection time.
+    std::string rule;               ///< Rule that matched.
+    common::Severity severity = common::SEV_MAJOR;   ///< Severity.
+    std::string raw_line;           ///< Triggering kernel line.
+    uint32_t occurrences = 1;       ///< Merged occurrence count.
+    std::string device_key;         ///< Rendered dedup key.
+    std::string x733_type;          ///< X.733 event type.
+    std::string probable_cause;     ///< Probable cause text.
+    bool backfill = false;          ///< True when recovered from the boot ring.
 };
 
-// Loads and validates a fault-rules.yaml document (rules are data).
+/// @brief Loads and validates a fault-rules.yaml document.
+/// @param yaml_text Rules source text.
+/// @return Parsed rules, or a diagnosable parse error.
 Result<std::vector<FaultRule>> load_rules(const std::string& yaml_text);
 
-// Rule matching with $device extraction heuristics for dedup keys.
+/// @brief Rule matching with $device extraction heuristics for dedup keys.
 class RuleEngine
 {
   public:
+    /// @brief Construct an engine over compiled rules.
     explicit RuleEngine(std::vector<FaultRule> rules) : rules_(std::move(rules))
     {
     }
+    /// @brief Loaded rules.
     const std::vector<FaultRule>& rules() const
     {
         return rules_;
     }
-    // First matching rule for a kernel line, or nullopt.
+    /// @brief First matching rule for a kernel line.
+    /// @return The rule, or std::nullopt when nothing matches.
     std::optional<const FaultRule*> match(const std::string& line) const;
-    // Renders a dedup template: replaces $device with an extracted token.
+    /// @brief Render a dedup template, replacing $device with an extracted token.
     static std::string render_dedup_key(const std::string& tmpl, const std::string& line);
 
   private:
-    std::vector<FaultRule> rules_;
+    std::vector<FaultRule> rules_;    ///< Compiled rule set.
 };
 
-// Deduplication: identical keys within the window merge occurrence counts.
+/// @brief Deduplication: identical keys within the window merge occurrence counts.
 class Deduplicator
 {
   public:
-    // Returns the occurrence count for the key (1 when new), and true when
-    // this is the first occurrence within the window.
+    /// @brief Observe a dedup key occurrence.
+    /// @param key Rendered dedup key.
+    /// @param mono_ns Current monotonic time.
+    /// @param window_s Merge window.
+    /// @return (occurrence count, true when this is the first occurrence within the window).
     std::pair<uint32_t, bool> observe(const std::string& key, uint64_t mono_ns, uint32_t window_s);
+    /// @brief Keys currently tracked (test introspection).
     size_t active_keys() const
     {
         return map_.size();
     }
 
   private:
+    /// @brief Per-key window state.
     struct Entry
     {
-        uint64_t first_ns = 0;
-        uint64_t last_ns = 0;
-        uint32_t count = 0;
+        uint64_t first_ns = 0;    ///< First occurrence in the window.
+        uint64_t last_ns = 0;     ///< Most recent occurrence.
+        uint32_t count = 0;       ///< Occurrences merged.
     };
-    std::map<std::string, Entry> map_;
+    std::map<std::string, Entry> map_;    ///< Active dedup windows.
 };
 
-// The full passive processor: scan lines → faults with dedup + suppression.
-// Parses a fault id in the catalog's "0x5_05_1_0001" form (§8: fault ids use
-// the same 32-bit scheme as alarms, under the fault domain).
+/// @brief Parse a fault id in the catalog's "0x5_05_1_0001" form.
+///
+/// §8: fault ids use the same 32-bit scheme as alarms, under the fault domain.
+///
+/// @param text Canonical id text.
+/// @return The packed id, or an InvalidArgument error.
 Result<uint32_t> parse_fault_id_text(const std::string& text);
 
+/// @brief The full passive processor: scan lines → faults with dedup + suppression.
 class FaultProcessor
 {
   public:
-    // A suppressed streak must reach this before a summary is emitted.
+    /// @brief A suppressed streak must reach this before a summary is emitted.
     static constexpr uint64_t kSuppressionSummaryThreshold = 10;
 
+    /// @brief Construct a processor over compiled rules.
     FaultProcessor(std::vector<FaultRule> rules) : engine_(std::move(rules))
     {
     }
 
+    /// @brief Lifetime counters.
     struct Stats
     {
-        uint64_t lines_scanned = 0;
-        uint64_t faults_raised = 0;
-        uint64_t duplicates_merged = 0;
-        uint64_t suppressed_events = 0;
-        uint64_t backfill_lines = 0;
+        uint64_t lines_scanned = 0;      ///< Kernel lines fed.
+        uint64_t faults_raised = 0;      ///< Records emitted.
+        uint64_t duplicates_merged = 0;  ///< Occurrences folded into existing faults.
+        uint64_t suppressed_events = 0;  ///< Events dropped by rate limiting.
+        uint64_t backfill_lines = 0;     ///< Lines recovered from the boot ring.
     };
 
-    // Feed kernel-log lines. backfill marks records recovered from the boot
-    // ring (read from the start on launch, §7.5).
+    /// @brief Feed kernel-log lines.
+    /// @param lines Lines to scan.
+    /// @param mono_ns Current monotonic time.
+    /// @param backfill True for records recovered from the boot ring (read from the start on launch, §7.5).
+    /// @return The fault records produced by this batch.
     std::vector<FaultRecord> feed(const std::vector<std::string>& lines, uint64_t mono_ns, bool backfill);
+    /// @brief Lifetime statistics.
     const Stats& stats() const
     {
         return stats_;
     }
+    /// @brief The rule engine's rule set.
     const std::vector<FaultRule>& engine_rules() const
     {
         return engine_.rules();
     }
 
-    // Daemon-wide ceiling on emitted faults, on top of the per-rule limits
-    // (§7.5: a stuck driver emitting 10k lines a second must not drown the
-    // system, even when it trips several rules at once). 0 disables it.
+    /// @brief Daemon-wide ceiling on emitted faults, on top of the per-rule limits.
+    ///
+    /// §7.5: a stuck driver emitting 10k lines a second must not drown the
+    /// system, even when it trips several rules at once. 0 disables it.
     void set_global_rate_limit(double per_s)
     {
         global_rate_per_s_ = per_s;
         global_tokens_ = per_s;
         global_last_mono_ = 0;
     }
+    /// @brief Configured global ceiling (0 = disabled).
     double global_rate_limit() const
     {
         return global_rate_per_s_;
     }
+    /// @brief Events dropped by the global ceiling.
     uint64_t globally_suppressed() const
     {
         return global_suppressed_;
     }
 
   private:
-    // Returns false when the global ceiling is exhausted for this instant.
+    /// @brief False when the global ceiling is exhausted for this instant.
     bool global_allow(uint64_t mono_ns);
 
-    RuleEngine engine_;
-    Deduplicator dedup_;
-    std::map<std::string, double> bucket_tokens_;
-    std::map<std::string, uint64_t> bucket_last_mono_;
-    std::map<std::string, uint64_t> suppressed_streak_;
-    Stats stats_;
-    double global_rate_per_s_ = 0;
-    double global_tokens_ = 0;
-    uint64_t global_last_mono_ = 0;
-    uint64_t global_suppressed_ = 0;
+    RuleEngine engine_;                            ///< Rule matching.
+    Deduplicator dedup_;                           ///< Window-based merging.
+    std::map<std::string, double> bucket_tokens_;    ///< Per-rule token buckets.
+    std::map<std::string, uint64_t> bucket_last_mono_;   ///< Per-rule last-refill time.
+    std::map<std::string, uint64_t> suppressed_streak_;   ///< Per-rule suppression streaks.
+    Stats stats_;                                  ///< Lifetime counters.
+    double global_rate_per_s_ = 0;                 ///< Global ceiling (0 = disabled).
+    double global_tokens_ = 0;                     ///< Global token count.
+    uint64_t global_last_mono_ = 0;                ///< Global last-refill time.
+    uint64_t global_suppressed_ = 0;               ///< Global suppression counter.
 };
 
 } // namespace domain

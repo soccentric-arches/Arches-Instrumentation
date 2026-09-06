@@ -32,6 +32,7 @@ namespace instr
 namespace faults
 {
 
+/// @brief Render a fault record as JSON for control responses.
 static JValue record_json(const FaultRecord& r)
 {
     JValue o = JValue::object();
@@ -47,6 +48,7 @@ static JValue record_json(const FaultRecord& r)
     return o;
 }
 
+/// @brief Build the faults ctrl command table.
 CommandTable build_faults_table(FaultsCore* core)
 {
     CommandTable t;
@@ -90,6 +92,7 @@ CommandTable build_faults_table(FaultsCore* core)
     return t;
 }
 
+/// @brief Wire the channel, config sink and handlers together.
 FaultsSpoke::FaultsSpoke(FaultsCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version) : core_(core), log_(log), table_(table)
 {
     using ChannelT = SpokeChannel<faults::FaultHub, faults::FaultSpokeFrame, faults::FaultHubFrame>;
@@ -115,12 +118,14 @@ FaultsSpoke::FaultsSpoke(FaultsCore* core, Logger* log, const CommandTable* tabl
 
 // ---- kernel-log follower (§7.5) ----
 
+/// @brief Construct the follower and its periodic worker.
 FaultFollower::FaultFollower(FaultsCore* core, platform::IPlatform* plat, TimeSource* ts, Logger* log) : core_(core), plat_(plat), ts_(ts), log_(log), worker_("faults-follow", core->config().poll_interval_s, [this] { (void)poll(); })
 {
     // A delivered configuration retunes the follow interval in place.
     core_->set_config_listener([this](const FaultsConfig& c) { worker_.set_interval_s(c.enabled ? c.poll_interval_s : 0.0); });
 }
 
+/// @brief Read the boot ring from the start as backfill (once).
 size_t FaultFollower::backfill()
 {
     if (!core_->config().backfill_boot_log) return 0;
@@ -136,6 +141,7 @@ size_t FaultFollower::backfill()
     return recs.size();
 }
 
+/// @brief One follow pass over the kernel ring.
 size_t FaultFollower::poll()
 {
     auto lines = plat_->kernel_log_lines(/*from_start=*/false);
@@ -143,15 +149,18 @@ size_t FaultFollower::poll()
     return core_->feed(*lines, ts_->mono_ns(), /*backfill=*/false).size();
 }
 
+/// @brief Start the periodic worker.
 void FaultFollower::start()
 {
     worker_.start();
 }
+/// @brief Stop the periodic worker.
 void FaultFollower::stop()
 {
     worker_.stop();
 }
 
+/// @brief Install the schema every config delivery must satisfy.
 void FaultsSpoke::set_schema(JValue schema)
 {
     // Configuration is delivered by istate and validated here before it can
@@ -160,15 +169,18 @@ void FaultsSpoke::set_schema(JValue schema)
     channel_->set_config_handler([this](const common::ConfigDelivery& d) { return config_sink_->deliver(d.yaml(), d.revision()); });
 }
 
+/// @brief Start the transport channel.
 void FaultsSpoke::start()
 {
     channel_->start();
 }
+/// @brief Stop the transport channel.
 void FaultsSpoke::stop()
 {
     channel_->stop();
 }
 
+/// @brief Queue a fault record to istate.
 void FaultsSpoke::send_fault(const FaultRecord& r)
 {
     channel_->enqueue([&r](faults::FaultSpokeFrame& f) {
@@ -186,6 +198,7 @@ void FaultsSpoke::send_fault(const FaultRecord& r)
     });
 }
 
+/// @brief Queue a processor-statistics report to istate.
 void FaultsSpoke::send_stats()
 {
     const auto& s = core_->stats();
