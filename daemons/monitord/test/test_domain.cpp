@@ -62,6 +62,7 @@ class FakeTs : public TimeSource
 };
 } // namespace
 
+/// @brief The first tick yields gauges only; CPU util needs two snapshots.
 TEST(MonitordSampler, FirstTickYieldsGaugesButNoCpuUtil)
 {
     platform::SimulatedPlatform plat;
@@ -98,6 +99,7 @@ TEST(MonitordSampler, FirstTickYieldsGaugesButNoCpuUtil)
     EXPECT_TRUE(has_mem);
 }
 
+/// @brief CPU util is the rate delta between consecutive ticks.
 TEST(MonitordSampler, CpuUtilDeltaBetweenTicks)
 {
     platform::SimulatedPlatform plat;
@@ -121,6 +123,7 @@ TEST(MonitordSampler, CpuUtilDeltaBetweenTicks)
     EXPECT_NEAR(util, 50.0, 0.001);
 }
 
+/// @brief Per-resource-class sampling intervals are honoured.
 TEST(MonitordSampler, PerClassIntervals)
 {
     platform::SimulatedPlatform plat;
@@ -132,6 +135,7 @@ TEST(MonitordSampler, PerClassIntervals)
     EXPECT_DOUBLE_EQ(s.interval_for("memory"), 5.0);
 }
 
+/// @brief The rolling window retains exactly the window length of samples.
 TEST(MonitordRollingWindow, KeepsOnlyWindowSize)
 {
     RollingWindow w(60.0, 1.0);
@@ -149,6 +153,7 @@ TEST(MonitordRollingWindow, KeepsOnlyWindowSize)
     EXPECT_GE(win.front().value, 9.0); // t=9 at ns 9e9; window = 60s
 }
 
+/// @brief Wear projection follows the linear model on measured wear rate.
 TEST(MonitordWear, LinearProjection)
 {
     platform::StorageDevice d;
@@ -159,6 +164,7 @@ TEST(MonitordWear, LinearProjection)
     EXPECT_EQ(p.remaining_days, 3285u); // 90%/ (10/365)
 }
 
+/// @brief An unknown wear indicator falls back to the conservative 10-year estimate.
 TEST(MonitordWear, NoIndicatorFallsBackConservatively)
 {
     platform::StorageDevice d;
@@ -169,6 +175,7 @@ TEST(MonitordWear, NoIndicatorFallsBackConservatively)
     EXPECT_EQ(p.remaining_days, 3650u);
 }
 
+/// @brief A zero measured wear rate floors at the conservative estimate, not zero.
 TEST(MonitordWear, ZeroRateFloor)
 {
     platform::StorageDevice d;
@@ -180,6 +187,7 @@ TEST(MonitordWear, ZeroRateFloor)
 
 // Domain must be constructible without any real platform: the simulated
 // implementation is a plain class with no sockets/files (§12 design rule).
+/// @brief The domain runs against the simulated platform with no OS dependency (§5).
 TEST(MonitordDesign, DomainWorksWithSimulatedPlatformOnly)
 {
     platform::SimulatedPlatform plat;

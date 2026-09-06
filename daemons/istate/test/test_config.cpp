@@ -56,6 +56,7 @@ struct CfgFixture
     }
 };
 
+/// @brief A freshly seeded /pst reads back the shipped defaults.
 TEST(ConfigService, GetReturnsSeededDefaults)
 {
     CfgFixture f;
@@ -65,6 +66,7 @@ TEST(ConfigService, GetReturnsSeededDefaults)
     EXPECT_EQ((*doc).origin_of("mode"), Origin::Default);
 }
 
+/// @brief A set against an unknown key is a loud schema rejection.
 TEST(ConfigService, SetValidatesAgainstSchemaLoudly)
 {
     CfgFixture f;
@@ -78,6 +80,7 @@ TEST(ConfigService, SetValidatesAgainstSchemaLoudly)
     EXPECT_EQ((*doc).get_string("mode"), "static");
 }
 
+/// @brief Origin rules: an HQ push cannot overwrite a local edit without force.
 TEST(ConfigService, HqPushCannotOverwriteLocalWithoutForce)
 {
     CfgFixture f;
@@ -94,6 +97,7 @@ TEST(ConfigService, HqPushCannotOverwriteLocalWithoutForce)
 
 // The legacy shared-secret path, kept for devices enrolled before signing
 // keys were distributed (see ConfigService::apply_signed).
+/// @brief A signed push is verified before it can change anything (§9).
 TEST(ConfigService, SignedPushVerifiedBeforeApply)
 {
     CfgFixture f;
@@ -115,6 +119,7 @@ TEST(ConfigService, SignedPushVerifiedBeforeApply)
     EXPECT_EQ((*doc).origin_of("interval"), Origin::Hq);
 }
 
+/// @brief The drift report shows the effective config with per-key origins.
 TEST(ConfigService, DriftReportShowsEffectiveConfigAndOrigins)
 {
     CfgFixture f;
@@ -126,6 +131,7 @@ TEST(ConfigService, DriftReportShowsEffectiveConfigAndOrigins)
     EXPECT_EQ((*j).find("origins")->find("mode")->as_string(), "default");
 }
 
+/// @brief The audit log records actor, source, action, time and detail.
 TEST(AuditLog, RecordsWhoChangedWhatWhenFromWhere)
 {
     CfgFixture f;
@@ -142,6 +148,7 @@ TEST(AuditLog, RecordsWhoChangedWhatWhenFromWhere)
     EXPECT_EQ(loaded.entries()[1].action, "update");
 }
 
+/// @brief The audit log is a bounded ring; oldest entries drop first.
 TEST(AuditLog, BoundedRing)
 {
     CfgFixture f;
@@ -201,6 +208,7 @@ struct HqSigner
 
 } // namespace
 
+/// @brief A valid Ed25519 push applies; tampering with it is refused.
 TEST(ConfigServiceSigning, Ed25519SignedPushIsAppliedAndTamperingIsRefused)
 {
     CfgFixture f;
@@ -228,6 +236,7 @@ TEST(ConfigServiceSigning, Ed25519SignedPushIsAppliedAndTamperingIsRefused)
     EXPECT_EQ((*f.svc.get("networkd")).get_int("interval"), 11) << "a refused push must not write";
 }
 
+/// @brief Once signing keys exist, the legacy HMAC path is refused.
 TEST(ConfigServiceSigning, ADeviceWithKeysRefusesTheLegacyHmacForm)
 {
     // Once a signing key is provisioned, the shared-secret path is closed —
@@ -247,6 +256,7 @@ TEST(ConfigServiceSigning, ADeviceWithKeysRefusesTheLegacyHmacForm)
     EXPECT_EQ(r.error.code, Errc::SignatureInvalid);
 }
 
+/// @brief A signature from an unknown key id is refused.
 TEST(ConfigServiceSigning, AnUnknownKeyIdIsRefused)
 {
     CfgFixture f;
@@ -258,6 +268,7 @@ TEST(ConfigServiceSigning, AnUnknownKeyIdIsRefused)
     EXPECT_NE(r.error.message.find("unknown key id"), std::string::npos);
 }
 
+/// @brief Two key ids trusted at once let signing keys rotate without a flag day.
 TEST(ConfigServiceSigning, TwoKeysAreTrustedAtOnceSoRotationNeedsNoFlagDay)
 {
     // §6.2/§9: rotating the signing key must not require every device to be
@@ -278,6 +289,7 @@ TEST(ConfigServiceSigning, TwoKeysAreTrustedAtOnceSoRotationNeedsNoFlagDay)
     EXPECT_FALSE(f.svc.apply_signed("networkd", c, "hq-2025", old_key.sign("networkd|" + c), "", "").ok());
 }
 
+/// @brief Verification is available and fails closed on malformed input.
 TEST(SignatureBackend, VerificationIsAvailableAndFailsClosedOnBadInput)
 {
     EXPECT_TRUE(crypto::signature_verification_available()) << "built without a signature backend: signed content would be refused";

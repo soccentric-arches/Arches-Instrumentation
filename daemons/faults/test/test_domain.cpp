@@ -60,6 +60,7 @@ rules:
     rate_limit_per_s: 100
 )yaml";
 
+/// @brief Rule ids are validated against the §8 identity scheme at load.
 TEST(FaultRules, LoadValidatesIds)
 {
     auto rules = load_rules(kRules);
@@ -70,6 +71,7 @@ TEST(FaultRules, LoadValidatesIds)
     EXPECT_EQ((*rules)[1].name, "oom_kill");
 }
 
+/// @brief Rules claiming a non-fault domain id are rejected.
 TEST(FaultRules, RejectsNonFaultDomainIds)
 {
     const char* bad = R"yaml(
@@ -83,6 +85,7 @@ rules:
     EXPECT_FALSE(r.ok()); // fault ids must be in the fault domain (§8)
 }
 
+/// @brief A bad regex in the rules file is a loud load error.
 TEST(FaultRules, RejectsBadRegex)
 {
     const char* bad = R"yaml(
@@ -95,6 +98,7 @@ rules:
     EXPECT_FALSE(r.ok());
 }
 
+/// @brief Rules match kernel lines and classify severity/type/cause.
 TEST(FaultEngine, MatchesAndClassifies)
 {
     auto rules = load_rules(kRules);
@@ -106,6 +110,7 @@ TEST(FaultEngine, MatchesAndClassifies)
     EXPECT_FALSE(engine.match("normal kernel noise").has_value());
 }
 
+/// @brief $device-style dedup templates extract tokens from real lines.
 TEST(FaultEngine, DedupKeyExtraction)
 {
     auto key = RuleEngine::render_dedup_key("bus:$device", "mmcblk0: I/O error on dev mmcblk0");
@@ -115,6 +120,7 @@ TEST(FaultEngine, DedupKeyExtraction)
     EXPECT_NE(key2.find("myapp"), std::string::npos);
 }
 
+/// @brief Identical keys inside the window merge occurrence counts.
 TEST(FaultProcessor, DedupsWithinWindow)
 {
     auto rules = load_rules(kRules);
@@ -130,6 +136,7 @@ TEST(FaultProcessor, DedupsWithinWindow)
     EXPECT_EQ(proc.stats().duplicates_merged, 1u);
 }
 
+/// @brief Records recovered from the boot ring carry the backfill flag.
 TEST(FaultProcessor, BackfillFlagged)
 {
     auto rules = load_rules(kRules);
@@ -141,6 +148,7 @@ TEST(FaultProcessor, BackfillFlagged)
     EXPECT_EQ(proc.stats().backfill_lines, 1u);
 }
 
+/// @brief A flood is rate-limited with exactly one suppression summary.
 TEST(FaultProcessor, RateLimitSuppressesFloodWithSummary)
 {
     auto rules = load_rules(kRules);
@@ -165,6 +173,7 @@ TEST(FaultProcessor, RateLimitSuppressesFloodWithSummary)
     EXPECT_GT(proc.stats().faults_raised, 0u);
 }
 
+/// @brief Ordinary kernel lines never emit faults.
 TEST(FaultProcessor, NonMatchingLinesNeverEmit)
 {
     auto rules = load_rules(kRules);
@@ -202,6 +211,7 @@ std::vector<std::string> fixture_lines(const std::string& name)
 
 } // namespace
 
+/// @brief The shipped rules fire on a recorded real boot log (fixture-driven).
 TEST(FaultRulesFixture, ShippedRulesMatchARealBootLog)
 {
     auto rules = load_rules(slurp_fixture("../../catalog/fault-rules.yaml"));
@@ -224,6 +234,7 @@ TEST(FaultRulesFixture, ShippedRulesMatchARealBootLog)
     for (const auto& r : found) EXPECT_TRUE(r.backfill);
 }
 
+/// @brief An ordinary clean boot log raises nothing.
 TEST(FaultRulesFixture, OrdinaryBootLinesRaiseNothing)
 {
     auto rules = load_rules(slurp_fixture("../../catalog/fault-rules.yaml"));

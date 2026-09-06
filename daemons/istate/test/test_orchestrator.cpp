@@ -38,6 +38,7 @@ using namespace instr;
 using namespace instr::istate;
 using namespace instr::platform;
 
+/// @brief The declared startup order matches the §7.1 spec exactly.
 TEST(OrchestratorOrder, StartupOrderMatchesSpec)
 {
     auto& order = startup_order();
@@ -54,6 +55,7 @@ TEST(OrchestratorOrder, StartupOrderMatchesSpec)
     EXPECT_EQ(pos("telemetry"), 5u);
 }
 
+/// @brief Dependency edges reference declared spokes only and are consistent.
 TEST(OrchestratorOrder, DependencyEdgesConsistent)
 {
     auto& order = startup_order();
@@ -68,6 +70,7 @@ TEST(OrchestratorOrder, DependencyEdgesConsistent)
     }
 }
 
+/// @brief A proto mismatch at registration is refused and alarms.
 TEST(Orchestrator, RegistrationRefusesProtoMismatch)
 {
     SimulatedPlatform plat;
@@ -89,6 +92,7 @@ TEST(Orchestrator, RegistrationRefusesProtoMismatch)
     EXPECT_EQ(unknown, Orchestrator::Reg::NameMismatch);
 }
 
+/// @brief A spoke past the hang timeout is marked Hung and a restart is requested.
 TEST(Orchestrator, HangDetectionRequestsRestart)
 {
     SimulatedPlatform plat;
@@ -117,6 +121,7 @@ TEST(Orchestrator, HangDetectionRequestsRestart)
     EXPECT_EQ(plat.unit_restarts().size(), 1u); // restart requested via systemd
 }
 
+/// @brief A spoke answering again recovers to Ready.
 TEST(Orchestrator, RecoversWhenProbeRespondsAgain)
 {
     SimulatedPlatform plat;
@@ -135,6 +140,7 @@ TEST(Orchestrator, RecoversWhenProbeRespondsAgain)
     EXPECT_EQ((*orch.spoke("monitord"))->state, SpokeState::Ready);
 }
 
+/// @brief The watchdog is petted only while every must-live daemon is healthy.
 TEST(Orchestrator, WatchdogPetsOnlyWhenMustLiveHealthy)
 {
     SimulatedPlatform plat;
@@ -155,6 +161,7 @@ TEST(Orchestrator, WatchdogPetsOnlyWhenMustLiveHealthy)
     EXPECT_EQ(plat.watchdog_pets(), 2u); // still pets (but policy reports false)
 }
 
+/// @brief start_all requests starts through systemd in dependency order.
 TEST(Orchestrator, StartAllRequestsThroughSystemd)
 {
     SimulatedPlatform plat;

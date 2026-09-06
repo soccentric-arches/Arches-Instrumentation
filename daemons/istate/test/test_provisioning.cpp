@@ -61,6 +61,7 @@ struct ProvFixture
     }
 };
 
+/// @brief First boot: identity, keygen, enrollment, hostname and /pst seed complete in order.
 TEST(Provisioning, FirstBootFullSequence)
 {
     ProvFixture f;
@@ -100,6 +101,7 @@ TEST(Provisioning, FirstBootFullSequence)
     EXPECT_EQ(id2->hostname, "arch-000123");
 }
 
+/// @brief Key generation without entropy is refused — never a weak key (§6.2).
 TEST(Provisioning, RefusesKeygenWithoutEntropy)
 {
     ProvFixture f;
@@ -110,6 +112,7 @@ TEST(Provisioning, RefusesKeygenWithoutEntropy)
     EXPECT_NE(r.error.message.find("entropy"), std::string::npos);
 }
 
+/// @brief Key rotation regenerates and re-enrolls without factory involvement.
 TEST(Provisioning, KeyRotationWithoutSiteVisit)
 {
     ProvFixture f;

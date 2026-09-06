@@ -100,6 +100,7 @@ struct Fixture
 };
 } // namespace
 
+/// @brief Raise → active, acknowledge, clear transitions with events emitted at each step.
 TEST(AlarmsStateMachine, RaiseActiveAckClear)
 {
     Fixture f;
@@ -121,6 +122,7 @@ TEST(AlarmsStateMachine, RaiseActiveAckClear)
     EXPECT_TRUE(f.mgr.active().empty());
 }
 
+/// @brief Re-raising an active alarm merges occurrences and refreshes last_seen.
 TEST(AlarmsStateMachine, ReRaiseCountsAndUpdatesLastSeen)
 {
     Fixture f;
@@ -133,6 +135,7 @@ TEST(AlarmsStateMachine, ReRaiseCountsAndUpdatesLastSeen)
     EXPECT_EQ(ev->record.last_seen.seq, f.mgr.active()[0].first_seen.seq + 1);
 }
 
+/// @brief A severity change on an active alarm emits severity_change, not a duplicate raise.
 TEST(AlarmsStateMachine, SeverityChangeOnActiveAlarm)
 {
     Fixture f;
@@ -151,6 +154,7 @@ TEST(AlarmsStateMachine, SeverityChangeOnActiveAlarm)
     EXPECT_EQ(f.mgr.active()[0].count, 2u); // still one alarm, not two
 }
 
+/// @brief An undecodable alarm id is refused loudly, never guessed.
 TEST(AlarmsR5, UnknownIdRefusedLoudly)
 {
     Fixture f;
@@ -160,6 +164,7 @@ TEST(AlarmsR5, UnknownIdRefusedLoudly)
     EXPECT_NE(r.error.message.find("never invented"), std::string::npos);
 }
 
+/// @brief Only the owning component may clear its alarm.
 TEST(AlarmsR5, ClearRefusesForeignOwner)
 {
     Fixture f;
@@ -170,6 +175,7 @@ TEST(AlarmsR5, ClearRefusesForeignOwner)
     EXPECT_TRUE(f.mgr.find(id).ok());
 }
 
+/// @brief A CRITICAL alarm requests the bounded diagnostic capture (snapshot-on-fault).
 TEST(AlarmsSnapshotOnFault, CriticalRequestsBoundedCapture)
 {
     Fixture f;
@@ -185,6 +191,7 @@ TEST(AlarmsSnapshotOnFault, CriticalRequestsBoundedCapture)
     EXPECT_TRUE(saw_snapshot_request);
 }
 
+/// @brief Unacknowledged alarms promote to the configured severity after the threshold.
 TEST(AlarmsEscalation, PromotesUnacknowledgedAfterThreshold)
 {
     Fixture f;
@@ -201,6 +208,7 @@ TEST(AlarmsEscalation, PromotesUnacknowledgedAfterThreshold)
     EXPECT_EQ(f.mgr.active()[0].severity, common::SEV_CRITICAL);
 }
 
+/// @brief Acknowledged alarms are exempt from escalation.
 TEST(AlarmsEscalation, AcknowledgedAlarmsDoNotEscalate)
 {
     Fixture f;
@@ -211,6 +219,7 @@ TEST(AlarmsEscalation, AcknowledgedAlarmsDoNotEscalate)
     EXPECT_TRUE(f.mgr.escalation_sweep(f.ts.mono).empty());
 }
 
+/// @brief The active table persists to active.db and survives restart.
 TEST(AlarmsPersistence, ActiveTableSurvivesRestart)
 {
     SimulatedFileSystem fs;
@@ -232,6 +241,7 @@ TEST(AlarmsPersistence, ActiveTableSurvivesRestart)
     }
 }
 
+/// @brief Catalog regeneration preserves operator-edited severities (§7.6).
 TEST(AlarmsCatalogMerge, PreservesOperatorEdits)
 {
     Fixture f;
@@ -261,6 +271,7 @@ TEST(AlarmsCatalogMerge, PreservesOperatorEdits)
     EXPECT_EQ(st.added, 1u);
 }
 
+/// @brief X.733 correlated notifications ride along with the event.
 TEST(AlarmsCorrelation, X733CorrelatedNotificationsCarried)
 {
     Fixture f;

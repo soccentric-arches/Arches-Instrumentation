@@ -58,6 +58,7 @@ struct Fixture
     }
 };
 
+/// @brief A created archive round-trips with its manifest and per-file hashes.
 TEST(BackupCreate, RoundtripArchiveWithManifest)
 {
     Fixture f;
@@ -72,6 +73,7 @@ TEST(BackupCreate, RoundtripArchiveWithManifest)
     EXPECT_EQ(man->hardware_revision, "rev-a");
 }
 
+/// @brief Factory and WireGuard keys are always excluded — identity is not portable.
 TEST(BackupCreate, ExcludesFactoryAndWireGuardKeys)
 {
     Fixture f;
@@ -85,6 +87,7 @@ TEST(BackupCreate, ExcludesFactoryAndWireGuardKeys)
     }
 }
 
+/// @brief Local archives are sealed; the blob is not a readable tar.
 TEST(BackupCrypto, ArchiveIsEncryptedNotPlainTar)
 {
     Fixture f;
@@ -99,6 +102,7 @@ TEST(BackupCrypto, ArchiveIsEncryptedNotPlainTar)
     EXPECT_EQ(blob->find("mode: dhcp"), std::string::npos);
 }
 
+/// @brief The restore preview classifies every affected path.
 TEST(BackupPreview, ShowsAddReplaceDelete)
 {
     Fixture f;
@@ -126,6 +130,7 @@ TEST(BackupPreview, ShowsAddReplaceDelete)
     EXPECT_TRUE(saw_unchanged);
 }
 
+/// @brief A hardware-mismatched archive is refused before anything is touched.
 TEST(BackupPreview, HardwareMismatchRefused)
 {
     Fixture f;
@@ -139,6 +144,7 @@ TEST(BackupPreview, HardwareMismatchRefused)
     EXPECT_EQ(p->compatibility, BackupEngine::Compatibility::HardwareMismatch);
 }
 
+/// @brief A different serial marks the restore config-only with re-enrollment.
 TEST(BackupPreview, ReplacementBoardDetected)
 {
     Fixture f;
@@ -152,6 +158,7 @@ TEST(BackupPreview, ReplacementBoardDetected)
     EXPECT_TRUE(p->replacement_board); // config restores, identity does not → re-enroll
 }
 
+/// @brief Restore is transactional: full commit or prior state intact.
 TEST(BackupRestore, TransactionalCommitCompletesFullyOrNotAtAll)
 {
     Fixture f;
@@ -170,6 +177,7 @@ TEST(BackupRestore, TransactionalCommitCompletesFullyOrNotAtAll)
     EXPECT_EQ(r2.error.code, Errc::Io);
 }
 
+/// @brief A tampered file fails hash verification before any commit.
 TEST(BackupRestore, TamperedFileFailsVerificationBeforeCommit)
 {
     Fixture f;
@@ -188,6 +196,7 @@ TEST(BackupRestore, TamperedFileFailsVerificationBeforeCommit)
     EXPECT_FALSE(r.ok());
 }
 
+/// @brief Runtime schedule state is settable independent of persisted config.
 TEST(BackupSchedule, RuntimeScheduleState)
 {
     // Schedule logic exercised via the core facade in the daemon tests; here
@@ -204,6 +213,7 @@ TEST(BackupSchedule, RuntimeScheduleState)
 // derived from device identity, which protects an archive sitting on the
 // device — it does nothing for one in transit or at rest at HQ, and anything
 // holding the device secret could read it. These pin the separate path.
+/// @brief An HQ-destined archive is sealed to HQ's key and opaque to the local key.
 TEST(BackupEncryption, ArchiveForHqIsSealedToHqKeyAndOpaqueLocally)
 {
     auto rng = [](uint8_t* out, size_t n) { (void)crypto::random_bytes(out, n); };
@@ -237,6 +247,7 @@ TEST(BackupEncryption, ArchiveForHqIsSealedToHqKeyAndOpaqueLocally)
     EXPECT_FALSE(wrong.ok());
 }
 
+/// @brief Every seal uses a fresh ephemeral X25519 keypair.
 TEST(BackupEncryption, EachSealUsesAFreshEphemeralKey)
 {
     auto rng = [](uint8_t* out, size_t n) { (void)crypto::random_bytes(out, n); };
@@ -253,6 +264,7 @@ TEST(BackupEncryption, EachSealUsesAFreshEphemeralKey)
     EXPECT_NE(*a, *b) << "identical ciphertext for identical input leaks equality";
 }
 
+/// @brief Without an HQ key the upload is refused, never sent in the clear.
 TEST(BackupEncryption, WithoutAnHqKeyUploadIsRefusedNotSentInTheClear)
 {
     SimulatedFileSystem fs;

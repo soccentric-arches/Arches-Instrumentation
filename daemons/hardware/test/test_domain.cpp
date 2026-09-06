@@ -76,6 +76,7 @@ static platform::DeviceDescriptor test_descriptor()
     return d;
 }
 
+/// @brief A GPIO toggle-read check passes against the simulated platform.
 TEST(HardwareChecks, GpioToggleReadPasses)
 {
     platform::SimulatedPlatform plat;
@@ -87,6 +88,7 @@ TEST(HardwareChecks, GpioToggleReadPasses)
     EXPECT_NE(r[0].detail.find("toggle+read ok"), std::string::npos);
 }
 
+/// @brief A stuck GPIO line fails its check.
 TEST(HardwareChecks, GpioStuckFails)
 {
     platform::SimulatedPlatform plat;
@@ -97,6 +99,7 @@ TEST(HardwareChecks, GpioStuckFails)
     EXPECT_EQ(r[0].state, CheckState::Fail);
 }
 
+/// @brief An injected CAN failure fails the loopback check.
 TEST(HardwareChecks, CanLoopbackFailsWhenInjected)
 {
     platform::SimulatedPlatform plat;
@@ -107,6 +110,7 @@ TEST(HardwareChecks, CanLoopbackFailsWhenInjected)
     EXPECT_EQ(r[0].state, CheckState::Fail);
 }
 
+/// @brief A missing display reports NotPresent, never Unknown.
 TEST(HardwareChecks, DisplayNotPresent)
 {
     platform::SimulatedPlatform plat;
@@ -125,6 +129,7 @@ TEST(HardwareChecks, DisplayNotPresent)
     EXPECT_TRUE(saw_fail);
 }
 
+/// @brief Controls are gated by the board descriptor — undeclared ops do not reach the platform.
 TEST(HardwareControls, DescriptorGatesControls)
 {
     platform::SimulatedPlatform plat;
@@ -143,6 +148,7 @@ TEST(HardwareControls, DescriptorGatesControls)
     EXPECT_TRUE(*v);
 }
 
+/// @brief LED blink operations are acknowledged by the platform seam.
 TEST(HardwareControls, LedBlinkAcknowledged)
 {
     platform::SimulatedPlatform plat;
@@ -156,6 +162,7 @@ TEST(HardwareControls, LedBlinkAcknowledged)
     EXPECT_TRUE(sim->led_state().at("status-led:blink-ack"));
 }
 
+/// @brief An unknown device is a loud error.
 TEST(HardwareControls, UnknownDeviceIsLoudError)
 {
     platform::SimulatedPlatform plat;
@@ -166,6 +173,7 @@ TEST(HardwareControls, UnknownDeviceIsLoudError)
     EXPECT_NE(e.message.find("nonexistent"), std::string::npos);
 }
 
+/// @brief Periodic checks run once per interval, not per tick.
 TEST(HardwareSchedule, DueChecksRunOncePerInterval)
 {
     platform::SimulatedPlatform plat;
@@ -187,6 +195,7 @@ TEST(HardwareSchedule, DueChecksRunOncePerInterval)
 // only, so a CAN device could be loopback-checked and nothing else — the
 // platform's can_send/can_recv were unreachable from any daemon.
 
+/// @brief can_send reaches the platform with the composed frame.
 TEST(HardwareCan, SendsAFrameToThePlatform)
 {
     platform::SimulatedPlatform plat;
@@ -202,6 +211,7 @@ TEST(HardwareCan, SendsAFrameToThePlatform)
     EXPECT_EQ(sent[0].data[3], 0xef);
 }
 
+/// @brief Decimal ids and 29-bit extended frames are accepted.
 TEST(HardwareCan, DecimalIdsAndExtendedFramesAreAccepted)
 {
     platform::SimulatedPlatform plat;
@@ -214,6 +224,7 @@ TEST(HardwareCan, DecimalIdsAndExtendedFramesAreAccepted)
     EXPECT_TRUE(sent[0].extended);
 }
 
+/// @brief A malformed CAN payload is rejected with a diagnosable error.
 TEST(HardwareCan, MalformedPayloadIsRejectedDiagnosably)
 {
     platform::SimulatedPlatform plat;
@@ -228,6 +239,7 @@ TEST(HardwareCan, MalformedPayloadIsRejectedDiagnosably)
     EXPECT_TRUE(plat.can_sent("can0").empty()) << "nothing rejected may reach the bus";
 }
 
+/// @brief can_receive drains the frames buffered since the previous call.
 TEST(HardwareCan, ReceivesBufferedFrames)
 {
     platform::SimulatedPlatform plat;
@@ -243,6 +255,7 @@ TEST(HardwareCan, ReceivesBufferedFrames)
     EXPECT_EQ((*r)[0].id, 0x7ffu);
 }
 
+/// @brief An undeclared control op is refused before the platform is touched.
 TEST(HardwareCan, UndeclaredControlIsRefused)
 {
     // Board knowledge is data: a control the descriptor does not declare is
@@ -257,6 +270,7 @@ TEST(HardwareCan, UndeclaredControlIsRefused)
     EXPECT_FALSE(mgr.can_receive("can0", 1).ok());
 }
 
+/// @brief Receiving on a non-CAN device is refused.
 TEST(HardwareCan, ReceiveOnANonCanDeviceIsRefused)
 {
     platform::SimulatedPlatform plat;

@@ -35,6 +35,7 @@ using namespace instr;
 using namespace instr::networkd;
 using namespace instr::networkd::domain;
 
+/// @brief A plan renders every section (interfaces, firewall, routes, dns, wireless, wg, time).
 TEST(NetworkdPlan, RendersCompletePlan)
 {
     NetworkPlan p;
@@ -62,6 +63,7 @@ TEST(NetworkdPlan, RendersCompletePlan)
     EXPECT_TRUE(j.find("wireguard")->find("up")->as_bool());
 }
 
+/// @brief The tunnel guard keeps a change when HQ stays reachable.
 TEST(NetworkdTunnelGuard, KeepsChangeWhenHqReachable)
 {
     NetworkPlan prev, next;
@@ -71,6 +73,7 @@ TEST(NetworkdTunnelGuard, KeepsChangeWhenHqReachable)
     EXPECT_FALSE(res.reverted);
 }
 
+/// @brief The guard reverts when HQ is unreachable past the timeout (§7.2).
 TEST(NetworkdTunnelGuard, RevertsWhenHqUnreachablePastTimeout)
 {
     // Mandatory behaviour (§7.2): firewall change that kills the tunnel
@@ -95,6 +98,7 @@ TEST(NetworkdTunnelGuard, RevertsWhenHqUnreachablePastTimeout)
     EXPECT_NE(res.detail.find("auto-reverted"), std::string::npos);
 }
 
+/// @brief SSH windows expire automatically at their TTL.
 TEST(NetworkdRemoteAccess, OpenExpiresAutomatically)
 {
     RemoteAccessManager mgr;
@@ -107,6 +111,7 @@ TEST(NetworkdRemoteAccess, OpenExpiresAutomatically)
     EXPECT_FALSE(mgr.any_active(1'700'000'062));
 }
 
+/// @brief Windows require attribution and are clamped to the TTL cap.
 TEST(NetworkdRemoteAccess, RequiresAttributionAndBoundsTtl)
 {
     RemoteAccessManager mgr;
@@ -115,6 +120,7 @@ TEST(NetworkdRemoteAccess, RequiresAttributionAndBoundsTtl)
     EXPECT_FALSE(mgr.open("bob", 25 * 3600ull, 0).ok()); // ttl ≤ 24h
 }
 
+/// @brief The time policy renders chrony/ptp4l/phc2sys configuration.
 TEST(NetworkdTimeDaemons, RendersChronyAndPtp)
 {
     TimePolicy p;
@@ -128,6 +134,7 @@ TEST(NetworkdTimeDaemons, RendersChronyAndPtp)
     EXPECT_NE(c.ptp4l_args.find("--profile=g8275-1"), std::string::npos);
 }
 
+/// @brief Failover ranking prefers reachable interfaces by priority.
 TEST(NetworkdFailover, RanksReachablePreferredInterfacesFirst)
 {
     IfaceConfig a, b;
@@ -142,6 +149,7 @@ TEST(NetworkdFailover, RanksReachablePreferredInterfacesFirst)
     EXPECT_EQ(ranked[0], "wwan0"); // reachable beats lower-priority-but-down
 }
 
+/// @brief A guarded apply through the platform records the revert event.
 TEST(NetworkdCore, GuardedApplyThroughPlatformRecordsRevert)
 {
     platform::SimulatedPlatform plat;

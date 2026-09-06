@@ -91,6 +91,7 @@ struct Fixture
     }
 };
 
+/// @brief Dotted-numeric version comparison orders releases correctly.
 TEST(OtaVersions, CompareDotted)
 {
     EXPECT_EQ(*compare_versions("1.2.10", "1.2.9"), 1);
@@ -99,6 +100,7 @@ TEST(OtaVersions, CompareDotted)
     EXPECT_EQ(*compare_versions("1.0.0", "1.0"), 0); // padded
 }
 
+/// @brief The full pipeline: receive → verify → stage → apply → confirm.
 TEST(OtaPipeline, ReceiveVerifyStageApplyConfirm)
 {
     Fixture f;
@@ -126,6 +128,7 @@ TEST(OtaPipeline, ReceiveVerifyStageApplyConfirm)
     EXPECT_EQ(f.eng->history()[0].result, "confirmed");
 }
 
+/// @brief A corrupted artifact fails the integrity check before staging.
 TEST(OtaPipeline, CorruptArtifactFailsIntegrity)
 {
     Fixture f;
@@ -137,6 +140,7 @@ TEST(OtaPipeline, CorruptArtifactFailsIntegrity)
     EXPECT_NE(e.message.find("integrity"), std::string::npos);
 }
 
+/// @brief A bad signature is refused before staging (§7.9).
 TEST(OtaPipeline, BadSignatureRefusedBeforeStaging)
 {
     Fixture f;
@@ -149,6 +153,7 @@ TEST(OtaPipeline, BadSignatureRefusedBeforeStaging)
     EXPECT_EQ(f.eng->state().state, "download"); // never staged
 }
 
+/// @brief Anti-rollback refuses a downgrade below the floor.
 TEST(OtaPipeline, AntiRollbackRefusesDowngrade)
 {
     Fixture f;
@@ -161,6 +166,7 @@ TEST(OtaPipeline, AntiRollbackRefusesDowngrade)
     EXPECT_NE(e.message.find("downgrade"), std::string::npos);
 }
 
+/// @brief An unconfirmed update rolls back automatically past the deadline (§11).
 TEST(OtaPipeline, UnconfirmedUpdateAutoRollsBack)
 {
     Fixture f;
@@ -179,6 +185,7 @@ TEST(OtaPipeline, UnconfirmedUpdateAutoRollsBack)
     EXPECT_EQ(f.eng->history()[0].result, "rolled_back");
 }
 
+/// @brief Resume rejects a chunk whose offset does not match the persisted one.
 TEST(OtaPipeline, ResumeRejectsMismatchedOffset)
 {
     Fixture f;
@@ -187,6 +194,7 @@ TEST(OtaPipeline, ResumeRejectsMismatchedOffset)
     EXPECT_NE(r.error.message.find("resume mismatch"), std::string::npos);
 }
 
+/// @brief Staging outside a maintenance window is gated by config.
 TEST(OtaMaintenance, WindowGatesStaging)
 {
     Fixture f;
@@ -203,6 +211,7 @@ TEST(OtaMaintenance, WindowGatesStaging)
     EXPECT_TRUE(f.eng->in_maintenance_window(1'700'016'600)); // 02:50 UTC
 }
 
+/// @brief The bandwidth limiter grants bytes per second, not more.
 TEST(OtaBandwidth, LimiterGrantsBytesPerSecond)
 {
     Fixture f;
@@ -215,6 +224,7 @@ TEST(OtaBandwidth, LimiterGrantsBytesPerSecond)
     EXPECT_EQ(g3, 1000u);
 }
 
+/// @brief The canary report carries the state HQ staged rollouts need.
 TEST(OtaCanary, ReportsStateForStagedRollouts)
 {
     Fixture f;
@@ -227,6 +237,7 @@ TEST(OtaCanary, ReportsStateForStagedRollouts)
 // §7.9: SWUpdate is the install engine. A failing install must not leave a
 // staged update behind for apply() to promote — it fails loudly and is
 // recorded in history so HQ can see it.
+/// @brief An install failure is recorded and nothing is staged.
 TEST(OtaPipeline, InstallFailureIsRecordedAndNothingIsStaged)
 {
     Fixture f;
@@ -246,6 +257,7 @@ TEST(OtaPipeline, InstallFailureIsRecordedAndNothingIsStaged)
 
 // The install engine is pointed at a configured binary, so an image can ship
 // SWUpdate somewhere other than /usr/bin without a code change (§7.9).
+/// @brief The install binary is configurable so CI never shells out to SWUpdate.
 TEST(OtaPipeline, SwupdateBinaryIsConfigurable)
 {
     Fixture f;
@@ -256,6 +268,7 @@ TEST(OtaPipeline, SwupdateBinaryIsConfigurable)
 
 // §7.9: "Signature verification before staging". The check must run for
 // every artifact — an unverifiable one is refused, not waved through.
+/// @brief An unsigned artifact is refused on a device with no legacy path.
 TEST(OtaSigning, UnsignedArtifactIsRefusedOnAnUnenrolledDevice)
 {
     SimulatedFileSystem fs;
@@ -275,6 +288,7 @@ TEST(OtaSigning, UnsignedArtifactIsRefusedOnAnUnenrolledDevice)
     EXPECT_EQ(e.code, Errc::SignatureInvalid);
 }
 
+/// @brief An Ed25519-signed artifact verifies; tampering is caught.
 TEST(OtaSigning, Ed25519SignedArtifactVerifiesAndTamperingIsCaught)
 {
     // Generate a release keypair; the device gets the public half only.

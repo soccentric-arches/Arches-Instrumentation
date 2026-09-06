@@ -52,6 +52,7 @@ struct PstFixture
     }
 };
 
+/// @brief A virgin /pst is detected and seeded from image defaults.
 TEST(PstStore, MountDetectsVirginAndSeeds)
 {
     PstFixture f;
@@ -66,6 +67,7 @@ TEST(PstStore, MountDetectsVirginAndSeeds)
     EXPECT_EQ((*doc).get_int("interval"), 5);
 }
 
+/// @brief A corrupt file falls back to its redundant copy at mount (§11).
 TEST(PstStore, CorruptFileFallsBackToRedundantCopy)
 {
     PstFixture f;
@@ -81,6 +83,7 @@ TEST(PstStore, CorruptFileFallsBackToRedundantCopy)
     EXPECT_EQ((*doc).get_int("interval"), 10); // recovered from .bak
 }
 
+/// @brief Schema version drives migration of defaults across updates.
 TEST(PstStore, SchemaVersionAndMigration)
 {
     PstFixture f;
@@ -105,6 +108,7 @@ TEST(PstStore, SchemaVersionAndMigration)
     EXPECT_EQ((*doc).get_int("interval"), 42);
 }
 
+/// @brief System reset wipes system/state and keeps factory/backup (§6.1).
 TEST(PstStore, SystemResetWipesSystemAndStateKeepsFactoryBackup)
 {
     PstFixture f;
@@ -127,6 +131,7 @@ TEST(PstStore, SystemResetWipesSystemAndStateKeepsFactoryBackup)
     EXPECT_EQ((*doc).get_int("interval"), 5); // reseeded from image defaults
 }
 
+/// @brief Factory reset wipes everything.
 TEST(PstStore, FactoryResetWipesEverything)
 {
     PstFixture f;
@@ -139,6 +144,7 @@ TEST(PstStore, FactoryResetWipesEverything)
     EXPECT_FALSE(f.fs.exists("/pst/system/istate"));
 }
 
+/// @brief Budgets are enforced with the alarm line before the hard limit.
 TEST(BudgetManager, EnforcesWithAlarmBeforeLimit)
 {
     PstFixture f;
@@ -183,6 +189,7 @@ struct BootFixture
 };
 } // namespace
 
+/// @brief First boot after an update migrates and stamps the new schema version.
 TEST(PstStore, BootAfterUpdateMigratesAndStampsTheSchemaVersion)
 {
     BootFixture f;
@@ -215,6 +222,7 @@ TEST(PstStore, BootAfterUpdateMigratesAndStampsTheSchemaVersion)
     EXPECT_EQ(core.pst().schema_version(), std::string(kConfigSchemaVersion));
 }
 
+/// @brief Booting at the current schema version never re-migrates.
 TEST(PstStore, BootAtTheCurrentSchemaVersionDoesNotRemigrate)
 {
     BootFixture f;

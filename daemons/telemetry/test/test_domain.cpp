@@ -34,6 +34,7 @@ using namespace instr;
 using namespace instr::telemetry;
 using namespace instr::telemetry::domain;
 
+/// @brief Registration accepts new metrics and rejects duplicates loudly (§7.8).
 TEST(TelemetryRegistry, RegistersAndRejectsDuplicates)
 {
     MetricRegistry r;
@@ -44,6 +45,7 @@ TEST(TelemetryRegistry, RegistersAndRejectsDuplicates)
     EXPECT_EQ(r.register_metric("x", "", "histogram", "app"), MetricRegistry::Reg::Invalid);
 }
 
+/// @brief Aggregation computes min/max/mean/count/last per window.
 TEST(TelemetryAggregator, FunctionsMinMaxMeanCountLast)
 {
     Aggregator agg;
@@ -61,6 +63,7 @@ TEST(TelemetryAggregator, FunctionsMinMaxMeanCountLast)
     EXPECT_NEAR(vals["last"], 50, 1e-9);
 }
 
+/// @brief Batches shape at the record bound.
 TEST(TelemetryBatchShaper, ShapesBatchesAtRecordLimit)
 {
     BatchShaper shaper(5, 30.0);
@@ -76,6 +79,7 @@ TEST(TelemetryBatchShaper, ShapesBatchesAtRecordLimit)
     EXPECT_EQ(shaper.pending_samples(), 0u);
 }
 
+/// @brief Batches flush when the interval elapses.
 TEST(TelemetryBatchShaper, FlushOnInterval)
 {
     BatchShaper shaper(1000, 30.0);
@@ -86,6 +90,7 @@ TEST(TelemetryBatchShaper, FlushOnInterval)
     EXPECT_FALSE(shaper.flush(t + uint64_t(32 * 1e9)).has_value());
 }
 
+/// @brief Unsent retention drops oldest telemetry first; protected batches stay.
 TEST(TelemetryRetention, DropsOldestTelemetryFirst)
 {
     RetentionBuffer buf(3);
@@ -103,6 +108,7 @@ TEST(TelemetryRetention, DropsOldestTelemetryFirst)
     EXPECT_EQ(buf.size(), 4u); // 4 protected retained, telemetry shed
 }
 
+/// @brief The health score penalises monotonically with factors exposed.
 TEST(TelemetryHealthScore, MonotonicPenaltiesWithFactors)
 {
     HealthInputs base;
@@ -122,6 +128,7 @@ TEST(TelemetryHealthScore, MonotonicPenaltiesWithFactors)
     EXPECT_DOUBLE_EQ(compute_health_score(bad).score, worse.score); // deterministic
 }
 
+/// @brief The health score floors at zero.
 TEST(TelemetryHealthScore, FloorAtZero)
 {
     HealthInputs extreme;
@@ -129,6 +136,7 @@ TEST(TelemetryHealthScore, FloorAtZero)
     EXPECT_DOUBLE_EQ(compute_health_score(extreme).score, 0.0);
 }
 
+/// @brief Reproducibility metadata rides on every batch (§9).
 TEST(TelemetryRepro, MetadataOnEveryRecord)
 {
     BatchShaper shaper(2, 30.0);

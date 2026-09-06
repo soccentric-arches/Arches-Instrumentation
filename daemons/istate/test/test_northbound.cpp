@@ -36,6 +36,7 @@
 using namespace instr;
 using namespace instr::istate;
 
+/// @brief Timeline events are ordered with strictly increasing sequence numbers.
 TEST(EventTimeline, OrderedStreamWithSeq)
 {
     ManualTimeSource ts;
@@ -52,6 +53,7 @@ TEST(EventTimeline, OrderedStreamWithSeq)
     EXPECT_EQ(later[0].kind, "alarm");
 }
 
+/// @brief The timeline is bounded; oldest events drop first.
 TEST(EventTimeline, BoundedRingDropsOldest)
 {
     ManualTimeSource ts;
@@ -62,6 +64,7 @@ TEST(EventTimeline, BoundedRingDropsOldest)
     EXPECT_EQ(evs[0].detail_json, "7"); // oldest dropped
 }
 
+/// @brief Multiple subscribers each get a bounded pending queue.
 TEST(TailFanout, MultipleSubscribersBoundedPerSubscriber)
 {
     TailFanout fan;
@@ -76,6 +79,7 @@ TEST(TailFanout, MultipleSubscribersBoundedPerSubscriber)
     EXPECT_EQ(a.size(), 400u);
 }
 
+/// @brief Drain pauses when the send callback reports backpressure.
 TEST(NorthboundSpool, DrainHonoursBackpressure)
 {
     SimulatedFileSystem fs;
@@ -100,6 +104,7 @@ TEST(NorthboundSpool, DrainHonoursBackpressure)
     EXPECT_EQ(spool.size(), 0u);
 }
 
+/// @brief Drop accounting is reported per priority class — drops are never silent.
 TEST(NorthboundSpool, DropAccountingReported)
 {
     SimulatedFileSystem fs;
@@ -115,6 +120,7 @@ TEST(NorthboundSpool, DropAccountingReported)
     EXPECT_EQ(spool.stats().refused_protected, 0u); // alarms never dropped
 }
 
+/// @brief The HQ session state machine transitions and backoff behave as documented.
 TEST(HqSession, BackoffAndStateTransitions)
 {
     HqSession s(1.0, 60.0);

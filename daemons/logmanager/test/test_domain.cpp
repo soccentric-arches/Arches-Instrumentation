@@ -72,6 +72,7 @@ static LogLine line(uint64_t mono, const std::string& lvl, const std::string& ms
     return l;
 }
 
+/// @brief Appends rotate the active file when the size limit is exceeded.
 TEST(LogStore, AppendsAndRotatesBySize)
 {
     Fixture f;
@@ -81,6 +82,7 @@ TEST(LogStore, AppendsAndRotatesBySize)
     EXPECT_GE(files.size(), 2u);
 }
 
+/// @brief Retention keeps only the configured number of rotated files.
 TEST(LogStore, RetentionKeepsOnlyConfiguredRotations)
 {
     Fixture f;
@@ -98,6 +100,7 @@ TEST(LogStore, RetentionKeepsOnlyConfiguredRotations)
     EXPECT_EQ(st.files_removed, 0u);
 }
 
+/// @brief Runtime level control filters what gets collected (§7.7).
 TEST(LogStore, RuntimeLevelControlFiltersCollection)
 {
     Fixture f;
@@ -112,6 +115,7 @@ TEST(LogStore, RuntimeLevelControlFiltersCollection)
     EXPECT_EQ((*tail)[0].message, "visible");
 }
 
+/// @brief Tail sessions filter by source, level and time.
 TEST(LogTail, FiltersBySourceLevelSince)
 {
     TailSession s(
@@ -129,6 +133,7 @@ TEST(LogTail, FiltersBySourceLevelSince)
     EXPECT_EQ(s.emitted(), 1u);
 }
 
+/// @brief Tail sessions rate-limit and auto-stop at the timeout.
 TEST(LogTail, RateLimitsAndAutoStops)
 {
     TailFilter f;
@@ -144,6 +149,7 @@ TEST(LogTail, RateLimitsAndAutoStops)
     EXPECT_FALSE(s.accept(line(1, "INFO", "after"), 11ull * 1'000'000'000ull));
 }
 
+/// @brief Bundles tar a window with checksum metadata; fetch verifies integrity.
 TEST(LogBundles, CreateMetaFetchIntegrity)
 {
     Fixture f;
@@ -165,6 +171,7 @@ TEST(LogBundles, CreateMetaFetchIntegrity)
     EXPECT_EQ(meta->sha256, crypto::sha256(*payload).hex());
 }
 
+/// @brief An unknown bundle handle is a loud error, never an arbitrary-file read.
 TEST(LogBundles, UnknownHandleIsLoud)
 {
     Fixture f;
@@ -173,6 +180,7 @@ TEST(LogBundles, UnknownHandleIsLoud)
     EXPECT_EQ(m.error.code, Errc::NotFound);
 }
 
+/// @brief Crash forensics captures a bounded coredump plus the daemon's last lines.
 TEST(LogForensics, CapturesBoundedCoredumpAndTail)
 {
     Fixture f;
@@ -191,6 +199,7 @@ TEST(LogForensics, CapturesBoundedCoredumpAndTail)
 // §7.7: "rotation by size and age, retention per source". Retention by count
 // was implemented; retention by age was a comment saying the simulated
 // filesystem had no mtime. It has one now, so the policy is real.
+/// @brief Age-based retention removes files past max_age (§7.7).
 TEST(LogStore, RetainsByAgeNotOnlyByCount)
 {
     SimulatedFileSystem fs;
@@ -237,6 +246,7 @@ TEST(LogStore, RetainsByAgeNotOnlyByCount)
     }
 }
 
+/// @brief max_age=0 disables age retention (count-only).
 TEST(LogStore, AgeRetentionIsDisabledWhenMaxAgeIsZero)
 {
     SimulatedFileSystem fs;
@@ -319,6 +329,7 @@ struct CollectFixture
     }
 };
 
+/// @brief Application log sinks are collected into the store (§7.7).
 TEST(LogCollect, ApplicationSinkIsCollectedIntoTheStore)
 {
     CollectFixture f;
@@ -334,6 +345,7 @@ TEST(LogCollect, ApplicationSinkIsCollectedIntoTheStore)
     EXPECT_NE((*tail)[1].message.find("second"), std::string::npos);
 }
 
+/// @brief Dedup: already-collected lines are not collected twice.
 TEST(LogCollect, AlreadyCollectedLinesAreNotCollectedTwice)
 {
     CollectFixture f;
@@ -348,6 +360,7 @@ TEST(LogCollect, AlreadyCollectedLinesAreNotCollectedTwice)
     EXPECT_EQ(c.lines_collected(), 2u);
 }
 
+/// @brief A partial trailing line is left for the next pass (no torn lines).
 TEST(LogCollect, PartialTrailingLineIsLeftForTheNextPass)
 {
     // A write still in flight must not be collected half-formed.
@@ -365,6 +378,7 @@ TEST(LogCollect, PartialTrailingLineIsLeftForTheNextPass)
     EXPECT_NE((*tail)[1].message.find("half-written"), std::string::npos) << "the partial line must arrive whole, not split across two records";
 }
 
+/// @brief A truncated sink restarts collection from the beginning.
 TEST(LogCollect, SinkTruncationRestartsFromTheBeginning)
 {
     // An application rotating its own log shrinks the file. Holding the old
@@ -379,6 +393,7 @@ TEST(LogCollect, SinkTruncationRestartsFromTheBeginning)
     EXPECT_EQ(c.poll(), 1u);
 }
 
+/// @brief Lines below the source's runtime level are not collected.
 TEST(LogCollect, BelowLevelLinesAreNotCollected)
 {
     CollectFixture f;
@@ -392,6 +407,7 @@ TEST(LogCollect, BelowLevelLinesAreNotCollected)
     EXPECT_NE((*tail)[0].message.find("real"), std::string::npos);
 }
 
+/// @brief Journal sources are collected with dedup by last line.
 TEST(LogCollect, JournalIsCollectedAndDeduplicated)
 {
     CollectFixture f;
@@ -405,6 +421,7 @@ TEST(LogCollect, JournalIsCollectedAndDeduplicated)
     EXPECT_EQ(c.poll(), 1u) << "only the line past the cursor";
 }
 
+/// @brief A journal gap collects the whole window rather than dropping it.
 TEST(LogCollect, JournalGapCollectsTheWholeWindowRatherThanDroppingIt)
 {
     // The journal has no cursor API. If the window has moved past the last
@@ -420,6 +437,7 @@ TEST(LogCollect, JournalGapCollectsTheWholeWindowRatherThanDroppingIt)
     EXPECT_EQ(c.poll(), 3u);
 }
 
+/// @brief Collection stops while the daemon is disabled by config.
 TEST(LogCollect, CollectionStopsWhileDisabled)
 {
     CollectFixture f;
@@ -432,6 +450,7 @@ TEST(LogCollect, CollectionStopsWhileDisabled)
     EXPECT_EQ(c.poll(), 0u);
 }
 
+/// @brief A missing sink file is tolerated (no crash, no error spam).
 TEST(LogCollect, MissingSinkFileIsNotAnError)
 {
     // An application that has not started yet is normal, not a fault.
@@ -441,6 +460,7 @@ TEST(LogCollect, MissingSinkFileIsNotAnError)
     EXPECT_EQ(c.poll(), 0u);
 }
 
+/// @brief Collected lines reach the live tail fanout.
 TEST(LogCollect, CollectedLinesReachTheLiveTailFanout)
 {
     // §7.7: tail server-streams to istate. A tail that only ever sees injected
