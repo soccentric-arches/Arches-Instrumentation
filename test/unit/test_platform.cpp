@@ -27,6 +27,9 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdlib>
+#include <fstream>
+
 #include "instr/common/config.h"
 #include "instr/common/json.h"
 #include "instr/platform/descriptors.h"
@@ -375,4 +378,72 @@ TEST(FirewallScoping, EmptyNatPlanRendersNothing)
     auto plan = json_parse(R"([])");
     ASSERT_TRUE(plan.ok());
     EXPECT_TRUE(platform::render_nat_ruleset(*plan).empty());
+}
+
+// ---------------------------------------------------------------------------
+// Boot-partition location (Task.md D-05).
+//
+// The A/B flag-file fallback (used on boards with no U-Boot environment) wrote
+// to /mnt/boot, which exists on no Arches image -- all three wic layouts mount
+// the boot partition at /boot. instr-ota.service named the same wrong path in
+// ReadWritePaths under ProtectSystem=strict, which makes systemd refuse to
+// start the unit at all.
+// ---------------------------------------------------------------------------
+
+/// @brief The boot directory defaults to the mount point Arches-OS actually uses.
+TEST(BootDir, DefaultsToTheImageMountPoint)
+{
+    ::unsetenv("INSTR_BOOT_DIR");
+    EXPECT_EQ(platform::boot_dir(), "/boot");
+}
+
+/// @brief A board with a differently-placed boot partition can redirect it.
+TEST(BootDir, HonoursTheEnvironmentOverride)
+{
+    ::setenv("INSTR_BOOT_DIR", "/mnt/somewhere-else", 1);
+    EXPECT_EQ(platform::boot_dir(), "/mnt/somewhere-else");
+    ::unsetenv("INSTR_BOOT_DIR");
+    EXPECT_EQ(platform::boot_dir(), "/boot");
+}
+
+/// @brief A trailing slash never doubles up in the composed flag-file path.
+TEST(BootDir, StripsTrailingSlashes)
+{
+    ::setenv("INSTR_BOOT_DIR", "/boot///", 1);
+    EXPECT_EQ(platform::boot_dir(), "/boot");
+    ::unsetenv("INSTR_BOOT_DIR");
+}
+
+/// @brief An empty override falls back to the default rather than yielding "".
+TEST(BootDir, EmptyOverrideFallsBackToDefault)
+{
+    ::setenv("INSTR_BOOT_DIR", "", 1);
+    EXPECT_EQ(platform::boot_dir(), "/boot");
+    ::unsetenv("INSTR_BOOT_DIR");
+}
+
+/// @brief The slot flag files are read from under the configured boot directory.
+///
+/// Points the platform at a fixture sysroot containing a boot directory and
+/// asserts the slot state is actually picked up -- this is the read path that
+/// silently returned nothing when it was looking under /mnt/boot.
+TEST(BootDir, SlotStateIsReadFromTheConfiguredBootDirectory)
+{
+    const std::string root = std::string(::getenv("TMPDIR") ? ::getenv("TMPDIR") : "/tmp") + "/instr-bootdir-test";
+    ::system(("rm -rf " + root + " && mkdir -p " + root + "/boot").c_str());
+    auto put = [&](const char* n, const char* v) {
+        std::ofstream f(root + "/boot/" + n);
+        f << v << "\n";
+    };
+    put("current-slot", "A");
+    put("pending-slot", "B");
+    put("golden-slot", "A");
+
+    ::unsetenv("INSTR_BOOT_DIR"); // default /boot, resolved under the sysroot
+    platform::NativePlatform plat(root);
+    auto slots = plat.boot_slots();
+    ASSERT_TRUE(slots.ok()) << slots.error.message;
+    EXPECT_EQ(slots->active, "A");
+    EXPECT_EQ(slots->pending, "B");
+    ::system(("rm -rf " + root).c_str());
 }

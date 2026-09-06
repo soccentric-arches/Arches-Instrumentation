@@ -104,6 +104,19 @@ std::vector<std::string> NativePlatform::list_dir(const std::string& path)
 }
 
 /// @brief True when INSTR_APPLY_NETWORK=1 (mutations allowed).
+/// @brief Mount point of the boot partition (INSTR_BOOT_DIR, default /boot).
+std::string boot_dir()
+{
+    const char* v = ::getenv("INSTR_BOOT_DIR");
+    if (v && *v)
+    {
+        std::string d(v);
+        while (d.size() > 1 && d.back() == '/') d.pop_back();
+        return d;
+    }
+    return "/boot";
+}
+
 bool NativePlatform::apply_enabled() const
 {
     const char* v = ::getenv("INSTR_APPLY_NETWORK");
@@ -484,7 +497,8 @@ std::vector<IfaceInfo> NativePlatform::interfaces()
 // ---- boot slots (§5, §7.9) ------------------------------------------------
 // The bootloader environment is the source of truth, not a file we invent.
 // U-Boot exposes it through fw_printenv/fw_setenv; where those are absent we
-// fall back to the flag files under /mnt/boot so a board without a U-Boot
+// fall back to the flag files under the boot partition (boot_dir(),
+// default /boot) so a board without a U-Boot
 // environment (an EFI x86 target, say) still reports a coherent state.
 //
 // Variables (the names the boot script reads):
@@ -570,15 +584,15 @@ Result<BootSlotState> NativePlatform::boot_slots()
     }
 
     // Fallback: flag files written by the boot script.
-    auto cur = read_file("/mnt/boot/current-slot");
+    auto cur = read_file(boot_dir() + "/current-slot");
     if (!cur.ok()) return Result<BootSlotState>::fail(Errc::NotFound, "no slot state", "boot");
     s.active = trim(*cur);
     s.inactive = s.active == "A" ? "B" : "A";
-    auto pend = read_file("/mnt/boot/pending-slot");
+    auto pend = read_file(boot_dir() + "/pending-slot");
     if (pend.ok()) s.pending = trim(*pend);
-    auto golden = read_file("/mnt/boot/golden-slot");
+    auto golden = read_file(boot_dir() + "/golden-slot");
     s.golden = golden.ok() ? trim(*golden) : s.active;
-    auto att = read_file("/mnt/boot/boot-attempts");
+    auto att = read_file(boot_dir() + "/boot-attempts");
     if (att.ok())
     {
         try
@@ -619,11 +633,11 @@ Error NativePlatform::set_boot_slot(const std::string& slot, bool trial)
         return Error::none();
     }
 
-    Error e = write_boot_file("/mnt/boot/pending-slot", slot);
+    Error e = write_boot_file(boot_dir() + "/pending-slot", slot);
     if (!e.ok()) return e;
-    e = write_boot_file("/mnt/boot/boot-trial", trial ? "1" : "0");
+    e = write_boot_file(boot_dir() + "/boot-trial", trial ? "1" : "0");
     if (!e.ok()) return e;
-    if (!trial) e = write_boot_file("/mnt/boot/current-slot", slot);
+    if (!trial) e = write_boot_file(boot_dir() + "/current-slot", slot);
     return e;
 }
 
@@ -648,12 +662,12 @@ Error NativePlatform::confirm_boot_slot()
         return fw_setenv("boot_golden", running);
     }
 
-    Error e = write_boot_file("/mnt/boot/current-slot", running);
+    Error e = write_boot_file(boot_dir() + "/current-slot", running);
     if (!e.ok()) return e;
-    e = write_boot_file("/mnt/boot/golden-slot", running);
+    e = write_boot_file(boot_dir() + "/golden-slot", running);
     if (!e.ok()) return e;
-    (void)write_boot_file("/mnt/boot/boot-trial", "0");
-    ::unlink((sysroot_ + "/mnt/boot/pending-slot").c_str());
+    (void)write_boot_file(boot_dir() + "/boot-trial", "0");
+    ::unlink((sysroot_ + boot_dir() + "/pending-slot").c_str());
     return Error::none();
 }
 

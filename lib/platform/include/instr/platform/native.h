@@ -45,6 +45,22 @@ namespace instr
 namespace platform
 {
 
+/// @brief Mount point of the boot partition, where the A/B slot flag files live.
+///
+/// Arches-OS mounts the boot partition at `/boot` on all three wic layouts
+/// (`meta/meta-arches/wic/*.wks`, `part /boot`). This used to be hardcoded to
+/// `/mnt/boot`, which exists on no Arches image -- so on a board without a
+/// U-Boot environment the flag-file fallback wrote slot state into a
+/// non-existent directory and every write failed. instr-ota.service also named
+/// `/mnt/boot` in ReadWritePaths under ProtectSystem=strict, which makes
+/// systemd refuse to start the unit outright. See Task.md D-05.
+///
+/// Overridable via INSTR_BOOT_DIR so a board whose boot partition lands
+/// elsewhere, and the test suite, can point it somewhere else without a rebuild.
+///
+/// @return The boot mount point, without a trailing slash.
+std::string boot_dir();
+
 /// @brief Name of the nftables table Instrumentation owns, and the only one it
 ///        is ever permitted to create or destroy.
 ///
