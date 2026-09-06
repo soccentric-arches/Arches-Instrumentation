@@ -35,6 +35,8 @@
 #include "instr/istate/table.h"
 #include "instr/ctrl/ctrl.h"
 
+/// @brief _ctrl tool entry: builds the daemon's command table and runs the shared ctrl main
+/// (argument parsing, --help, --json, --socket, shell completion, dispatch).
 int main(int argc, char** argv)
 {
     auto table = instr::istate::build_istate_table(nullptr);
