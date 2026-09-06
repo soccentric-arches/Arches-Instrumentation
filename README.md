@@ -40,26 +40,27 @@ instrumentation/
 
 ## Build
 
-Requirements: C++17 toolchain, CMake ≥ 3.16, protobuf + gRPC, yaml-cpp,
-GoogleTest. One version for the whole suite from `VERSION`.
+Requirements for the default workflow: nothing but Docker. The default
+build is aarch64 — the Jetson fleet — inside the arm64 container in
+`docker/` (Ubuntu 22.04 arm64, the JetPack 6 userland generation, so the
+binaries match the device glibc; on an x86_64 host the container runs
+under qemu via binfmt, installed automatically). There is no native x86
+build target.
+
+```bash
+make               # aarch64 build for the fleet -> build-aarch64/
+make test          # the test suite, inside the arm64 container
+make check-format  # clang-format gate, inside the arm64 container
+make tidy          # clang-tidy, inside the arm64 container (slow under qemu)
+make shell         # interactive shell in the arm64 container
+```
+
+Manual CMake builds still work where a native toolchain exists:
 
 ```bash
 cmake --preset host-debug
 cmake --build --preset host-debug -j
 ctest --preset host-debug --output-on-failure
-```
-
-Or drive it with the top-level `Makefile` — host builds use the Ninja
-preset (fast incremental), and the Jetson/aarch64 targets build inside the
-arm64 container in `docker/` (Ubuntu 22.04 arm64, the JetPack 6 userland
-generation, so the binaries match the device glibc; on an x86_64 host the
-container runs under qemu via binfmt, installed automatically):
-
-```bash
-make build         # host Debug, Ninja (preset ninja-host-debug)
-make test          # build + ctest
-make aarch64       # aarch64 binaries for the fleet -> build-aarch64/
-make aarch64-test  # the test suite, inside the arm64 container
 ```
 
 Presets: `host-debug`, `host-release`, `ninja-host-debug`,
@@ -70,8 +71,9 @@ Presets: `host-debug`, `host-release`, `ninja-host-debug`,
 Formatting is enforced in CI (`.clang-format`, Google-based, 100 columns):
 
 ```bash
-cmake --build --preset host-debug --target check-format  # verify (CI gate)
-cmake --build --preset host-debug --target format        # rewrite in place
+make check-format                                        # verify (CI gate)
+make format                                              # rewrite in place
+cmake --build --preset host-debug --target check-format  # manual equivalent
 ```
 
 ## Deploy

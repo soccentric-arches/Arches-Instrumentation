@@ -27,13 +27,16 @@ RUN := docker run --rm --platform $(PLATFORM) \
        -v $(ROOT):/src -w /src $(FULL_IMAGE)
 
 .DEFAULT_GOAL := help
-.PHONY: help image binfmt build test shell verify clean
+.PHONY: help image binfmt build test check-format format tidy verify shell clean
 
 help:
 	@echo 'arm64 build container — targets:'
 	@echo '  make image   build the arm64 image ($(FULL_IMAGE))'
 	@echo '  make build   cmake+Ninja build of the whole project -> /src/$(BUILD_DIR)'
 	@echo '  make test    ctest inside the container (needs build first)'
+	@echo '  make check-format  clang-format gate inside the container'
+	@echo '  make format        apply .clang-format inside the container'
+	@echo '  make tidy    clang-tidy inside the container (slow under qemu)'
 	@echo '  make verify  show that the produced binaries are aarch64'
 	@echo '  make shell   interactive shell in the container'
 	@echo '  make binfmt  install qemu arm64 handlers (x86_64 hosts, once)'
@@ -60,6 +63,29 @@ build: image
 
 test: image
 	$(RUN) bash -ec 'ctest --test-dir /src/$(BUILD_DIR) --output-on-failure'
+
+# The §14 gates, in the same container and toolchain as the build. They only
+# need a configured build dir, never a compiled one: configure (idempotent,
+# cached when build-aarch64 already exists), then run the CMake target.
+check-format: image
+	$(RUN) bash -ec '\
+	  cmake -S /src -B /src/$(BUILD_DIR) -G Ninja \
+	        -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) -DBUILD_TESTING=ON \
+	  && cmake --build /src/$(BUILD_DIR) --target check-format'
+
+format: image
+	$(RUN) bash -ec '\
+	  cmake -S /src -B /src/$(BUILD_DIR) -G Ninja \
+	        -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) -DBUILD_TESTING=ON \
+	  && cmake --build /src/$(BUILD_DIR) --target format'
+
+# clang-tidy over lib/, daemons/, tools/: every TU is re-analyzed, and under
+# qemu on x86_64 hosts that is slow — expect this target to take a while.
+tidy: image
+	$(RUN) bash -ec '\
+	  cmake -S /src -B /src/$(BUILD_DIR) -G Ninja \
+	        -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) -DBUILD_TESTING=ON \
+	  && cmake --build /src/$(BUILD_DIR) --target run-clang-tidy'
 
 # Proof the output really targets arm64: every executable must say aarch64.
 verify:
