@@ -117,11 +117,20 @@ fixed code: with the old `joinable()` prune restored it reports 60 threads
 tracked after 60 closed connections and fails; with the fix it reports 0.
 A test that passes either way would not have been worth adding.
 
-## Note for whoever picks this up next
+## Note for whoever picks this up next — CLOSED
 
-`.clang-format` now says `BasedOnStyle: Microsoft` with `ColumnLimit: 300`,
-while its own header comment still describes "Google style with a 100-column
-limit" and explains house conventions in those terms. The gate passes because
-the config and the code were reformatted together, so this is cosmetic — but
-the file contradicts itself and the comment should be brought in line with
-whichever style is actually intended.
+*(Was: `.clang-format` describes "Google style with a 100-column limit" while
+setting `BasedOnStyle: Microsoft` / `ColumnLimit: 300`.)*
+
+Resolved. Microsoft/300 was the deliberate setting — the tree is written in
+Allman braces throughout — so the header comment was the stale half and has
+been rewritten to describe what the file actually does, including why 300 is
+there (it means "do not re-wrap", not a target width).
+
+The claim that this was merely cosmetic turned out to be wrong. `make
+check-format` did **not** pass: it failed on 26 files nobody had touched. The
+cause was `AlignTrailingComments: false`, which does not mean "leave trailing
+comments alone" — it means "do not align them", so clang-format collapsed the
+tree's hand-aligned `///<` padding down to one space. The config's own comment
+promised the opposite. Changing it to `Kind: Leave` turned the gate green with
+zero code reformatting.
