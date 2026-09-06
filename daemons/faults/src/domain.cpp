@@ -71,7 +71,12 @@ Result<std::vector<FaultRule>> load_rules(const std::string& yaml_text) {
                                                     "duplicate rule name: " + fr.name, fr.name);
       names[fr.name] = true;
       try {
-        fr.re = std::regex(pattern, std::regex::ECMAScript | std::regex::optimize);
+        // icase: kernel messages are inconsistent about case between
+        // drivers ("CPU2: Package temperature" vs "cpu clock throttled"),
+        // and a signature that misses because of capitalisation is a fault
+        // class silently unmonitored on every device.
+        fr.re = std::regex(pattern,
+                           std::regex::ECMAScript | std::regex::optimize | std::regex::icase);
       } catch (const std::regex_error& e) {
         return Result<std::vector<FaultRule>>::fail(
             Errc::InvalidArgument, "bad regex for rule " + fr.name + ": " + e.what(), fr.name);

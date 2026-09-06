@@ -15,7 +15,9 @@ rules:
     dedup_window_s: 60
     rate_limit_per_s: 5
   - name: ecc_event
-    pattern: "(?:EDAC|edac).*ECC|(?:mce|MC4).*memory.*error|Memory uncorrected error"
+    # EDAC reports "1 CE memory read error" / "UE memory ..." far more often
+    # than the literal "ECC"; mce logs machine checks without the word.
+    pattern: "EDAC.*(?:ECC|CE memory|UE memory|corrected error)|mce.*(?:Hardware Error|Machine check)|Memory (?:un)?corrected error|MC[0-9]+:.*memory.*error"
     fault_id: 0x5_05_1_0002
     severity: MAJOR
     x733_type: equipment
@@ -33,7 +35,10 @@ rules:
     dedup_window_s: 30
     rate_limit_per_s: 10
   - name: thermal_throttle
-    pattern: "thermal.*throttl|cpu.*temperature.*above|hwmon.*temp.*critical"
+    # Covers both spellings a device actually emits: the thermal core's
+    # "critical temperature reached" and the CPU's "temperature above
+    # threshold, cpu clock throttled".
+    pattern: "thermal.*(?:throttl|critical temperature)|temperature above threshold|clock throttled|hwmon.*temp.*critical|thermal_zone[0-9]+.*critical"
     fault_id: 0x5_05_5_0004
     severity: WARNING
     x733_type: environmental
@@ -51,7 +56,9 @@ rules:
     dedup_window_s: 60
     rate_limit_per_s: 10
   - name: device_timeout
-    pattern: "timeout.*(?:device|sd|mmc)|timed out.*(?:command|transfer)"
+    # -110 is ETIMEDOUT and is how most drivers report a timeout; USB and
+    # xHCI announce a dead controller rather than using the word "timeout".
+    pattern: "timeout.*(?:device|sd|mmc)|timed out.*(?:command|transfer)|error -110|not responding, assume dead|device descriptor read.*error"
     fault_id: 0x5_05_1_0006
     severity: MINOR
     x733_type: equipment
@@ -60,7 +67,9 @@ rules:
     dedup_window_s: 60
     rate_limit_per_s: 10
   - name: watchdog_trip
-    pattern: "watchdog.*(?:trip|bite|expire|timeout)|WDT.*reset"
+    # A soft/hard lockup is the watchdog doing its job and must not be
+    # missed just because the message does not say "trip".
+    pattern: "watchdog.*(?:trip|bite|expire|timeout)|WDT.*reset|soft lockup|hard LOCKUP|BUG: soft lockup"
     fault_id: 0x5_05_3_0007
     severity: CRITICAL
     x733_type: processing-error

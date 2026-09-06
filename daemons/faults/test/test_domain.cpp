@@ -208,7 +208,7 @@ TEST(FaultRulesFixture, ShippedRulesMatchARealBootLog) {
   // corresponding line in the fixture; a rule that stops matching real
   // kernel output is a silent loss of coverage on every device.
   for (const char* want : {"storage_error", "thermal_throttle", "ecc_event", "device_timeout",
-                           "oom", "watchdog_trip"}) {
+                           "oom_kill", "watchdog_trip"}) {
     EXPECT_TRUE(matched.count(want) > 0) << "no fault raised for " << want
                                          << " despite a matching line in the boot log";
   }
