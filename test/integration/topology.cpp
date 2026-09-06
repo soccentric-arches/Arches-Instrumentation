@@ -317,8 +317,15 @@ TEST(Topology, SpokeReconnectsAfterTheHubRestarts) {
 
   // §11 "istate crashes": spokes keep running and re-attach. Drop the server
   // and stand a new one up on the same sockets.
-  t.server->Shutdown();
+  //
+  // Shutdown needs a deadline: a bidirectional stream handler is still
+  // parked in Read(), and an unbounded Shutdown() waits for it to finish
+  // of its own accord, which it never does. The deadline forces the RPC to
+  // be cancelled — which is precisely the abrupt disappearance that a
+  // crashing istate presents to its spokes.
+  t.server->Shutdown(std::chrono::system_clock::now() + std::chrono::milliseconds(500));
   t.server->Wait();
+  t.server.reset();
   t.services.clear();
   ASSERT_TRUE(wait_for([&] { return !t.mon->registered(); }, 8000))
       << "the spoke did not notice the hub going away";
