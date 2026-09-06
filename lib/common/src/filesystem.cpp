@@ -41,12 +41,14 @@ namespace instr
 
 // ---------------- NativeFileSystem ----------------
 
+/// @copydoc IFileSystem::exists
 bool NativeFileSystem::exists(const std::string& path)
 {
     struct stat st;
     return ::stat(path.c_str(), &st) == 0;
 }
 
+/// @copydoc IFileSystem::read
 Result<std::string> NativeFileSystem::read(const std::string& path)
 {
     int fd = ::open(path.c_str(), O_RDONLY);
@@ -61,6 +63,7 @@ Result<std::string> NativeFileSystem::read(const std::string& path)
     return Result<std::string>::good(std::move(out));
 }
 
+/// @copydoc IFileSystem::write
 Error NativeFileSystem::write(const std::string& path, const std::string& data, bool append)
 {
     int flags = O_WRONLY | O_CREAT | (append ? O_APPEND : O_TRUNC);
@@ -83,6 +86,7 @@ Error NativeFileSystem::write(const std::string& path, const std::string& data, 
     return Error::none();
 }
 
+/// @copydoc IFileSystem::mkdirs
 Error NativeFileSystem::mkdirs(const std::string& path)
 {
     std::string cur;
@@ -95,6 +99,7 @@ Error NativeFileSystem::mkdirs(const std::string& path)
     return Error::none();
 }
 
+/// @copydoc IFileSystem::remove
 Error NativeFileSystem::remove(const std::string& path, bool recursive)
 {
     struct stat st;
@@ -120,12 +125,14 @@ Error NativeFileSystem::remove(const std::string& path, bool recursive)
     return Error::none();
 }
 
+/// @copydoc IFileSystem::rename
 Error NativeFileSystem::rename(const std::string& from, const std::string& to)
 {
     if (::rename(from.c_str(), to.c_str()) != 0) return Error::make(Errc::Io, "rename failed: " + std::string(strerror(errno)), from + " -> " + to);
     return Error::none();
 }
 
+/// @copydoc IFileSystem::list_dir
 Result<std::vector<std::string>> NativeFileSystem::list_dir(const std::string& path)
 {
     DIR* d = ::opendir(path.c_str());
@@ -143,6 +150,7 @@ Result<std::vector<std::string>> NativeFileSystem::list_dir(const std::string& p
     return Result<std::vector<std::string>>::good(std::move(out));
 }
 
+/// @copydoc IFileSystem::file_size
 Result<uint64_t> NativeFileSystem::file_size(const std::string& path)
 {
     struct stat st;
@@ -150,6 +158,7 @@ Result<uint64_t> NativeFileSystem::file_size(const std::string& path)
     return Result<uint64_t>::good(uint64_t(st.st_size));
 }
 
+/// @copydoc IFileSystem::free_space
 Result<uint64_t> NativeFileSystem::free_space(const std::string& path)
 {
     struct statvfs v;
@@ -157,6 +166,7 @@ Result<uint64_t> NativeFileSystem::free_space(const std::string& path)
     return Result<uint64_t>::good(uint64_t(v.f_bavail) * uint64_t(v.f_frsize));
 }
 
+/// @copydoc IFileSystem::fsync_path
 Error NativeFileSystem::fsync_path(const std::string& path)
 {
     int fd = ::open(path.c_str(), O_RDONLY);
@@ -173,11 +183,13 @@ bool SimulatedFileSystem::is_dir(const std::string& p) const
     return dirs_.count(p) > 0;
 }
 
+/// @copydoc IFileSystem::exists
 bool SimulatedFileSystem::exists(const std::string& path)
 {
     return files_.count(path) > 0 || is_dir(path);
 }
 
+/// @copydoc IFileSystem::read
 Result<std::string> SimulatedFileSystem::read(const std::string& path)
 {
     auto it = files_.find(path);
@@ -193,6 +205,7 @@ Result<std::string> SimulatedFileSystem::read(const std::string& path)
     return Result<std::string>::good(std::move(data));
 }
 
+/// @copydoc IFileSystem::write
 Error SimulatedFileSystem::write(const std::string& path, const std::string& data, bool append)
 {
     ++write_count_;
@@ -216,6 +229,7 @@ Error SimulatedFileSystem::write(const std::string& path, const std::string& dat
     return Error::none();
 }
 
+/// @copydoc IFileSystem::mkdirs
 Error SimulatedFileSystem::mkdirs(const std::string& path)
 {
     if (fail_mkdirs_) return Error::make(Errc::Io, "simulated mkdir failure", path);
@@ -237,6 +251,7 @@ Error SimulatedFileSystem::mkdirs(const std::string& path)
     return Error::none();
 }
 
+/// @copydoc IFileSystem::remove
 Error SimulatedFileSystem::remove(const std::string& path, bool recursive)
 {
     if (files_.erase(path) > 0) return Error::none();
@@ -273,6 +288,7 @@ Error SimulatedFileSystem::remove(const std::string& path, bool recursive)
     return Error::make(Errc::NotFound, "not found", path);
 }
 
+/// @copydoc IFileSystem::rename
 Error SimulatedFileSystem::rename(const std::string& from, const std::string& to)
 {
     if (fail_renames_) return Error::make(Errc::Io, "simulated rename failure", from);
@@ -332,6 +348,7 @@ Error SimulatedFileSystem::rename(const std::string& from, const std::string& to
     return Error::make(Errc::NotFound, "rename source not found", from);
 }
 
+/// @copydoc IFileSystem::list_dir
 Result<std::vector<std::string>> SimulatedFileSystem::list_dir(const std::string& path)
 {
     if (!is_dir(path)) return Result<std::vector<std::string>>::fail(Errc::NotFound, "not a directory", path);
@@ -357,6 +374,7 @@ Result<std::vector<std::string>> SimulatedFileSystem::list_dir(const std::string
     return Result<std::vector<std::string>>::good(std::move(out));
 }
 
+/// @copydoc IFileSystem::file_size
 Result<uint64_t> SimulatedFileSystem::file_size(const std::string& path)
 {
     auto it = files_.find(path);
@@ -364,11 +382,13 @@ Result<uint64_t> SimulatedFileSystem::file_size(const std::string& path)
     return Result<uint64_t>::good(it->second.size());
 }
 
+/// @copydoc IFileSystem::free_space
 Result<uint64_t> SimulatedFileSystem::free_space(const std::string&)
 {
     return Result<uint64_t>::good(free_space_);
 }
 
+/// @copydoc IFileSystem::fsync_path
 Error SimulatedFileSystem::fsync_path(const std::string&)
 {
     return Error::none();
@@ -387,6 +407,7 @@ namespace instr
 
 // ---- file timestamps (age-based retention, §7.7) ----
 
+/// @copydoc IFileSystem::file_mtime_s
 Result<int64_t> NativeFileSystem::file_mtime_s(const std::string& path)
 {
     struct stat st;
@@ -394,6 +415,7 @@ Result<int64_t> NativeFileSystem::file_mtime_s(const std::string& path)
     return Result<int64_t>::good(int64_t(st.st_mtime));
 }
 
+/// @copydoc IFileSystem::file_mtime_s
 Result<int64_t> SimulatedFileSystem::file_mtime_s(const std::string& path)
 {
     auto it = mtimes_.find(path);

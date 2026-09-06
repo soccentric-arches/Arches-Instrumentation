@@ -39,24 +39,45 @@
 namespace instr
 {
 
+/// @brief Atomic file writes with checksum and redundant copy (REQ §4, §6).
+///
+/// Every write: temp → fsync → rename → fsync dir. Checksummed files carry
+/// `<name>.checksum` (SHA-256 hex) plus a redundant `<name>.bak` copy;
+/// readers fall back to the copy on corruption.
 class AtomicFile
 {
   public:
-    // Plain atomic write (no checksum sidecars). temp = path + ".tmp-<pid>".
+    /// @brief Plain atomic write (no checksum sidecars); temp = path + ".tmp-<pid>".
+    /// @param fs Filesystem to write through.
+    /// @param path Final destination path.
+    /// @param data Complete contents to write.
+    /// @return ok() on success, or the underlying I/O error.
     static Error write(IFileSystem& fs, const std::string& path, const std::string& data);
 
-    // Atomic write with .checksum and .bak redundant copy.
+    /// @brief Atomic write with .checksum and .bak redundant copy.
+    /// @param fs Filesystem to write through.
+    /// @param path Final destination path.
+    /// @param data Complete contents to write.
+    /// @return ok() on success, or the underlying I/O error.
     static Error write_protected(IFileSystem& fs, const std::string& path, const std::string& data);
 
-    // Read a protected file; on checksum mismatch of the primary, fall back to
-    // the .bak copy. Returns Corrupt only when both fail (REQ §11: /pst corrupt
-    // → fall back to redundant copy; if both fail, boot unprovisioned).
+    /// @brief Read a protected file, falling back to the .bak copy on checksum mismatch.
+    ///
+    /// Returns Corrupt only when both primary and backup fail (REQ §11: /pst
+    /// corrupt → fall back to the redundant copy; if both fail, boot
+    /// unprovisioned).
+    ///
+    /// @param fs Filesystem to read through.
+    /// @param path Protected file path.
+    /// @return Verified contents, or a Corrupt/Io error.
     static Result<std::string> read_protected(IFileSystem& fs, const std::string& path);
 
+    /// @brief Sidecar path holding the SHA-256 checksum of @p path.
     static std::string checksum_path(const std::string& path)
     {
         return path + ".checksum";
     }
+    /// @brief Sidecar path holding the redundant copy of @p path.
     static std::string backup_path(const std::string& path)
     {
         return path + ".bak";

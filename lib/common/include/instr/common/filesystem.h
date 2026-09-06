@@ -41,106 +41,149 @@
 namespace instr
 {
 
+/// @brief Storage interface so domain logic is unit-testable and fault injection is structural.
+///
+/// Domain logic that must touch storage goes through this interface; fault
+/// injection (corrupt /pst, full disk, storage errors) is structural, not
+/// bolted on.
 class IFileSystem
 {
   public:
     virtual ~IFileSystem() = default;
 
+    /// @brief Test whether a path exists.
     virtual bool exists(const std::string& path) = 0;
+    /// @brief Read a whole file.
+    /// @return File contents, or an Io/NotFound error.
     virtual Result<std::string> read(const std::string& path) = 0;
-    // Plain write (not atomic); callers needing atomicity use AtomicFile.
+    /// @brief Plain write (not atomic); callers needing atomicity use AtomicFile.
+    /// @param append Append instead of truncate when true.
     virtual Error write(const std::string& path, const std::string& data, bool append = false) = 0;
+    /// @brief Create a directory and any missing parents.
     virtual Error mkdirs(const std::string& path) = 0;
+    /// @brief Remove a file or directory (recursively when @p recursive).
     virtual Error remove(const std::string& path, bool recursive = false) = 0;
+    /// @brief Rename/move a path within the same filesystem.
     virtual Error rename(const std::string& from, const std::string& to) = 0;
+    /// @brief List entry names in a directory.
     virtual Result<std::vector<std::string>> list_dir(const std::string& path) = 0;
+    /// @brief Size of a file in bytes.
     virtual Result<uint64_t> file_size(const std::string& path) = 0;
-    // Last-modification time, unix seconds. Age-based retention (§7.7) needs
-    // it, and a store that cannot tell how old a file is cannot honour a
-    // retention policy expressed in days.
+    /// @brief Last-modification time, unix seconds.
+    ///
+    /// Age-based retention (§7.7) needs it, and a store that cannot tell how
+    /// old a file is cannot honour a retention policy expressed in days.
+    ///
+    /// @return Mtime in unix seconds.
     virtual Result<int64_t> file_mtime_s(const std::string& path) = 0;
+    /// @brief Free space on the filesystem containing @p path.
+    /// @return Bytes available.
     virtual Result<uint64_t> free_space(const std::string& path) = 0;
+    /// @brief Flush a file or directory to stable storage.
     virtual Error fsync_path(const std::string& path) = 0;
+    /// @brief Join two path components with a single separator.
     virtual std::string join(const std::string& a, const std::string& b) const
     {
         return a.empty() ? b : (a.back() == '/' ? a + b : a + "/" + b);
     }
 };
 
-// POSIX implementation: temp+fsync+rename discipline lives in atomic_file.h;
-// this type provides the primitives.
+/// @brief POSIX implementation; the temp+fsync+rename discipline lives in atomic_file.h.
 class NativeFileSystem : public IFileSystem
 {
   public:
+    /// @copydoc IFileSystem::exists
     bool exists(const std::string& path) override;
+    /// @copydoc IFileSystem::read
     Result<std::string> read(const std::string& path) override;
+    /// @copydoc IFileSystem::write
     Error write(const std::string& path, const std::string& data, bool append = false) override;
+    /// @copydoc IFileSystem::mkdirs
     Error mkdirs(const std::string& path) override;
+    /// @copydoc IFileSystem::remove
     Error remove(const std::string& path, bool recursive) override;
+    /// @copydoc IFileSystem::rename
     Error rename(const std::string& from, const std::string& to) override;
+    /// @copydoc IFileSystem::list_dir
     Result<std::vector<std::string>> list_dir(const std::string& path) override;
+    /// @copydoc IFileSystem::file_size
     Result<uint64_t> file_size(const std::string& path) override;
+    /// @copydoc IFileSystem::file_mtime_s
     Result<int64_t> file_mtime_s(const std::string& path) override;
+    /// @copydoc IFileSystem::free_space
     Result<uint64_t> free_space(const std::string& path) override;
+    /// @copydoc IFileSystem::fsync_path
     Error fsync_path(const std::string& path) override;
 };
 
-// In-memory implementation with fault injectors (REQ §12 fault injection:
-// storage errors, corrupt reads, full disk, failed renames).
+/// @brief In-memory implementation with fault injectors (REQ §12: storage errors, corrupt reads, full disk, failed renames).
 class SimulatedFileSystem : public IFileSystem
 {
   public:
+    /// @copydoc IFileSystem::exists
     bool exists(const std::string& path) override;
+    /// @copydoc IFileSystem::read
     Result<std::string> read(const std::string& path) override;
+    /// @copydoc IFileSystem::write
     Error write(const std::string& path, const std::string& data, bool append = false) override;
+    /// @copydoc IFileSystem::mkdirs
     Error mkdirs(const std::string& path) override;
+    /// @copydoc IFileSystem::remove
     Error remove(const std::string& path, bool recursive) override;
+    /// @copydoc IFileSystem::rename
     Error rename(const std::string& from, const std::string& to) override;
+    /// @copydoc IFileSystem::list_dir
     Result<std::vector<std::string>> list_dir(const std::string& path) override;
+    /// @copydoc IFileSystem::file_size
     Result<uint64_t> file_size(const std::string& path) override;
+    /// @copydoc IFileSystem::file_mtime_s
     Result<int64_t> file_mtime_s(const std::string& path) override;
+    /// @copydoc IFileSystem::free_space
     Result<uint64_t> free_space(const std::string& path) override;
+    /// @copydoc IFileSystem::fsync_path
     Error fsync_path(const std::string& path) override;
 
-    // ---- fault injection knobs ----
-    // Fail writes from the n-th write onwards (1-based; 0 disables).
+    /// @brief Fail writes from the n-th write onwards (1-based; 0 disables).
     void fail_writes_after(int n)
     {
         fail_writes_after_ = n;
     }
-    // Corrupt data returned by reads of `path` from the n-th read onwards
-    // (simulates bit rot / torn sector).
+    /// @brief Corrupt data returned by reads of @p path from the n-th read onwards (simulates bit rot / torn sector).
     void corrupt_reads_of(const std::string& path, int from_read)
     {
         corrupt_[path] = from_read;
     }
-    // Clamp reported free space (simulates a filling / full partition).
+    /// @brief Clamp reported free space (simulates a filling / full partition).
     void set_free_space(uint64_t bytes)
     {
         free_space_ = bytes;
     }
-    // Simulated clock for file timestamps: tests advance it to age files
-    // without waiting, so retention-by-age is testable in milliseconds.
+    /// @brief Set the simulated clock; tests advance it to age files without waiting.
     void set_now_unix_s(int64_t t)
     {
         now_unix_s_ = t;
     }
+    /// @brief Current simulated unix time.
     int64_t now_unix_s() const
     {
         return now_unix_s_;
     }
+    /// @brief Force the mtime of a file (ageing without waiting).
     void set_file_mtime_s(const std::string& path, int64_t t)
     {
         mtimes_[path] = t;
     }
+    /// @brief Make every rename fail (simulates cross-device or ro-remount errors).
     void fail_renames(bool v)
     {
         fail_renames_ = v;
     }
+    /// @brief Make every mkdirs fail (simulates read-only storage).
     void fail_mkdirs(bool v)
     {
         fail_mkdirs_ = v;
     }
+    /// @brief Clear all active fault injections.
     void reset_injections()
     {
         fail_writes_after_ = 0;
@@ -149,26 +192,28 @@ class SimulatedFileSystem : public IFileSystem
         fail_mkdirs_ = false;
     }
 
-    // Test introspection.
+    /// @brief View of the raw file contents (test introspection).
     const std::map<std::string, std::string>& raw() const
     {
         return files_;
     }
+    /// @brief Total bytes stored across all files (test introspection).
     uint64_t used_bytes() const;
 
   private:
+    /// @brief Internal helper deciding whether a key denotes a directory.
     bool is_dir(const std::string& p) const;
-    std::map<std::string, std::string> files_; // files only
-    std::map<std::string, bool> dirs_; // dir → recursive flag
-    int fail_writes_after_ = 0;
-    int write_count_ = 0;
-    std::map<std::string, int> corrupt_;
-    std::map<std::string, int> read_count_;
-    std::map<std::string, int64_t> mtimes_;
-    int64_t now_unix_s_ = 1'700'000'000;
-    uint64_t free_space_ = 1ull << 40;
-    bool fail_renames_ = false;
-    bool fail_mkdirs_ = false;
+    std::map<std::string, std::string> files_;          ///< Files only: path → contents.
+    std::map<std::string, bool> dirs_;                  ///< Directories: path → recursive-creation flag.
+    int fail_writes_after_ = 0;                        ///< Write-failure injection point (0 disables).
+    int write_count_ = 0;                              ///< Writes performed since construction.
+    std::map<std::string, int> corrupt_;                ///< Read-corruption schedule per path.
+    std::map<std::string, int> read_count_;             ///< Reads performed per path.
+    std::map<std::string, int64_t> mtimes_;             ///< Forced mtimes per path.
+    int64_t now_unix_s_ = 1'700'000'000;               ///< Simulated unix clock, seconds.
+    uint64_t free_space_ = 1ull << 40;                 ///< Reported free space, bytes.
+    bool fail_renames_ = false;                        ///< Rename-failure injection.
+    bool fail_mkdirs_ = false;                         ///< Mkdirs-failure injection.
 };
 
 } // namespace instr

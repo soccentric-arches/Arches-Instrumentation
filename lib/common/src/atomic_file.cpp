@@ -34,6 +34,7 @@
 namespace instr
 {
 
+/// @brief Plain atomic write: temp → fsync → rename → fsync dir.
 Error AtomicFile::write(IFileSystem& fs, const std::string& path, const std::string& data)
 {
     std::string tmp = path + ".tmp-" + std::to_string(::getpid());
@@ -57,6 +58,7 @@ Error AtomicFile::write(IFileSystem& fs, const std::string& path, const std::str
     return Error::none();
 }
 
+/// @brief Atomic write with .checksum and .bak redundant copy.
 Error AtomicFile::write_protected(IFileSystem& fs, const std::string& path, const std::string& data)
 {
     // Redundant copy per level (REQ §4/§6): the .bak copy holds the same new
@@ -73,6 +75,7 @@ Error AtomicFile::write_protected(IFileSystem& fs, const std::string& path, cons
     return write(fs, backup_path(path) + ".checksum", sum);
 }
 
+/// @brief Read a protected file with fallback to the .bak copy on corruption.
 Result<std::string> AtomicFile::read_protected(IFileSystem& fs, const std::string& path)
 {
     auto primary = fs.read(path);
