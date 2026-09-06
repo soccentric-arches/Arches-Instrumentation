@@ -36,6 +36,7 @@
 using namespace instr;
 using namespace instr::platform;
 
+/// @brief Factory identity and entropy scripting feed first-boot provisioning paths.
 TEST(SimulatedPlatform, FactoryIdentityAndEntropy)
 {
     SimulatedPlatform plat;
@@ -47,6 +48,7 @@ TEST(SimulatedPlatform, FactoryIdentityAndEntropy)
     EXPECT_FALSE(plat.entropy_available());
 }
 
+/// @brief A/B trial boot and confirmation behave per the rollback model (§5).
 TEST(SimulatedPlatform, BootSlotsTrialAndConfirm)
 {
     SimulatedPlatform plat;
@@ -63,6 +65,7 @@ TEST(SimulatedPlatform, BootSlotsTrialAndConfirm)
     EXPECT_EQ(s->inactive, "A");
 }
 
+/// @brief Watchdog arming and pets are observable for watchdog-policy tests.
 TEST(SimulatedPlatform, WatchdogPetCounts)
 {
     SimulatedPlatform plat;
@@ -74,6 +77,7 @@ TEST(SimulatedPlatform, WatchdogPetCounts)
     EXPECT_FALSE(plat.watchdog_pet().ok());
 }
 
+/// @brief GPIO/LED/USB/display/CAN controls record observable state.
 TEST(SimulatedPlatform, HardwareControlObservation)
 {
     SimulatedPlatform plat;
@@ -89,6 +93,7 @@ TEST(SimulatedPlatform, HardwareControlObservation)
     EXPECT_EQ(plat.display_commands().size(), 1u);
 }
 
+/// @brief Unit start/stop/restart calls are recorded for orchestration tests.
 TEST(SimulatedPlatform, UnitOrchestrationObservation)
 {
     SimulatedPlatform plat;
@@ -100,6 +105,7 @@ TEST(SimulatedPlatform, UnitOrchestrationObservation)
     EXPECT_EQ(plat.unit_restarts().size(), 1u);
 }
 
+/// @brief A device descriptor loads and validates against its schema.
 TEST(Descriptors, DeviceDescriptorLoadAndValidate)
 {
     auto schema = load_schema_text(R"({"type":"object","properties":{
@@ -143,6 +149,7 @@ devices:
     EXPECT_NE(bad.error.message.find("kind"), std::string::npos);
 }
 
+/// @brief A resource profile loads with per-class intervals and budgets.
 TEST(Descriptors, ResourceProfileLoad)
 {
     auto schema = load_schema_text(R"({"type":"object","properties":{
@@ -166,6 +173,7 @@ spool_max_bytes: 33554432
     EXPECT_EQ(p->spool_max_bytes, 33554432u);
 }
 
+/// @brief A capability manifest loads and answers has() queries.
 TEST(Descriptors, CapabilityManifest)
 {
     auto schema = load_schema_text(R"({"type":"object","properties":{
@@ -195,6 +203,7 @@ std::string joined_commands(const platform::NativePlatform& p)
 }
 } // namespace
 
+/// @brief A plan renders to the exact commands recorded for the apply seam.
 TEST(NativeNetworkApply, PlanBecomesSystemCommands)
 {
     platform::NativePlatform plat("/nonexistent-sysroot");
@@ -233,6 +242,7 @@ TEST(NativeNetworkApply, PlanBecomesSystemCommands)
     EXPECT_EQ(cmds.find("systemctl start sshd"), std::string::npos) << cmds;
 }
 
+/// @brief A malformed plan is refused loudly, never half-applied.
 TEST(NativeNetworkApply, MalformedPlanIsRefusedLoudly)
 {
     platform::NativePlatform plat("/nonexistent-sysroot");
@@ -241,6 +251,7 @@ TEST(NativeNetworkApply, MalformedPlanIsRefusedLoudly)
     EXPECT_NE(e.message.find("malformed network plan"), std::string::npos);
 }
 
+/// @brief AP mode starts hostapd and stops the supplicant (mutually exclusive).
 TEST(NativeNetworkApply, ApModeStartsHostapdAndStopsSupplicant)
 {
     platform::NativePlatform plat("/nonexistent-sysroot");
@@ -252,6 +263,7 @@ TEST(NativeNetworkApply, ApModeStartsHostapdAndStopsSupplicant)
 
 // The generated rule set must never firewall off the tunnel: that is the
 // remote-bricking scenario the tunnel-loss guard exists to catch (§7.2).
+/// @brief The generated firewall always admits the tunnel, whatever the plan contains.
 TEST(NativeNetworkApply, GeneratedFirewallAlwaysAdmitsTheTunnel)
 {
     platform::NativePlatform plat("/nonexistent-sysroot");

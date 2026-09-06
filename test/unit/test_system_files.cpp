@@ -70,11 +70,13 @@ size_t count_of(const std::string& hay, const std::string& needle)
 
 } // namespace
 
+/// @brief Every daemon has a systemd unit (packaging completeness).
 TEST(SystemFiles, EveryDaemonHasAUnit)
 {
     for (const char* d : kDaemons) EXPECT_FALSE(unit(d).empty()) << d;
 }
 
+/// @brief Each unit file declares exactly one [Service] section.
 TEST(SystemFiles, UnitsHaveExactlyOneServiceSection)
 {
     // A repeated [Service] header is legal to systemd but hides edits: a
@@ -83,6 +85,7 @@ TEST(SystemFiles, UnitsHaveExactlyOneServiceSection)
     for (const char* d : kDaemons) EXPECT_EQ(count_of(unit(d), "[Service]"), 1u) << d << " has a duplicated [Service] section";
 }
 
+/// @brief Every daemon runs as its own unprivileged user (least privilege, §12).
 TEST(SystemFiles, EveryDaemonRunsAsItsOwnUnprivilegedUser)
 {
     // §10: each daemon unprivileged and confined.
@@ -97,6 +100,7 @@ TEST(SystemFiles, EveryDaemonRunsAsItsOwnUnprivilegedUser)
     }
 }
 
+/// @brief The configuration peer service has its own unprivileged user.
 TEST(SystemFiles, ConfigurationPeerHasItsOwnUser)
 {
     // Configuration is architecturally a spoke (§3.3) and needs a user for the
@@ -105,6 +109,7 @@ TEST(SystemFiles, ConfigurationPeerHasItsOwnUser)
     EXPECT_NE(users.find("u instr-configuration "), std::string::npos);
 }
 
+/// @brief istate can chown spoke sockets to each daemon user (§3.1 socket handover).
 TEST(SystemFiles, IstateCanChownSpokeSockets)
 {
     // Socket permissions enforce the call graph (§3.1, §10). istate hands each
@@ -118,6 +123,7 @@ TEST(SystemFiles, IstateCanChownSpokeSockets)
     EXPECT_EQ(u.find("CAP_SYS_ADMIN"), std::string::npos);
 }
 
+/// @brief Ambient capabilities are granted only to the units that need them.
 TEST(SystemFiles, CapabilitiesAreGrantedOnlyWhereRequired)
 {
     // §10: "capabilities granted only where genuinely required".
@@ -131,6 +137,7 @@ TEST(SystemFiles, CapabilitiesAreGrantedOnlyWhereRequired)
     }
 }
 
+/// @brief Unit After=/Wants= ordering matches the orchestrator's declared startup order (§7.1).
 TEST(SystemFiles, UnitOrderingMatchesTheDeclaredStartupOrder)
 {
     // §7.1 declares istate → faults, monitord, hardware → alarms, logmanager,
@@ -159,6 +166,7 @@ TEST(SystemFiles, UnitOrderingMatchesTheDeclaredStartupOrder)
     }
 }
 
+/// @brief The runtime directory is declared exactly once (no double tmpfiles ownership).
 TEST(SystemFiles, RunDirectoryIsDeclaredExactlyOnce)
 {
     const std::string t = slurp(std::string(REPO_ROOT) + "/system/tmpfiles.d/instrumentation.conf");
@@ -174,6 +182,7 @@ TEST(SystemFiles, RunDirectoryIsDeclaredExactlyOnce)
     EXPECT_NE(t.find("instr-istate instr"), std::string::npos);
 }
 
+/// @brief udev rules grant the hardware daemon exactly the devices it drives.
 TEST(SystemFiles, UdevGrantsHardwareTheDevicesItDrives)
 {
     // §13: udev rules where device access requires them (R7: the Hardware

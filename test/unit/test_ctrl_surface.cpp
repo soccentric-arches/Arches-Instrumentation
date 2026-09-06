@@ -82,11 +82,13 @@ std::vector<Surface> all_surfaces()
 
 } // namespace
 
+/// @brief Every daemon's command table can be built with no live core (tool usage before a device exists).
 TEST(CtrlSurface, EveryDaemonHasATableBuildableWithoutACore)
 {
     for (auto& s : all_surfaces()) { EXPECT_GT(s.table.size(), 0u) << s.daemon << " exposes no operations: its _ctrl would be useless"; }
 }
 
+/// @brief No operation ships without a description (§3.2 contract).
 TEST(CtrlSurface, EveryOperationIsDescribed)
 {
     // Help is generated from the table, so an undescribed op is an op an
@@ -101,6 +103,7 @@ TEST(CtrlSurface, EveryOperationIsDescribed)
     }
 }
 
+/// @brief No argument ships without help text.
 TEST(CtrlSurface, EveryArgumentIsDescribed)
 {
     for (auto& s : all_surfaces())
@@ -116,6 +119,7 @@ TEST(CtrlSurface, EveryArgumentIsDescribed)
     }
 }
 
+/// @brief --help lists every registered operation.
 TEST(CtrlSurface, HelpTextListsEveryOperation)
 {
     for (auto& s : all_surfaces())
@@ -126,6 +130,7 @@ TEST(CtrlSurface, HelpTextListsEveryOperation)
     }
 }
 
+/// @brief "help <op>" works for every operation.
 TEST(CtrlSurface, PerOperationHelpExistsForEveryOperation)
 {
     // §3.2 requires subcommand help, not just a top-level listing.
@@ -140,6 +145,7 @@ TEST(CtrlSurface, PerOperationHelpExistsForEveryOperation)
     }
 }
 
+/// @brief Bash and zsh completion scripts mention every operation.
 TEST(CtrlSurface, ShellCompletionCoversEveryOperation)
 {
     for (auto& s : all_surfaces())
@@ -156,6 +162,7 @@ TEST(CtrlSurface, ShellCompletionCoversEveryOperation)
     }
 }
 
+/// @brief Operation names cannot collide within a daemon's table.
 TEST(CtrlSurface, OperationNamesAreUniqueWithinADaemon)
 {
     for (auto& s : all_surfaces())
@@ -165,6 +172,7 @@ TEST(CtrlSurface, OperationNamesAreUniqueWithinADaemon)
     }
 }
 
+/// @brief An unknown op produces a diagnosable NotFound error.
 TEST(CtrlSurface, UnknownOperationsAreRejectedDiagnosably)
 {
     // Dispatching an unknown op is resolved by the table itself and never
@@ -178,6 +186,7 @@ TEST(CtrlSurface, UnknownOperationsAreRejectedDiagnosably)
     }
 }
 
+/// @brief Operations that take identifiers declare them required, so --help is honest.
 TEST(CtrlSurface, OperationsTakingIdentifiersDeclareThemRequired)
 {
     // Handlers are never invoked here: a tool builds its table with a null core
@@ -205,6 +214,7 @@ TEST(CtrlSurface, OperationsTakingIdentifiersDeclareThemRequired)
     }
 }
 
+/// @brief Each daemon exposes the operations its section of the spec requires.
 TEST(CtrlSurface, EveryDaemonExposesItsCoreOperations)
 {
     // Spot-check that the tables carry the operations REQ §7 names for each

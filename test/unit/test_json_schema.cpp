@@ -34,6 +34,7 @@
 
 using namespace instr;
 
+/// @brief The parser handles scalars, arrays and nested objects.
 TEST(JsonParse, ScalarsAndContainers)
 {
     auto v = json_parse(R"({"a":1,"b":[true,null,"x"],"c":{"d":-2.5}})");
@@ -45,6 +46,7 @@ TEST(JsonParse, ScalarsAndContainers)
     EXPECT_NEAR((*v).find("c")->find("d")->as_number(), -2.5, 1e-9);
 }
 
+/// @brief Parse failures carry a diagnosable byte offset.
 TEST(JsonParse, DiagnosableErrors)
 {
     auto v = json_parse("{\"a\": }");
@@ -54,6 +56,7 @@ TEST(JsonParse, DiagnosableErrors)
     EXPECT_FALSE(v2.ok());
 }
 
+/// @brief String escapes are decoded correctly, including unicode forms.
 TEST(JsonParse, StringEscapes)
 {
     auto v = json_parse(R"x({"s":"a\"b\\c\ndA"})x");
@@ -61,6 +64,7 @@ TEST(JsonParse, StringEscapes)
     EXPECT_EQ((*v).find("s")->as_string(), "a\"b\\c\ndA");
 }
 
+/// @brief dump() output re-parses to the same value (compact and indented).
 TEST(JsonDump, RoundTrip)
 {
     auto v = json_parse(R"({"k":[1,2,{"n":null}],"s":"x"})");
@@ -70,6 +74,7 @@ TEST(JsonDump, RoundTrip)
     EXPECT_EQ((*v).dump(), (*v2).dump());
 }
 
+/// @brief YAML projects to equivalent JSON (scalars, maps, sequences).
 TEST(JsonFromYaml, Projection)
 {
     auto v = json_from_yaml_text("a: 5\nb: hello\nc:\n  - true\n  - 1.5\nd:\n  k: v\n");
@@ -83,6 +88,7 @@ TEST(JsonFromYaml, Projection)
     EXPECT_EQ((*v).find("d")->find("k")->as_string(), "v");
 }
 
+/// @brief type and required keywords are enforced with pointer-style issues.
 TEST(JsonSchema, TypeAndRequired)
 {
     JValue schema = JValue::object();
@@ -120,6 +126,7 @@ TEST(JsonSchema, TypeAndRequired)
     EXPECT_GE(issues.size(), 2u);
 }
 
+/// @brief enum, min/max, length and pattern keywords are enforced.
 TEST(JsonSchema, EnumMinMaxPattern)
 {
     JValue schema = JValue::object();
@@ -158,6 +165,7 @@ TEST(JsonSchema, EnumMinMaxPattern)
     EXPECT_EQ(issues.size(), 3u);
 }
 
+/// @brief Validation recurses into nested objects and array items.
 TEST(JsonSchema, NestedObjectsAndArrays)
 {
     JValue schema = JValue::object();

@@ -54,6 +54,7 @@ entries:
     hq_reportable: true
 )yaml";
 
+/// @brief The catalog fixture parses into entries with severities and policies.
 TEST(CatalogCodegen, ParsesFixture)
 {
     auto cat = parse_catalog(kFixture);
@@ -66,6 +67,7 @@ TEST(CatalogCodegen, ParsesFixture)
     EXPECT_EQ(cat->entries[1].id, 0x50530008u); // module 05, type 3, index 0008
 }
 
+/// @brief render_header emits INSTR_ALARM_* constants for every entry.
 TEST(CatalogCodegen, RendersHeaderWithConstants)
 {
     auto cat = parse_catalog(kFixture);
@@ -79,6 +81,7 @@ TEST(CatalogCodegen, RendersHeaderWithConstants)
     EXPECT_NE(hdr->find("9.9.9"), std::string::npos);
 }
 
+/// @brief A duplicate alarm id is a loud generation error, never a silent overwrite.
 TEST(CatalogCodegen, DuplicateIdRejected)
 {
     const char* dup = R"yaml(
@@ -95,6 +98,7 @@ entries:
     EXPECT_NE(r.error.message.find("duplicate alarm id"), std::string::npos);
 }
 
+/// @brief Malformed id text is rejected with validated field widths.
 TEST(CatalogCodegen, MalformedIdRejected)
 {
     auto r = parse_alarm_id_text("0x12_345");

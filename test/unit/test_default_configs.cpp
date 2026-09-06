@@ -64,6 +64,7 @@ std::string default_path(const std::string& d)
 
 } // namespace
 
+/// @brief Every daemon ships a JSON Schema for its config (§9).
 TEST(DefaultConfigs, EveryDaemonShipsASchema)
 {
     for (const char* d : kDaemons)
@@ -75,11 +76,13 @@ TEST(DefaultConfigs, EveryDaemonShipsASchema)
     }
 }
 
+/// @brief Every daemon ships default YAML for first boot.
 TEST(DefaultConfigs, EveryDaemonShipsDefaults)
 {
     for (const char* d : kDaemons) { ASSERT_FALSE(slurp(default_path(d)).empty()) << "missing system/defaults/" << d << "/config.yaml (REQ §9)"; }
 }
 
+/// @brief Shipped defaults must satisfy their own schema — a packaging typo cannot reach a device.
 TEST(DefaultConfigs, ShippedDefaultsValidateAgainstTheirSchema)
 {
     for (const char* d : kDaemons)
@@ -91,6 +94,7 @@ TEST(DefaultConfigs, ShippedDefaultsValidateAgainstTheirSchema)
     }
 }
 
+/// @brief An unknown key is a loud schema rejection, never a silent behavioural change.
 TEST(DefaultConfigs, SchemaRejectsAnUnknownKeyLoudly)
 {
     // A typo must be a loud error, never a silent behavioural change (§9).
@@ -101,6 +105,7 @@ TEST(DefaultConfigs, SchemaRejectsAnUnknownKeyLoudly)
     EXPECT_NE(doc.error.str().find("intervl"), std::string::npos) << "the rejection must name the offending key: " << doc.error.str();
 }
 
+/// @brief Out-of-range values are rejected at load.
 TEST(DefaultConfigs, SchemaRejectsAnOutOfRangeValue)
 {
     auto schema = load_schema_text(slurp(schema_path("monitord")));
@@ -109,6 +114,7 @@ TEST(DefaultConfigs, SchemaRejectsAnOutOfRangeValue)
     EXPECT_FALSE(doc.ok()) << "interval below the schema minimum must be refused";
 }
 
+/// @brief The per-class interval map is constrained to the known resource classes.
 TEST(DefaultConfigs, PerClassIntervalMapIsConstrained)
 {
     // additionalProperties-as-schema: an open map whose values are still typed.

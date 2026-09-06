@@ -39,6 +39,7 @@
 
 using namespace instr;
 
+/// @brief The in-memory filesystem implements the IFileSystem primitives faithfully.
 TEST(SimulatedFs, BasicFileOperations)
 {
     SimulatedFileSystem fs;
@@ -53,6 +54,7 @@ TEST(SimulatedFs, BasicFileOperations)
     EXPECT_TRUE(fs.remove("/a/c.txt", false).ok());
 }
 
+/// @brief Write-failure injection makes storage errors structural, not bolted on.
 TEST(SimulatedFs, WriteFailureInjection)
 {
     SimulatedFileSystem fs;
@@ -65,6 +67,7 @@ TEST(SimulatedFs, WriteFailureInjection)
     EXPECT_NE(e.message.find("simulated"), std::string::npos);
 }
 
+/// @brief The full-disk injector lets budget/ENOSPC paths be tested deterministically.
 TEST(SimulatedFs, FullDiskInjection)
 {
     SimulatedFileSystem fs;
@@ -75,6 +78,7 @@ TEST(SimulatedFs, FullDiskInjection)
     EXPECT_EQ(*free, 10u);
 }
 
+/// @brief Read-corruption injection simulates bit rot for fallback testing.
 TEST(SimulatedFs, CorruptReadInjection)
 {
     SimulatedFileSystem fs;
@@ -85,6 +89,7 @@ TEST(SimulatedFs, CorruptReadInjection)
     EXPECT_NE(*r, "important-data"); // first byte flipped
 }
 
+/// @brief Recursive removal and directory listing behave like the POSIX names they mirror.
 TEST(SimulatedFs, RecursiveRemoveAndList)
 {
     SimulatedFileSystem fs;
@@ -101,6 +106,7 @@ TEST(SimulatedFs, RecursiveRemoveAndList)
 
 // ---- ctrl server/client loopback over a real UDS socket ----
 
+/// @brief A full client↔server request/response round trip over the unix socket.
 TEST(CtrlLoopback, RequestResponseOverUds)
 {
     CommandTable t;
@@ -129,6 +135,7 @@ TEST(CtrlLoopback, RequestResponseOverUds)
     server.stop();
 }
 
+/// @brief A streaming op pushes frames until the client disconnects.
 TEST(CtrlLoopback, StreamHandler)
 {
     CommandTable t;
@@ -157,6 +164,7 @@ TEST(CtrlLoopback, StreamHandler)
 // through the path that carries alarms and liveness. These pin the split.
 // ---------------------------------------------------------------------------
 
+/// @brief Bulk payloads stream raw over the bulk socket by handle, never the control path (§7.7).
 TEST(BulkTransfer, PayloadStreamsOverTheBulkSocket)
 {
     // A payload big enough that nobody would want it inside a JSON envelope.
@@ -190,6 +198,7 @@ TEST(BulkTransfer, PayloadStreamsOverTheBulkSocket)
     ::unlink(path.c_str());
 }
 
+/// @brief An unknown handle yields an error, so a handle cannot read arbitrary files.
 TEST(BulkTransfer, UnknownHandleYieldsNothing)
 {
     const std::string sock = "/tmp/instr-bulk-unk-" + std::to_string(::getpid()) + ".sock";
@@ -206,6 +215,7 @@ TEST(BulkTransfer, UnknownHandleYieldsNothing)
     server.stop();
 }
 
+/// @brief A sink that stops early must not hang the server or the client.
 TEST(BulkTransfer, ASinkMayStopEarlyWithoutHangingTheTransfer)
 {
     // A caller streaming to HQ over a tunnel that drops must be able to
@@ -230,6 +240,7 @@ TEST(BulkTransfer, ASinkMayStopEarlyWithoutHangingTheTransfer)
     ::unlink(path.c_str());
 }
 
+/// @brief Connection threads are joined and reaped on accept; tracking does not grow with connections served.
 TEST(CtrlLoopback, FinishedConnectionsAreReapedRatherThanAccumulated)
 {
     // A _ctrl tool connects, asks one question and goes away. On a fielded

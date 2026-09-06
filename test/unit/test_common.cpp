@@ -52,6 +52,7 @@ using namespace instr::crypto;
 
 // ---------------- timestamps & reconciliation (§4) ----------------
 
+/// @brief Records spooled before a clock lock get wall times when the lock arrives.
 TEST(TimeReconciliation, PendingRecordsRestampedOnLock)
 {
     ManualTimeSource ts;
@@ -71,6 +72,7 @@ TEST(TimeReconciliation, PendingRecordsRestampedOnLock)
     EXPECT_GT(stamped[0].wall_ns, 0);
 }
 
+/// @brief A GNSS/NTP lock mid-run must not reorder history; wall times are non-decreasing in seq order.
 TEST(TimeReconciliation, MidRunLockNeverReordersHistory)
 {
     ManualTimeSource ts;
@@ -85,6 +87,7 @@ TEST(TimeReconciliation, MidRunLockNeverReordersHistory)
     EXPECT_LT(stamped[0].seq, stamped[1].seq);
 }
 
+/// @brief A second lock re-anchors the mapping without moving historical wall times inconsistently.
 TEST(TimeReconciliation, SecondLockRemapsWallConsistently)
 {
     ManualTimeSource ts;
@@ -107,6 +110,7 @@ static const char* kSchema = R"({"type":"object","additionalProperties":false,"p
   "interval":{"type":"number"},"name":{"type":"string"},"flag":{"type":"boolean"},
   "servers":{"type":"array","items":{"type":"string"}}}})";
 
+/// @brief Schema-validated parse flattens to dot-paths with correct typed accessors.
 TEST(ConfigDocument, ParseValidatesAndTypes)
 {
     auto sch = load_schema_text(kSchema);
@@ -119,6 +123,7 @@ TEST(ConfigDocument, ParseValidatesAndTypes)
     EXPECT_EQ((*doc).origin_of("interval"), Origin::Default);
 }
 
+/// @brief A malformed document is a loud error listing the offending paths (file-and-line diagnosability).
 TEST(ConfigDocument, InvalidConfigLoudErrorWithPaths)
 {
     auto sch = load_schema_text(kSchema);
@@ -129,6 +134,7 @@ TEST(ConfigDocument, InvalidConfigLoudErrorWithPaths)
     EXPECT_NE(doc.error.message.find("interval"), std::string::npos);
 }
 // Result accessors sanity (one model across the suite).
+/// @brief Error carries code, message and context; str() renders a diagnosable line.
 TEST(ResultModel, ErrorAccessors)
 {
     auto r = Result<int>::fail(Errc::Corrupt, "bad data", "ctx");
@@ -140,6 +146,7 @@ TEST(ResultModel, ErrorAccessors)
     EXPECT_EQ(*okr, 5);
 }
 
+/// @brief A document violating its JSON Schema is rejected before it can change behaviour.
 TEST(ConfigDocument, SchemaViolationRejected)
 {
     auto sch = load_schema_text(kSchema);
@@ -148,6 +155,7 @@ TEST(ConfigDocument, SchemaViolationRejected)
     EXPECT_NE(doc.error.message.find("unknown_key"), std::string::npos);
 }
 
+/// @brief Origin rules: an HQ push must not overwrite operator (local) values without force.
 TEST(ConfigDocument, OriginRulesLocalProtectedFromHqPush)
 {
     auto sch = load_schema_text(kSchema);
@@ -169,6 +177,7 @@ TEST(ConfigDocument, OriginRulesLocalProtectedFromHqPush)
     EXPECT_EQ(doc.get_string("name"), "hq-value");
 }
 
+/// @brief Release merge adds new default keys and keeps every existing value.
 TEST(ConfigDocument, MergeReleaseAddsMissingKeepsOperatorValues)
 {
     auto sch = load_schema_text(kSchema);
@@ -183,6 +192,7 @@ TEST(ConfigDocument, MergeReleaseAddsMissingKeepsOperatorValues)
     EXPECT_EQ(existing.origin_of("name"), Origin::Default);
 }
 
+/// @brief System reset keeps only origin=Default entries (§6.1).
 TEST(ConfigDocument, ResetToDefaultsDropsNonDefault)
 {
     auto sch = load_schema_text(kSchema);
@@ -194,6 +204,7 @@ TEST(ConfigDocument, ResetToDefaultsDropsNonDefault)
     EXPECT_FALSE(doc.has("name"));
 }
 
+/// @brief Serialising and re-parsing a document preserves values and scalar quoting.
 TEST(ConfigDocument, RoundtripYamlPreservesValues)
 {
     auto sch = load_schema_text(kSchema);
@@ -209,6 +220,7 @@ TEST(ConfigDocument, RoundtripYamlPreservesValues)
 
 // ---------------- alarm ID codec (§8, locked layout) ----------------
 
+/// @brief The §8 worked example 0x1_04_1_0007 decodes to the documented domain/module/type/index.
 TEST(AlarmCodec, DocumentExampleDecodes)
 {
     uint32_t id = encode_alarm_id(AlarmDomain::Hardware, 0x04, X733Type::Equipment, 7);
@@ -222,6 +234,7 @@ TEST(AlarmCodec, DocumentExampleDecodes)
     EXPECT_EQ(d->index, 7);
 }
 
+/// @brief Every identity field survives encode→decode round-trip.
 TEST(AlarmCodec, AllFieldsRoundTrip)
 {
     for (uint8_t domain = 1; domain <= 5; ++domain)
@@ -237,6 +250,7 @@ TEST(AlarmCodec, AllFieldsRoundTrip)
     }
 }
 
+/// @brief Alarm id 0 is reserved and rejected as invalid.
 TEST(AlarmCodec, ZeroReserved)
 {
     EXPECT_FALSE(decode_alarm_id(0).ok());
@@ -244,6 +258,7 @@ TEST(AlarmCodec, ZeroReserved)
 
 // ---------------- spool drop policy (§11) ----------------
 
+/// @brief Drop policy: oldest telemetry first; alarms and faults are never dropped.
 TEST(DiskSpool, DropOldestTelemetryFirstNeverProtected)
 {
     SimulatedFileSystem fs;
@@ -268,6 +283,7 @@ TEST(DiskSpool, DropOldestTelemetryFirstNeverProtected)
     EXPECT_GT(sp.stats().dropped_telemetry, 0);
 }
 
+/// @brief When only protected records fit, the append is refused with BudgetExceeded.
 TEST(DiskSpool, ProtectedRefusedLoudlyWhenNothingDroppable)
 {
     SimulatedFileSystem fs;
@@ -284,6 +300,7 @@ TEST(DiskSpool, ProtectedRefusedLoudlyWhenNothingDroppable)
     EXPECT_EQ(sp.stats().refused_protected, 1);
 }
 
+/// @brief The spool index is rebuilt from segment files; records survive restart.
 TEST(DiskSpool, PersistsAcrossReopen)
 {
     SimulatedFileSystem fs;
@@ -302,6 +319,7 @@ TEST(DiskSpool, PersistsAcrossReopen)
     EXPECT_EQ(e[0].payload, "hello");
 }
 
+/// @brief peek/pop_front consume strictly in arrival order.
 TEST(DiskSpool, DrainConsumesInOrder)
 {
     SimulatedFileSystem fs;
@@ -322,6 +340,7 @@ TEST(DiskSpool, DrainConsumesInOrder)
 
 // ---------------- rate limiter (§4) ----------------
 
+/// @brief Tokens refill at the configured rate and are capped at the burst.
 TEST(TokenBucket, RefillsByRate)
 {
     double now = 0;
@@ -333,6 +352,7 @@ TEST(TokenBucket, RefillsByRate)
     EXPECT_TRUE(b.try_acquire());
 }
 
+/// @brief Refusals advance both the lifetime and streak suppression counters.
 TEST(TokenBucket, SuppressionStreakTracked)
 {
     double now = 0;
@@ -342,6 +362,7 @@ TEST(TokenBucket, SuppressionStreakTracked)
     EXPECT_EQ(b.current_streak(), 5u);
 }
 
+/// @brief Exactly one "suppressed N events" summary per qualifying streak, never more.
 TEST(SuppressionSummarizer, EmitsExactlyOneSummaryPerStreak)
 {
     double now = 0;
@@ -359,6 +380,7 @@ TEST(SuppressionSummarizer, EmitsExactlyOneSummaryPerStreak)
 
 // ---------------- atomic writes + redundant copy (§4, §6) ----------------
 
+/// @brief A write lands via temp+fsync+rename and leaves a checksum sidecar.
 TEST(AtomicFile, TempThenRenameThenChecksum)
 {
     SimulatedFileSystem fs;
@@ -372,6 +394,7 @@ TEST(AtomicFile, TempThenRenameThenChecksum)
     EXPECT_EQ(*sum, crypto::sha256("hello").hex());
 }
 
+/// @brief A corrupt primary falls back to the .bak copy (REQ §11).
 TEST(AtomicFile, CorruptPrimaryFallsBackToRedundantCopy)
 {
     SimulatedFileSystem fs;
@@ -384,6 +407,7 @@ TEST(AtomicFile, CorruptPrimaryFallsBackToRedundantCopy)
     EXPECT_EQ(*r, "v2"); // recovered from the redundant copy of the current content
 }
 
+/// @brief When primary and backup are both corrupt, read_protected fails loudly with Corrupt.
 TEST(AtomicFile, BothCopiesCorruptReportsLoudly)
 {
     SimulatedFileSystem fs;
@@ -400,6 +424,7 @@ TEST(AtomicFile, BothCopiesCorruptReportsLoudly)
 
 // ---------------- tar (ustar) ----------------
 
+/// @brief write_ustar/read_ustar round-trip file contents, modes and names.
 TEST(Tar, RoundTrip)
 {
     std::vector<tar::FileEntry> files = {
@@ -416,6 +441,7 @@ TEST(Tar, RoundTrip)
     EXPECT_EQ((*back)[1].data, std::string(1000, 'x'));
 }
 
+/// @brief A malformed archive header is rejected as Corrupt, not silently mis-parsed.
 TEST(Tar, CorruptHeaderDetected)
 {
     auto archive = tar::write_ustar({{"f", "data", 0644, 0}});
@@ -428,6 +454,7 @@ TEST(Tar, CorruptHeaderDetected)
 
 // ---------------- crypto: published vectors ----------------
 
+/// @brief SHA-256 matches FIPS 180-4 published test vectors.
 TEST(CryptoSha256, FipsVectors)
 {
     EXPECT_EQ(sha256("").hex(), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
@@ -435,11 +462,13 @@ TEST(CryptoSha256, FipsVectors)
     EXPECT_EQ(sha256("The quick brown fox jumps over the lazy dog").hex(), "d7a8fbb307d7809469ca9abcb0082e4f8d5651e46d3cdb762d02d0bf37c9e592");
 }
 
+/// @brief HMAC-SHA256 matches an RFC 4231 test vector.
 TEST(CryptoHmac, Rfc4231Vector)
 {
     EXPECT_EQ(hmac_sha256("Jefe", "what do ya want for nothing?").hex(), "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843");
 }
 
+/// @brief X25519 matches RFC 7748 test vector 1.
 TEST(CryptoX25519, Rfc7748Vector1)
 {
     auto s = hex_decode("a546e36bf0527c9d3b16154b82465edd62144c0ac1fc5a18506a2244ba449ac4").value;
@@ -448,6 +477,7 @@ TEST(CryptoX25519, Rfc7748Vector1)
     EXPECT_EQ(hex_encode(std::string(reinterpret_cast<const char*>(out.data()), 32)), "c3da55379de9c6908e94ea4df28d084f32eccf03491c71f754b4075577a28552");
 }
 
+/// @brief X25519 matches RFC 7748 test vector 2.
 TEST(CryptoX25519, Rfc7748Vector2)
 {
     auto s = hex_decode("4b66e9d4d1b4673c5ad22691957d6af5c11b6421e0ea01d42ca4169e7918ba0d").value;
@@ -456,6 +486,7 @@ TEST(CryptoX25519, Rfc7748Vector2)
     EXPECT_EQ(hex_encode(std::string(reinterpret_cast<const char*>(out.data()), 32)), "95cbde9476e8907d7aade45cb4b873f88b595a68799fa152e6f8f7647aac7957");
 }
 
+/// @brief Two parties derive the same shared secret from each other's public keys.
 TEST(CryptoX25519, DhKeyAgreement)
 {
     auto a = hex_decode("77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a").value;
@@ -471,6 +502,7 @@ TEST(CryptoX25519, DhKeyAgreement)
     EXPECT_EQ(hex_encode(std::string(reinterpret_cast<const char*>(k1.data()), 32)), "4a5d9d5ba4ce2de1728e3bf480350f25e07e21c947d19e3376f09b3c1e161742");
 }
 
+/// @brief Freshly generated keypairs agree on the shared secret.
 TEST(CryptoX25519, GeneratedKeypairsAgree)
 {
     X25519Key k1 = x25519_generate([](uint8_t* out, size_t n) {
@@ -484,6 +516,7 @@ TEST(CryptoX25519, GeneratedKeypairsAgree)
     EXPECT_EQ(s1, s2);
 }
 
+/// @brief ChaCha20 matches an RFC 8439 test vector.
 TEST(CryptoChaCha20, Rfc8439Vector)
 {
     // §2.4.2 test vector.
@@ -501,6 +534,7 @@ TEST(CryptoChaCha20, Rfc8439Vector)
     EXPECT_EQ(hex_encode(ct.substr(0, 16)), "5c90838db44879743e6bfd58c64e05a8");
 }
 
+/// @brief aead_seal/aead_open round-trip; tampering is rejected.
 TEST(CryptoAead, SealOpenRoundtripAndTamper)
 {
     std::string key(32, 'k');
@@ -516,6 +550,7 @@ TEST(CryptoAead, SealOpenRoundtripAndTamper)
     EXPECT_FALSE(failed.ok()); // encrypt-then-MAC refuses tampering
 }
 
+/// @brief HKDF-SHA256 matches RFC 5869 test case 1.
 TEST(CryptoHkdf, Rfc5869TestCase1)
 {
     std::string ikm(22, char(0x0b));
@@ -527,6 +562,7 @@ TEST(CryptoHkdf, Rfc5869TestCase1)
               "34007208d5b887185865"); // RFC 5869 test case 1, 42 bytes
 }
 
+/// @brief Base64 encode/decode round-trips arbitrary bytes.
 TEST(CryptoBase64, Roundtrip)
 {
     std::string raw = "\x00\x01\x02\xff\xfe binary \n data";
@@ -538,6 +574,7 @@ TEST(CryptoBase64, Roundtrip)
 
 // ---------------- logging: redaction (§10 secret hygiene) ----------------
 
+/// @brief Field values under credential-like keys are redacted before reaching a sink.
 TEST(LogRedaction, SecretKeysRedacted)
 {
     EXPECT_EQ(Redactor::redact_value("wg-private.key", "SECRET"), "[REDACTED]");
@@ -545,6 +582,7 @@ TEST(LogRedaction, SecretKeysRedacted)
     EXPECT_EQ(Redactor::redact_value("normal_field", "visible"), "visible");
 }
 
+/// @brief Raw credential material inside message bodies is masked inline.
 TEST(LogRedaction, TextRedactedInline)
 {
     auto out = Redactor::redact_text("auth failed with password=hunter2 for user");
@@ -552,6 +590,7 @@ TEST(LogRedaction, TextRedactedInline)
     EXPECT_NE(out.find("[REDACTED]"), std::string::npos);
 }
 
+/// @brief Per-source levels and rate limits work at runtime; surplus is dropped and counted.
 TEST(Logging, PerSourceLevelControlAndRateLimit)
 {
     MemorySink sink;
@@ -572,6 +611,7 @@ TEST(Logging, PerSourceLevelControlAndRateLimit)
 
 // ---------------- ctrl framing ----------------
 
+/// @brief Length-prefixed frames encode and decode across arbitrary chunk boundaries.
 TEST(CtrlFrames, LengthPrefixRoundtrip)
 {
     auto frame = frames::encode_frame("{\"op\":\"status\"}");
@@ -584,6 +624,7 @@ TEST(CtrlFrames, LengthPrefixRoundtrip)
     EXPECT_EQ(out, "{\"op\":\"status\"}");
 }
 
+/// @brief A declared length beyond the safety cap is rejected and latched.
 TEST(CtrlFrames, OversizeFrameRejected)
 {
     frames::FrameDecoder dec;
@@ -595,6 +636,7 @@ TEST(CtrlFrames, OversizeFrameRejected)
 
 // ---------------- backoff (§3.4 flood control) ----------------
 
+/// @brief Backoff grows exponentially and is clamped to the cap before jitter.
 TEST(Backoff, ExponentialWithJitterBounded)
 {
     JitteredBackoff b(1.0, 256.0, 0.0); // no jitter, cap above the sum
@@ -607,6 +649,7 @@ TEST(Backoff, ExponentialWithJitterBounded)
     EXPECT_DOUBLE_EQ(b.next(), 1.0);
 }
 
+/// @brief Jitter keeps every delay within [base×(1−j), cap×(1+j)].
 TEST(Backoff, JitterStaysInBounds)
 {
     JitteredBackoff b(10.0, 100.0, 0.2);
@@ -618,6 +661,7 @@ TEST(Backoff, JitterStaysInBounds)
 
 // ---------------- command table (§3.2) ----------------
 
+/// @brief dispatch routes to handlers; help and completion cover every registered op.
 TEST(CommandTable, DispatchHelpCompletion)
 {
     CommandTable t;
