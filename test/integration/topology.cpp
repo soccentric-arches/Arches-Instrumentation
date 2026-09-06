@@ -71,6 +71,7 @@ namespace
 
 // Poll until `pred` holds or the budget elapses. Tests must not sleep for a
 // fixed period: on a loaded CI box that is either flaky or slow.
+/// @brief Poll a predicate until true or timeout (real-transport tests).
 template <typename Pred> bool wait_for(Pred pred, int timeout_ms = 5000)
 {
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);

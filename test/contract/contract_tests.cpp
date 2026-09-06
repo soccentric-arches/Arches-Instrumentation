@@ -43,6 +43,7 @@
 
 using namespace instr;
 
+/// @brief Read a whole file (fixtures and golden files).
 static std::string slurp(const std::string& path)
 {
     std::ifstream f(path);

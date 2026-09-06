@@ -50,6 +50,7 @@ using namespace instr::platform;
 namespace
 {
 
+/// @brief Build a Stamp from the manual test clock.
 static Stamp stamp_of(ManualTimeSource& ts)
 {
     Stamp s;
@@ -61,6 +62,7 @@ static Stamp stamp_of(ManualTimeSource& ts)
     return s;
 }
 
+/// @brief Build a generic spoke message with a JSON payload.
 static transport::GenericSpokeMsg spoke_msg(const std::string& daemon, const std::string& type, const std::string& payload, const Stamp& ts)
 {
     transport::GenericSpokeMsg m;

@@ -488,6 +488,7 @@ Result<uint64_t> bulk_fetch(const std::string& socket_path, const std::string& h
 
 // ---------------- tool main ----------------
 
+/// @brief Print a command envelope (--json emits raw; default pretty-prints).
 static void print_envelope(const CommandResult& r, bool pretty)
 {
     std::string env = r.envelope();

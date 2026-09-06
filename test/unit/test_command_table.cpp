@@ -31,6 +31,7 @@
 
 using namespace instr;
 
+/// @brief The envelope wire shapes: ok+data and ok=false+error{code,message}.
 TEST(CommandEnvelope, OkAndErrorShapes)
 {
     CommandResult ok = CommandResult::good(std::string("{\"x\":1}"));
@@ -47,6 +48,7 @@ TEST(CommandEnvelope, OkAndErrorShapes)
     EXPECT_EQ((*j2).find("error")->find("message")->as_string(), "too much");
 }
 
+/// @brief Handlers validate declared args; undeclared JSON is rejected.
 TEST(CommandTable, ArgSpecValidationIsDeclared)
 {
     CommandTable t;
@@ -61,6 +63,7 @@ TEST(CommandTable, ArgSpecValidationIsDeclared)
     EXPECT_FALSE(t.dispatch("op", "not-json").ok);
 }
 
+/// @brief "help <unknown>" answers with a diagnosable unknown-op message.
 TEST(CommandTable, HelpForUnknownOpIsDiagnosable)
 {
     CommandTable t;

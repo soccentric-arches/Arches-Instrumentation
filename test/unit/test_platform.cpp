@@ -195,6 +195,7 @@ namespace
 {
 // Dry-run mode records what would run without touching the host, which is
 // exactly what we want to assert against.
+/// @brief Join the recorded apply commands for assertion.
 std::string joined_commands(const platform::NativePlatform& p)
 {
     std::string all;

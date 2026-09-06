@@ -56,6 +56,7 @@ using transport::HubServiceBase;
 // Running unprivileged (tests, the host harness, a container without
 // CAP_CHOWN) the chown cannot succeed. That is reported once, loudly, rather
 // than passed over: on a device it means the enforcement is not in place.
+/// @brief Create/chown one spoke socket so only that daemon's user may connect (§3.1).
 static bool own_socket(const std::string& path, const std::string& daemon, Logger* log)
 {
     if (::chmod(path.c_str(), 0660) != 0)
@@ -965,6 +966,7 @@ class ConfigurationApiImpl final : public istate::ConfigurationApi::Service
 // Expands a dotted config path into nested YAML: "a.b.c" + "7" becomes
 // "a:\n  b:\n    c: 7". ConfigService::set takes a YAML document, and an
 // application sets one key at a time.
+/// @brief Convert an application's dotted key into a nested YAML snippet.
 static std::string dotted_key_to_yaml(const std::string& key, const std::string& value)
 {
     std::vector<std::string> parts;

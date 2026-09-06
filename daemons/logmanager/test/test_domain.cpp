@@ -62,6 +62,7 @@ struct Fixture
     }
 };
 
+/// @brief Build a LogLine helper for tail/collector tests.
 static LogLine line(uint64_t mono, const std::string& lvl, const std::string& msg)
 {
     LogLine l;

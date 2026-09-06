@@ -37,8 +37,10 @@ namespace platform
 // Convert YAML subtree to JValue via the shared projection (declared in
 // json.h as text-based; here we build from yaml-cpp nodes directly using the
 // same scalar rules as json_from_yaml_text).
+/// @brief Recursively project a YAML node tree to JSON.
 static JValue yaml_to_json(const YAML::Node& n);
 
+/// @brief Convert one YAML scalar node to the equivalent JValue.
 static JValue yaml_scalar(const YAML::Node& n)
 {
     if (n.IsNull()) return JValue();
@@ -76,6 +78,7 @@ static JValue yaml_to_json(const YAML::Node& n)
     return yaml_scalar(n);
 }
 
+/// @brief Validate descriptor YAML against its schema with source-context errors.
 static Error validate(const JValue& schema, const std::string& yaml_text, const std::string& source, JValue* out)
 {
     auto j = json_from_yaml_text(yaml_text);

@@ -192,6 +192,7 @@ TEST(FaultProcessor, NonMatchingLinesNeverEmit)
 namespace
 {
 
+/// @brief Read a fixture file from the test fixtures directory.
 std::string slurp_fixture(const std::string& name)
 {
     std::ifstream f(std::string(REPO_ROOT) + "/test/fixtures/" + name);
@@ -199,6 +200,7 @@ std::string slurp_fixture(const std::string& name)
     ss << f.rdbuf();
     return ss.str();
 }
+/// @brief Split a fixture file into lines for feeding the processor.
 std::vector<std::string> fixture_lines(const std::string& name)
 {
     std::vector<std::string> out;

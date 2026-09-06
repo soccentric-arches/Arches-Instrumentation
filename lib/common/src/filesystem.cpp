@@ -178,6 +178,7 @@ Error NativeFileSystem::fsync_path(const std::string& path)
 
 // ---------------- SimulatedFileSystem ----------------
 
+/// @brief Internal helper deciding whether a key denotes a directory.
 bool SimulatedFileSystem::is_dir(const std::string& p) const
 {
     return dirs_.count(p) > 0;
@@ -394,6 +395,7 @@ Error SimulatedFileSystem::fsync_path(const std::string&)
     return Error::none();
 }
 
+/// @brief Total bytes stored across all files (test introspection).
 uint64_t SimulatedFileSystem::used_bytes() const
 {
     uint64_t total = 0;

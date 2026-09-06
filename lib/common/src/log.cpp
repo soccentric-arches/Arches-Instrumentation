@@ -95,6 +95,7 @@ const std::vector<std::string>& Redactor::secret_key_names()
     return names;
 }
 
+/// @brief Lowercase helper for case-insensitive name matching.
 static std::string lower(const std::string& s)
 {
     std::string o;
@@ -122,11 +123,13 @@ namespace
 {
 
 // Characters that may appear inside a key token ("wg-private.key", "api_key").
+/// @brief Decide whether a character may appear inside a log field key.
 inline bool is_key_char(char c)
 {
     return std::isalnum(static_cast<unsigned char>(c)) || c == '_' || c == '-' || c == '.';
 }
 // A value ends at the first structural delimiter.
+/// @brief Decide whether a character terminates a log value token.
 inline bool ends_value(char c)
 {
     return std::isspace(static_cast<unsigned char>(c)) || c == ',' || c == '"' || c == '\'' || c == '}' || c == ']' || c == ')' || c == ';';
