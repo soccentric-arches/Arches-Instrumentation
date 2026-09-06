@@ -40,6 +40,7 @@
 #include "instr/platform/factory.h"
 #include "instr/common/filesystem.h"
 
+/// @brief Daemon entry: parse args, wire domain/transport, serve until stopped.
 int main(int argc, char** argv)
 {
     auto args = instr::parse_daemon_args(argc, argv, "hardware");

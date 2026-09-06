@@ -41,6 +41,7 @@ namespace hardware
 namespace domain
 {
 
+/// @brief Canonical name of a check state.
 const char* check_state_name(CheckState s)
 {
     switch (s)
@@ -54,6 +55,7 @@ const char* check_state_name(CheckState s)
     return "unknown";
 }
 
+/// @brief Look up a device spec by name.
 const platform::DeviceSpec* DeviceManager::find(const std::string& name) const
 {
     for (const auto& d : desc_.devices)
@@ -61,6 +63,7 @@ const platform::DeviceSpec* DeviceManager::find(const std::string& name) const
     return nullptr;
 }
 
+/// @brief Stamp and return a check result.
 CheckResult DeviceManager::make_result(const std::string& dev, const std::string& chk, CheckState st, const std::string& detail, uint64_t started)
 {
     CheckResult r;
@@ -73,6 +76,7 @@ CheckResult DeviceManager::make_result(const std::string& dev, const std::string
     return r;
 }
 
+/// @brief Dispatch a control op to the platform primitive for the device.
 Error DeviceManager::control(const std::string& device, const std::string& control_op, const std::map<std::string, std::string>& args)
 {
     const platform::DeviceSpec* dev = find(device);
@@ -165,6 +169,7 @@ Error DeviceManager::control(const std::string& device, const std::string& contr
     return Error::make(Errc::NotSupported, "control op not implemented for kind " + dev->kind, control_op);
 }
 
+/// @brief Drain buffered CAN frames for a device.
 Result<std::vector<platform::IPlatform::CanFrame>> DeviceManager::can_receive(const std::string& device, size_t max_frames)
 {
     using Ret = Result<std::vector<platform::IPlatform::CanFrame>>;
@@ -179,6 +184,7 @@ Result<std::vector<platform::IPlatform::CanFrame>> DeviceManager::can_receive(co
     return plat_.can_recv(iface, max_frames == 0 ? 1 : max_frames);
 }
 
+/// @brief Read a GPIO line for a device.
 Result<bool> DeviceManager::gpio_read(const std::string& device)
 {
     const platform::DeviceSpec* dev = find(device);
@@ -188,6 +194,7 @@ Result<bool> DeviceManager::gpio_read(const std::string& device)
     return plat_.gpio_get(line);
 }
 
+/// @brief Run one quick health check on the platform.
 CheckResult DeviceManager::run_check(const platform::DeviceSpec& dev, const platform::DeviceCheck& chk)
 {
     uint64_t started = ts_.mono_ns();
@@ -259,6 +266,7 @@ CheckResult DeviceManager::run_check(const platform::DeviceSpec& dev, const plat
     return make_result(dev.name, chk.name, CheckState::Unknown, "check op not known: " + chk.op, started);
 }
 
+/// @brief Run every check for one device.
 std::vector<CheckResult> DeviceManager::check_device(const std::string& name)
 {
     std::vector<CheckResult> out;
@@ -269,6 +277,7 @@ std::vector<CheckResult> DeviceManager::check_device(const std::string& name)
     return out;
 }
 
+/// @brief Run every check for every device.
 std::vector<CheckResult> DeviceManager::check_all()
 {
     std::vector<CheckResult> out;
@@ -280,6 +289,7 @@ std::vector<CheckResult> DeviceManager::check_all()
     return out;
 }
 
+/// @brief Run checks whose periodic schedule is due.
 std::vector<CheckResult> DeviceManager::due_checks(uint64_t now_mono_ns)
 {
     std::vector<CheckResult> out;

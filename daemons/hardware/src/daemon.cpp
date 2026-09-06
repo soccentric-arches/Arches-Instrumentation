@@ -32,6 +32,7 @@ namespace instr
 namespace hardware
 {
 
+/// @brief Render the board device inventory as JSON.
 std::string HardwareCore::descriptor_summary_json() const
 {
     JValue arr = JValue::array();
@@ -51,6 +52,7 @@ std::string HardwareCore::descriptor_summary_json() const
     return arr.dump();
 }
 
+/// @brief Build the hardware ctrl command table.
 CommandTable build_hardware_table(HardwareCore* core)
 {
     CommandTable t;
@@ -183,6 +185,7 @@ CommandTable build_hardware_table(HardwareCore* core)
     return t;
 }
 
+/// @brief Wire the channel, config sink and handlers together.
 HardwareSpoke::HardwareSpoke(HardwareCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version) : core_(core), log_(log), table_(table)
 {
     using ChannelT = SpokeChannel<hardware::HardwareHub, hardware::HardwareSpokeFrame, hardware::HardwareHubFrame>;
@@ -205,21 +208,25 @@ HardwareSpoke::HardwareSpoke(HardwareCore* core, Logger* log, const CommandTable
     set_schema(JValue::object());
 }
 
+/// @brief Install the schema every config delivery must satisfy.
 void HardwareSpoke::set_schema(JValue schema)
 {
     config_sink_ = std::make_unique<ConfigSink>("hardware", std::move(schema), [this](const ConfigDocument& doc) { return core_->apply_config(doc); });
     channel_->set_config_handler([this](const common::ConfigDelivery& delivery) { return config_sink_->deliver(delivery.yaml(), delivery.revision()); });
 }
 
+/// @brief Start the transport channel.
 void HardwareSpoke::start()
 {
     channel_->start();
 }
+/// @brief Stop the transport channel.
 void HardwareSpoke::stop()
 {
     channel_->stop();
 }
 
+/// @brief Queue a check result to istate.
 void HardwareSpoke::send_result(const CheckResult& r)
 {
     channel_->enqueue([r](hardware::HardwareSpokeFrame& f) {
