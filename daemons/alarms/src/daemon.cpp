@@ -32,6 +32,7 @@ namespace instr
 namespace alarms
 {
 
+/// @brief Map a severity name to the proto enum (table handlers).
 static common::Severity sev_from_name(const std::string& s)
 {
     if (s == "CRITICAL") return common::SEV_CRITICAL;
@@ -41,6 +42,7 @@ static common::Severity sev_from_name(const std::string& s)
     return common::SEV_INFO;
 }
 
+/// @brief Build the alarms ctrl command table.
 CommandTable build_alarms_table(AlarmsCore* core)
 {
     CommandTable t;
@@ -133,6 +135,7 @@ CommandTable build_alarms_table(AlarmsCore* core)
     return t;
 }
 
+/// @brief Wire the channel, config sink and handlers together.
 AlarmsSpoke::AlarmsSpoke(AlarmsCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version) : core_(core), log_(log), table_(table)
 {
     using ChannelT = SpokeChannel<alarms::AlarmHub, alarms::AlarmSpokeFrame, alarms::AlarmHubFrame>;
@@ -156,21 +159,25 @@ AlarmsSpoke::AlarmsSpoke(AlarmsCore* core, Logger* log, const CommandTable* tabl
     set_schema(JValue::object());
 }
 
+/// @brief Install the schema every config delivery must satisfy.
 void AlarmsSpoke::set_schema(JValue schema)
 {
     config_sink_ = std::make_unique<ConfigSink>("alarms", std::move(schema), [this](const ConfigDocument& doc) { return core_->apply_config(doc); });
     channel_->set_config_handler([this](const common::ConfigDelivery& delivery) { return config_sink_->deliver(delivery.yaml(), delivery.revision()); });
 }
 
+/// @brief Start the transport channel.
 void AlarmsSpoke::start()
 {
     channel_->start();
 }
+/// @brief Stop the transport channel.
 void AlarmsSpoke::stop()
 {
     channel_->stop();
 }
 
+/// @brief Queue an alarm state event to istate.
 void AlarmsSpoke::send_event(const AlarmStateEvent& ev)
 {
     channel_->enqueue([&ev](alarms::AlarmSpokeFrame& f) {

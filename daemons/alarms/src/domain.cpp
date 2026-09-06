@@ -41,6 +41,7 @@ namespace alarms
 namespace domain
 {
 
+/// @brief Map a catalog severity string to the proto enum (INFO on unknown).
 static common::Severity sev_from(const std::string& s)
 {
     if (s == "CRITICAL") return common::SEV_CRITICAL;
@@ -50,6 +51,7 @@ static common::Severity sev_from(const std::string& s)
     return common::SEV_INFO;
 }
 
+/// @brief Canonical lowercase severity name.
 static const char* sev_name(common::Severity s)
 {
     switch (s)
@@ -62,6 +64,7 @@ static const char* sev_name(common::Severity s)
     }
 }
 
+/// @brief Parse catalog YAML into entries.
 Result<std::vector<CatalogEntry>> load_catalog_entries(const std::string& yaml_text)
 {
     try
@@ -106,6 +109,7 @@ Result<std::vector<CatalogEntry>> load_catalog_entries(const std::string& yaml_t
     }
 }
 
+/// @brief Raise an alarm: insert or refresh, emitting the state event.
 Result<AlarmStateEvent> AlarmManager::raise(uint32_t alarm_id, const std::string& owner, const std::string& additional_text, const std::vector<uint32_t>& correlated)
 {
     // Catalog lookup supplies X.733 fields so applications declare ids only.
@@ -181,6 +185,7 @@ Result<AlarmStateEvent> AlarmManager::raise(uint32_t alarm_id, const std::string
     return Result<AlarmStateEvent>::good(ev);
 }
 
+/// @brief Acknowledge an active alarm.
 Result<AlarmStateEvent> AlarmManager::acknowledge(uint32_t alarm_id)
 {
     for (auto& r : active_)
@@ -198,6 +203,7 @@ Result<AlarmStateEvent> AlarmManager::acknowledge(uint32_t alarm_id)
     return Result<AlarmStateEvent>::fail(Errc::NotFound, "alarm not active: " + alarm_id_string(alarm_id), "acknowledge");
 }
 
+/// @brief Clear an active alarm.
 Result<AlarmStateEvent> AlarmManager::clear(uint32_t alarm_id, const std::string& owner)
 {
     // Only the owner may clear (applications declare alarms; R5).
@@ -217,6 +223,7 @@ Result<AlarmStateEvent> AlarmManager::clear(uint32_t alarm_id, const std::string
     return Result<AlarmStateEvent>::fail(Errc::NotFound, "alarm not active: " + alarm_id_string(alarm_id), "clear");
 }
 
+/// @brief Look up an active alarm.
 Result<const AlarmRecord*> AlarmManager::find(uint32_t alarm_id) const
 {
     for (const auto& r : active_)
@@ -224,6 +231,7 @@ Result<const AlarmRecord*> AlarmManager::find(uint32_t alarm_id) const
     return Result<const AlarmRecord*>::fail(Errc::NotFound, "alarm not active", "find");
 }
 
+/// @brief Promote stale unacknowledged alarms per the escalation rules.
 std::vector<AlarmStateEvent> AlarmManager::escalation_sweep(uint64_t now_mono_ns)
 {
     std::vector<AlarmStateEvent> out;
@@ -256,6 +264,7 @@ std::vector<AlarmStateEvent> AlarmManager::escalation_sweep(uint64_t now_mono_ns
     return out;
 }
 
+/// @brief Serialise the active table for persistence.
 std::string AlarmManager::active_json() const
 {
     std::ostringstream o;
@@ -273,11 +282,13 @@ std::string AlarmManager::active_json() const
     return o.str();
 }
 
+/// @brief Persist the active table atomically.
 Error AlarmManager::save()
 {
     return fs_.write(db_path_, active_json());
 }
 
+/// @brief Load the active table (tolerates a missing file: nothing active).
 Error AlarmManager::load()
 {
     auto txt = fs_.read(db_path_);
@@ -307,6 +318,7 @@ Error AlarmManager::load()
     return Error::none();
 }
 
+/// @brief Merge a regenerated catalog, preserving operator edits.
 AlarmManager::MergeStats AlarmManager::merge_catalog(const std::vector<CatalogEntry>& incoming)
 {
     MergeStats st;
@@ -345,6 +357,7 @@ AlarmManager::MergeStats AlarmManager::merge_catalog(const std::vector<CatalogEn
     return st;
 }
 
+/// @brief Persist the catalog atomically.
 Error AlarmManager::save_catalog(const std::string& path)
 {
     std::ostringstream o;
@@ -366,6 +379,7 @@ Error AlarmManager::save_catalog(const std::string& path)
     return fs_.write(path, o.str());
 }
 
+/// @brief Load the catalog from disk (missing file is not an error).
 Error AlarmManager::load_catalog(const std::string& path)
 {
     auto txt = fs_.read(path);
@@ -405,6 +419,7 @@ Error AlarmManager::load_catalog(const std::string& path)
     }
 }
 
+/// @brief Render the active table as JSON for ctrl responses.
 std::string AlarmManager::active_table_json() const
 {
     return active_json();

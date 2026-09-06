@@ -42,25 +42,29 @@ namespace alarms
 using namespace domain;
 using namespace instr::transport;
 
+/// @brief Alarms domain core: manager access, config and spoke event routing.
 class AlarmsCore
 {
   public:
+    /// @brief Bind the core to storage and a clock.
     AlarmsCore(IFileSystem& fs, const std::string& db_path, TimeSource& ts) : mgr_(fs, db_path, ts), fs_(fs), ts_(ts)
     {
     }
 
-    // Configuration delivered by istate (§7.6, §9).
+    /// @brief Configuration delivered by istate (§7.6, §9).
     struct Config
     {
-        bool enabled = true;
-        uint32_t escalation_default_promote_after_s = 3600;
-        double escalation_sweep_interval_s = 30.0;
-        bool snapshot_on_critical = true;
+        bool enabled = true;                             ///< Master switch.
+        uint32_t escalation_default_promote_after_s = 3600;   ///< Default escalation threshold.
+        double escalation_sweep_interval_s = 30.0;       ///< Sweep cadence.
+        bool snapshot_on_critical = true;                ///< Snapshot-on-fault switch.
     };
+    /// @brief Current configuration.
     const Config& config() const
     {
         return cfg_;
     }
+    /// @brief Apply an istate-delivered config document (rejects invalid values loudly).
     Error apply_config(const ConfigDocument& doc)
     {
         Config c;
@@ -74,19 +78,23 @@ class AlarmsCore
         if (on_config_) on_config_(cfg_);
         return Error::none();
     }
+    /// @brief Install a callback fired when a new config is accepted.
     void set_config_listener(std::function<void(const Config&)> f)
     {
         on_config_ = std::move(f);
     }
 
+    /// @brief Alarm manager access.
     AlarmManager& manager()
     {
         return mgr_;
     }
+    /// @brief Current monotonic time.
     uint64_t now_mono() const
     {
         return ts_.mono_ns();
     }
+    /// @brief Route manager events to the spoke.
     void set_spoke_sink(std::function<void(const AlarmStateEvent&)> f)
     {
         spoke_sink_ = std::move(f);
@@ -96,41 +104,48 @@ class AlarmsCore
     }
 
   private:
-    AlarmManager mgr_;
-    IFileSystem& fs_;
-    TimeSource& ts_;
-    std::function<void(const AlarmStateEvent&)> spoke_sink_;
-    Config cfg_;
-    std::function<void(const Config&)> on_config_;
+    AlarmManager mgr_;                        ///< State machine and persistence.
+    IFileSystem& fs_;                          ///< Storage backend.
+    TimeSource& ts_;                           ///< Clock.
+    std::function<void(const AlarmStateEvent&)> spoke_sink_;   ///< Spoke event routing.
+    Config cfg_;                              ///< Current configuration.
+    std::function<void(const Config&)> on_config_;   ///< Config-accepted listener.
 };
 
+/// @brief Build the alarms ctrl command table (raise/clear/ack/list/catalog).
 CommandTable build_alarms_table(AlarmsCore* core);
 
+/// @brief Spoke: transport to istate plus the schema-validated config sink.
 class AlarmsSpoke
 {
   public:
+    /// @brief Wire the channel, config sink and handlers together.
     AlarmsSpoke(AlarmsCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version);
+    /// @brief Start the channel.
     void start();
+    /// @brief Stop the channel.
     void stop();
+    /// @brief True while registered with istate.
     bool registered() const
     {
         return channel_->registered();
     }
-    // Configuration is delivered by istate over the channel and validated
-    // against this schema before it can change behaviour (R4, §9).
+    /// @brief Install the schema every config delivery must satisfy (R4, §9).
     void set_schema(JValue schema);
+    /// @brief Revision of the last config applied.
     uint64_t config_revision() const
     {
         return channel_->config_revision();
     }
+    /// @brief Queue an alarm state event to istate.
     void send_event(const AlarmStateEvent& ev);
 
   private:
-    AlarmsCore* core_;
-    Logger* log_;
-    const CommandTable* table_;
-    std::unique_ptr<ConfigSink> config_sink_;
-    std::unique_ptr<SpokeChannel<alarms::AlarmHub, alarms::AlarmSpokeFrame, alarms::AlarmHubFrame>> channel_;
+    AlarmsCore* core_;                        ///< Domain core (not owned).
+    Logger* log_;                             ///< Logger (not owned).
+    const CommandTable* table_;               ///< Command table (not owned).
+    std::unique_ptr<ConfigSink> config_sink_;      ///< Validates and applies config deliveries.
+    std::unique_ptr<SpokeChannel<alarms::AlarmHub, alarms::AlarmSpokeFrame, alarms::AlarmHubFrame>> channel_;   ///< gRPC channel to istate.
 };
 
 } // namespace alarms
