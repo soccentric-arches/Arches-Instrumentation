@@ -45,27 +45,31 @@ namespace telemetry
 using namespace domain;
 using namespace instr::transport;
 
+/// @brief Telemetry domain core: registry, shaper, retention buffer and health.
 class TelemetryCore
 {
   public:
+    /// @brief Bind the core to a clock with default shaping and retention.
     TelemetryCore(TimeSource& ts) : ts_(ts), shaper_(200, 30.0), buffer_(50)
     {
     }
 
-    // Configuration delivered by istate (§7.8, §9).
+    /// @brief Configuration delivered by istate (§7.8, §9).
     struct Config
     {
-        bool enabled = true;
-        double interval = 30.0;
-        size_t batch_max_records = 200;
-        double aggregation_window_s = 30.0;
-        size_t retention_batches = 50;
-        std::vector<std::string> health_inputs{"monitord", "hardware", "faults", "alarms"};
+        bool enabled = true;                  ///< Master switch.
+        double interval = 30.0;               ///< Batch/flush interval.
+        size_t batch_max_records = 200;       ///< Record bound per batch.
+        double aggregation_window_s = 30.0;   ///< Aggregation window length.
+        size_t retention_batches = 50;        ///< Unsent-batch retention bound.
+        std::vector<std::string> health_inputs{"monitord", "hardware", "faults", "alarms"};   ///< Health-score sources.
     };
+    /// @brief Current configuration.
     const Config& config() const
     {
         return cfg_;
     }
+    /// @brief Apply an istate-delivered config document (retunes the shaper/buffer live).
     Error apply_config(const ConfigDocument& doc)
     {
         Config c;
@@ -85,47 +89,55 @@ class TelemetryCore
         if (on_config_) on_config_(cfg_);
         return Error::none();
     }
+    /// @brief Install a callback fired when a new config is accepted.
     void set_config_listener(std::function<void(const Config&)> f)
     {
         on_config_ = std::move(f);
     }
 
+    /// @brief Registry access.
     MetricRegistry& registry()
     {
         return registry_;
     }
+    /// @brief Shaper access.
     BatchShaper& shaper()
     {
         return shaper_;
     }
+    /// @brief Retention buffer access.
     RetentionBuffer& buffer()
     {
         return buffer_;
     }
+    /// @brief Clock access.
     TimeSource& clock()
     {
         return ts_;
     }
 
-    // Application metric registration API. Duplicate → alarm-visible event.
+    /// @brief Application metric registration API. Duplicate → alarm-visible event.
     MetricRegistry::Reg register_metric(const std::string& name, const std::string& unit, const std::string& type, const std::string& app);
-    // Relayed samples (monitord via istate) are ingested into the shaper.
+    /// @brief Ingest relayed samples (monitord via istate) into the shaper.
     void ingest_relayed(const std::string& metric, double value, const std::string& unit, const std::map<std::string, std::string>& tags);
-    // Health inputs from the other daemons (via istate relays / spool stats).
+    /// @brief Recompute the health score from inputs of the other daemons.
     void update_health(const HealthInputs& in)
     {
         auto h = compute_health_score(in);
         shaper().set_health(h);
         last_health_ = h;
     }
+    /// @brief Last computed health score.
     const HealthScoreValue& last_health() const
     {
         return last_health_;
     }
+    /// @brief Attach reproducibility metadata to emitted batches.
     void set_repro(const ReproMetadata& m)
     {
         shaper().set_repro(m);
     }
+    /// @brief Install the batch sink (spoke emission).
     void set_sink(std::function<void(const MetricBatch&)> f)
     {
         sink_ = std::move(f);
@@ -133,45 +145,51 @@ class TelemetryCore
 
     uint64_t alarm_registrations_conflict = 0;
 
-  public:
   private:
-    TimeSource& ts_;
-    MetricRegistry registry_;
-    BatchShaper shaper_;
-    RetentionBuffer buffer_;
-    HealthScoreValue last_health_;
-    std::function<void(const MetricBatch&)> sink_;
-    Config cfg_;
-    std::function<void(const Config&)> on_config_;
+    TimeSource& ts_;                    ///< Clock (not owned).
+    MetricRegistry registry_;           ///< Application-registered metrics.
+    BatchShaper shaper_;                ///< Batch shaping and aggregation.
+    RetentionBuffer buffer_;            ///< Unsent-batch retention.
+    HealthScoreValue last_health_;      ///< Last computed health.
+    std::function<void(const MetricBatch&)> sink_;   ///< Batch sink.
+    Config cfg_;                        ///< Current configuration.
+    std::function<void(const Config&)> on_config_;   ///< Config-accepted listener.
 };
 
+/// @brief Build the telemetry ctrl command table (register, metrics, batches, status).
 CommandTable build_telemetry_table(TelemetryCore* core);
 
+/// @brief Spoke: transport to istate plus the schema-validated config sink.
 class TelemetrySpoke
 {
   public:
+    /// @brief Wire the channel, config sink and handlers together.
     TelemetrySpoke(TelemetryCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version);
+    /// @brief Start the channel.
     void start();
+    /// @brief Stop the channel.
     void stop();
+    /// @brief True while registered with istate.
     bool registered() const
     {
         return channel_->registered();
     }
-    // Configuration is delivered by istate over the channel and validated
-    // against this schema before it can change behaviour (R4, §9).
+    /// @brief Install the schema every config delivery must satisfy (R4, §9).
     void set_schema(JValue schema);
+    /// @brief Revision of the last config applied.
     uint64_t config_revision() const
     {
         return channel_->config_revision();
     }
+    /// @brief Queue a telemetry batch to istate.
     void send_batch(const MetricBatch& b);
 
   private:
-    TelemetryCore* core_;
-    Logger* log_;
-    const CommandTable* table_;
-    std::unique_ptr<ConfigSink> config_sink_;
-    std::unique_ptr<SpokeChannel<telemetry::TelemetryHub, telemetry::TelemetrySpokeFrame, telemetry::TelemetryHubFrame>> channel_;
+    TelemetryCore* core_;                     ///< Domain core (not owned).
+    Logger* log_;                             ///< Logger (not owned).
+    const CommandTable* table_;               ///< Command table (not owned).
+    std::unique_ptr<ConfigSink> config_sink_;      ///< Validates and applies config deliveries.
+    std::unique_ptr<SpokeChannel<telemetry::TelemetryHub, telemetry::TelemetrySpokeFrame, telemetry::TelemetryHubFrame>> channel_;   ///< gRPC channel to istate.
 };
 
 } // namespace telemetry

@@ -37,6 +37,7 @@ namespace telemetry
 namespace domain
 {
 
+/// @brief Register a metric definition; duplicates and invalid defs are loud.
 MetricRegistry::Reg MetricRegistry::register_metric(const std::string& name, const std::string& unit, const std::string& type, const std::string& app)
 {
     if (name.empty() || (type != "gauge" && type != "counter")) return Reg::Invalid;
@@ -55,12 +56,14 @@ MetricRegistry::Reg MetricRegistry::register_metric(const std::string& name, con
     return Reg::Ok;
 }
 
+/// @brief Look up a metric definition.
 const MetricDef* MetricRegistry::find(const std::string& name) const
 {
     auto it = metrics_.find(name);
     return it == metrics_.end() ? nullptr : &it->second;
 }
 
+/// @brief Ingest one raw sample into the open window.
 void Aggregator::add(const std::string& metric, double value, uint64_t mono_ns, const std::map<std::string, std::string>& tags)
 {
     auto& q = current_[metric];
@@ -69,6 +72,7 @@ void Aggregator::add(const std::string& metric, double value, uint64_t mono_ns, 
     if (window_start_ns_ == 0) window_start_ns_ = mono_ns;
 }
 
+/// @brief Close the window and aggregate per metric×function.
 std::vector<AggWindow> Aggregator::close(uint64_t window_end_mono_ns)
 {
     std::vector<AggWindow> out;
@@ -126,6 +130,7 @@ std::vector<AggWindow> Aggregator::close(uint64_t window_end_mono_ns)
     return out;
 }
 
+/// @brief Enqueue a batch, dropping oldest telemetry when full.
 void RetentionBuffer::push(const MetricBatch& b, Class cls)
 {
     buf_.push_back(Item{b, cls});
@@ -149,6 +154,7 @@ void RetentionBuffer::push(const MetricBatch& b, Class cls)
     }
 }
 
+/// @brief Remove and return all retained batches.
 std::vector<MetricBatch> RetentionBuffer::drain()
 {
     std::vector<MetricBatch> out;
@@ -157,6 +163,7 @@ std::vector<MetricBatch> RetentionBuffer::drain()
     return out;
 }
 
+/// @brief Compute the composite health score with per-factor contributions.
 HealthScoreValue compute_health_score(const HealthInputs& in)
 {
     // Starts at 100; each factor subtracts its penalty, floored at 0.
@@ -182,6 +189,7 @@ HealthScoreValue compute_health_score(const HealthInputs& in)
     return h;
 }
 
+/// @brief Ingest a sample; emit a batch when full or the interval elapsed.
 std::optional<MetricBatch> BatchShaper::ingest(const std::string& metric, double value, const std::string& unit, uint64_t mono_ns, const std::map<std::string, std::string>& tags)
 {
     agg_.add(metric, value, mono_ns, tags);
@@ -214,6 +222,7 @@ std::optional<MetricBatch> BatchShaper::ingest(const std::string& metric, double
     return b;
 }
 
+/// @brief Force a flush of the open aggregation window.
 std::optional<MetricBatch> BatchShaper::flush(uint64_t now_mono_ns)
 {
     if (total_pending_ == 0) return std::nullopt;
@@ -250,6 +259,7 @@ namespace telemetry
 namespace domain
 {
 
+/// @brief Shrink the retention bound (drops immediately, never lazily).
 void RetentionBuffer::set_max_records(size_t n)
 {
     max_records_ = n;

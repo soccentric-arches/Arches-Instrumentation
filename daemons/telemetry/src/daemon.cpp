@@ -32,6 +32,7 @@ namespace instr
 namespace telemetry
 {
 
+/// @brief Application metric registration entry point.
 MetricRegistry::Reg TelemetryCore::register_metric(const std::string& name, const std::string& unit, const std::string& type, const std::string& app)
 {
     auto r = registry_.register_metric(name, unit, type, app);
@@ -39,6 +40,7 @@ MetricRegistry::Reg TelemetryCore::register_metric(const std::string& name, cons
     return r;
 }
 
+/// @brief Ingest a relayed sample into the shaper.
 void TelemetryCore::ingest_relayed(const std::string& metric, double value, const std::string& unit, const std::map<std::string, std::string>& tags)
 {
     auto maybe = shaper_.ingest(metric, value, unit, ts_.mono_ns(), tags);
@@ -49,6 +51,7 @@ void TelemetryCore::ingest_relayed(const std::string& metric, double value, cons
     }
 }
 
+/// @brief Render a metric record as JSON.
 static JValue record_json(const MetricRecord& r)
 {
     JValue o = JValue::object();
@@ -61,6 +64,7 @@ static JValue record_json(const MetricRecord& r)
     return o;
 }
 
+/// @brief Build the telemetry ctrl command table.
 CommandTable build_telemetry_table(TelemetryCore* core)
 {
     CommandTable t;
@@ -125,6 +129,7 @@ CommandTable build_telemetry_table(TelemetryCore* core)
     return t;
 }
 
+/// @brief Wire the channel, config sink and handlers together.
 TelemetrySpoke::TelemetrySpoke(TelemetryCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version) : core_(core), log_(log), table_(table)
 {
     using ChannelT = SpokeChannel<telemetry::TelemetryHub, telemetry::TelemetrySpokeFrame, telemetry::TelemetryHubFrame>;
@@ -159,21 +164,25 @@ TelemetrySpoke::TelemetrySpoke(TelemetryCore* core, Logger* log, const CommandTa
     set_schema(JValue::object());
 }
 
+/// @brief Install the schema every config delivery must satisfy.
 void TelemetrySpoke::set_schema(JValue schema)
 {
     config_sink_ = std::make_unique<ConfigSink>("telemetry", std::move(schema), [this](const ConfigDocument& doc) { return core_->apply_config(doc); });
     channel_->set_config_handler([this](const common::ConfigDelivery& delivery) { return config_sink_->deliver(delivery.yaml(), delivery.revision()); });
 }
 
+/// @brief Start the transport channel.
 void TelemetrySpoke::start()
 {
     channel_->start();
 }
+/// @brief Stop the transport channel.
 void TelemetrySpoke::stop()
 {
     channel_->stop();
 }
 
+/// @brief Queue a telemetry batch to istate.
 void TelemetrySpoke::send_batch(const MetricBatch& b)
 {
     channel_->enqueue([&b](telemetry::TelemetrySpokeFrame& f) {
