@@ -110,7 +110,7 @@ TEST(Provisioning, RefusesKeygenWithoutEntropy) {
 
 TEST(Provisioning, KeyRotationWithoutSiteVisit) {
   ProvFixture f;
-  auto first = f.prov.run_first_boot([](const DeviceIdentity& ident) {
+  auto first = f.prov.run_first_boot([](const DeviceIdentity&) {
     TunnelConfig t;
     t.valid = true;
     return Result<TunnelConfig>::good(t);
@@ -118,7 +118,7 @@ TEST(Provisioning, KeyRotationWithoutSiteVisit) {
   ASSERT_TRUE(first.ok());
   std::string old_pub = first->wg_public_key;
   int enroll_calls = 0;
-  auto rotated = f.prov.rotate_key([&](const DeviceIdentity& ident) {
+  auto rotated = f.prov.rotate_key([&](const DeviceIdentity&) {
     ++enroll_calls;
     TunnelConfig t;
     t.valid = true;

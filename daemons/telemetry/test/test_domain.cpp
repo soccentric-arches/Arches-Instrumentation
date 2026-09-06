@@ -81,8 +81,6 @@ TEST(TelemetryBatchShaper, FlushOnInterval) {
   EXPECT_FALSE(shaper.flush(t + uint64_t(32 * 1e9)).has_value());
 }
 
-static size_t buf_size_before_drain() { return 7u; }
-
 TEST(TelemetryRetention, DropsOldestTelemetryFirst) {
   RetentionBuffer buf(3);
   MetricBatch b;
