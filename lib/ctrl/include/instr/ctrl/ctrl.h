@@ -102,7 +102,11 @@ class CtrlServer
 
     const CommandTable* table_;
     std::string path_;
-    int listen_fd_ = -1;
+    // Atomic: the accept thread reads this while stop() closes and clears it
+    // from another thread. As a plain int that is a data race (TSan flags it),
+    // and on a weakly-ordered target — half this fleet is aarch64 — the accept
+    // loop can miss the close and spin on a stale descriptor.
+    std::atomic<int> listen_fd_{-1};
     std::atomic<bool> running_{false};
     std::thread accept_thread_;
     // Each connection thread flags itself done on exit; serve_accept() joins
@@ -186,7 +190,11 @@ class BulkServer
 
     std::string path_;
     Resolver resolve_;
-    int listen_fd_ = -1;
+    // Atomic: the accept thread reads this while stop() closes and clears it
+    // from another thread. As a plain int that is a data race (TSan flags it),
+    // and on a weakly-ordered target — half this fleet is aarch64 — the accept
+    // loop can miss the close and spin on a stale descriptor.
+    std::atomic<int> listen_fd_{-1};
     std::atomic<bool> running_{false};
     std::atomic<uint64_t> served_{0};
     std::thread accept_thread_;
