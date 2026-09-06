@@ -62,7 +62,13 @@ check "tests" "cmake ctest" "ctest --test-dir $PRESET_DIR --output-on-failure"
 
 # The Jenkinsfile makes coverage a hard requirement (REQ §12) rather than a
 # report, so the gate does too. COVERAGE_MIN matches the Jenkins default.
-check "coverage gate" "cmake ctest gcov python3" '
+#
+# gcovr is in the needs list because test/CMakeLists.txt hard-errors at
+# configure time when COVERAGE=ON and gcovr is absent -- deliberately, so CI
+# cannot report success for a stage that never ran. Without gcovr declared
+# here that surfaces as FAIL, which would blame the code for a host that was
+# never provisioned. It is a BLOCKED.
+check "coverage gate" "cmake ctest gcovr python3" '
   cmake --preset coverage >/dev/null &&
   cmake --build --preset coverage -j"$(nproc)" >/dev/null &&
   ctest --preset coverage --output-on-failure >/dev/null &&
@@ -72,15 +78,35 @@ check "coverage gate" "cmake ctest gcov python3" '
 # Sanitizers catch what the test suite cannot assert: the fault-injection and
 # topology tests exercise concurrent hub/spoke paths, which is where TSan earns
 # its runtime.
-check "ASan + UBSan" "cmake ctest" '
-  cmake --preset asan >/dev/null &&
-  cmake --build --preset asan -j"$(nproc)" >/dev/null &&
-  ctest --preset asan --output-on-failure'
+#
+# Both run under `setarch -R` (ASLR disabled). This is not a workaround for a
+# code problem -- it is required by the sanitizers themselves on recent
+# kernels. ThreadSanitizer maps a fixed shadow-memory region, and when the
+# host's vm.mmap_rnd_bits is large enough the main mapping can land inside
+# that region; TSan then aborts at startup with
+#
+#     FATAL: ThreadSanitizer: unexpected memory mapping
+#
+# Verified on this host (kernel 7.0): the TSan build fails while *generating*
+# the alarm header, because alarmgen is itself instrumented and runs at build
+# time. The identical binary passes 44/44 under `setarch -R`. The alternative
+# is asking every developer to set a sysctl.
+SETARCH="setarch $(uname -m) -R"
 
-check "TSan" "cmake ctest" '
+# The system gRPC/protobuf/abseil are not TSan-instrumented, so TSan reports
+# races inside them that it cannot see the synchronisation for. test/tsan.supp
+# suppresses those and nothing else -- a race in instr:: code still fails.
+export TSAN_OPTIONS="suppressions=$(pwd)/test/tsan.supp${TSAN_OPTIONS:+ $TSAN_OPTIONS}"
+
+check "ASan + UBSan" "cmake ctest setarch" "
+  cmake --preset asan >/dev/null &&
+  $SETARCH cmake --build --preset asan -j\"\$(nproc)\" >/dev/null &&
+  $SETARCH ctest --preset asan --output-on-failure"
+
+check "TSan" "cmake ctest setarch" "
   cmake --preset tsan >/dev/null &&
-  cmake --build --preset tsan -j"$(nproc)" >/dev/null &&
-  ctest --preset tsan --output-on-failure'
+  $SETARCH cmake --build --preset tsan -j\"\$(nproc)\" >/dev/null &&
+  $SETARCH ctest --preset tsan --output-on-failure"
 
 check "clang-tidy" "cmake clang-tidy" \
   "cmake --build $PRESET_DIR --target run-clang-tidy"
