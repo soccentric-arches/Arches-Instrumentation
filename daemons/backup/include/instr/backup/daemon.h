@@ -48,9 +48,9 @@ class BackupCore
 {
   public:
     /// @brief Bind the core to storage, options and a clock.
-/// @param fs Storage backend.
-/// @param opts Backup options.
-/// @param ts Clock.
+    /// @param fs Storage backend.
+    /// @param opts Backup options.
+    /// @param ts Clock.
     BackupCore(IFileSystem& fs, const BackupOptions& opts, TimeSource& ts) : engine_(fs, opts), ts_(ts)
     {
     }
@@ -68,14 +68,14 @@ class BackupCore
         uint32_t retain_archives = 5;             ///< Retention count.
     };
     /// @brief Current configuration.
-/// @return Current configuration.
+    /// @return Current configuration.
     const Config& config() const
     {
         return cfg_;
     }
     /// @brief Apply an istate-delivered config document (validates values).
-/// @param doc Parsed, schema-validated document.
-/// @return ok(), or an error describing why the values were refused.
+    /// @param doc Parsed, schema-validated document.
+    /// @return ok(), or an error describing why the values were refused.
     Error apply_config(const ConfigDocument& doc)
     {
         Config c;
@@ -96,32 +96,32 @@ class BackupCore
         return Error::none();
     }
     /// @brief Install a callback fired when a new config is accepted.
-/// @param f Config-accepted listener.
+    /// @param f Config-accepted listener.
     void set_config_listener(std::function<void(const Config&)> f)
     {
         on_config_ = std::move(f);
     }
 
     /// @brief Engine access.
-/// @return Engine access.
+    /// @return Engine access.
     BackupEngine& engine()
     {
         return engine_;
     }
     /// @brief Override the archive directory.
-/// @param d Directory to store archives in.
+    /// @param d Directory to store archives in.
     void set_archive_dir(const std::string& d)
     {
         archive_dir_ = d;
     }
     /// @brief Current archive directory.
-/// @return The archive directory.
+    /// @return The archive directory.
     const std::string& archive_dir() const
     {
         return archive_dir_;
     }
     /// @brief Roots restores may touch (istate direction).
-/// @param roots Roots restores may touch (istate direction).
+    /// @param roots Roots restores may touch (istate direction).
     void set_restore_roots(const std::vector<std::string>& roots)
     {
         restore_roots_ = roots;
@@ -131,28 +131,28 @@ class BackupCore
         return restore_roots_;
     }
     /// @brief istate-directed commit: writes staged files under istate's supervision.
-/// @param f istate-directed commit callback.
+    /// @param f istate-directed commit callback.
     void set_commit_fn(BackupEngine::CommitFn f)
     {
         commit_fn_ = std::move(f);
     }
     /// @brief Clock access.
-/// @return Clock access.
+    /// @return Clock access.
     TimeSource& clock()
     {
         return ts_;
     }
     /// @brief Install the event sink (backup/restore results).
-/// @param f Event sink (backup/restore results).
+    /// @param f Event sink (backup/restore results).
     void set_event_sink(std::function<void(const std::string& action, const std::string& meta, bool ok, const std::string& err)> f)
     {
         sink_ = std::move(f);
     }
     /// @brief Emit one backup/restore event to the sink.
-/// @param action Event kind.
-/// @param meta Archive or detail.
-/// @param ok Outcome.
-/// @param err Error text when failed.
+    /// @param action Event kind.
+    /// @param meta Archive or detail.
+    /// @param ok Outcome.
+    /// @param err Error text when failed.
     void emit_event(const std::string& action, const std::string& meta, bool ok, const std::string& err)
     {
         if (sink_) sink_(action, meta, ok, err);
@@ -168,8 +168,8 @@ class BackupCore
         return schedule_interval_s_;
     }
     /// @brief Set the schedule state.
-/// @param enabled True to enable periodic backups.
-/// @param interval_s Cadence in seconds.
+    /// @param enabled True to enable periodic backups.
+    /// @param interval_s Cadence in seconds.
     void set_schedule(bool enabled, double interval_s)
     {
         schedule_enabled_ = enabled;
@@ -181,8 +181,8 @@ class BackupCore
         return bool(commit_fn_);
     }
     /// @brief Run the istate-directed commit for staged files.
-/// @param files Staged files to commit.
-/// @return ok(), or the commit error.
+    /// @param files Staged files to commit.
+    /// @return ok(), or the commit error.
     Error commit(const std::vector<tar::FileEntry>& files)
     {
         return commit_fn_(files);
@@ -211,11 +211,11 @@ class BackupSpoke
 {
   public:
     /// @brief Wire the channel, config sink and handlers together.
-/// @param core Domain core.
-/// @param log Logger.
-/// @param table Command table.
-/// @param hub_target istate gRPC target.
-/// @param build_version Build version to advertise.
+    /// @param core Domain core.
+    /// @param log Logger.
+    /// @param table Command table.
+    /// @param hub_target istate gRPC target.
+    /// @param build_version Build version to advertise.
     BackupSpoke(BackupCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version);
     /// @brief Start the channel.
     void start();
@@ -227,7 +227,7 @@ class BackupSpoke
         return channel_->registered();
     }
     /// @brief Install the schema every config delivery must satisfy (R4, §9).
-/// @param schema Schema every config delivery must satisfy.
+    /// @param schema Schema every config delivery must satisfy.
     void set_schema(JValue schema);
     /// @brief Revision of the last config applied.
     uint64_t config_revision() const
@@ -235,11 +235,11 @@ class BackupSpoke
         return channel_->config_revision();
     }
     /// @brief Queue a backup event to istate.
-/// @param action Event kind.
-/// @param archive Archive name.
-/// @param meta Detail.
-/// @param ok Outcome.
-/// @param err Error text when failed.
+    /// @param action Event kind.
+    /// @param archive Archive name.
+    /// @param meta Detail.
+    /// @param ok Outcome.
+    /// @param err Error text when failed.
     void send_event(const std::string& action, const std::string& archive, const std::string& meta, bool ok, const std::string& err);
 
   private:

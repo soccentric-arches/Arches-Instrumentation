@@ -57,7 +57,7 @@ class TimeSource
 {
   public:
     /// @brief Default destructor.
-/// @return Default destructor.
+    /// @return Default destructor.
     virtual ~TimeSource() = default;
     /// @brief Monotonic clock reading in nanoseconds (resets per boot).
     /// @return Nanoseconds on the monotonic timeline.
@@ -84,7 +84,7 @@ class SystemTimeSource : public TimeSource
     /// @return Nanoseconds since the epoch.
     int64_t wall_ns() override;
     /// @brief Boot identifier distinguishing monotonic timelines across reboots.
-/// @return The boot id string.
+    /// @return The boot id string.
     std::string boot_id() override;
     /// @brief Next process-wide arrival-order sequence number (strictly increasing).
     /// @return The next sequence number.
@@ -110,7 +110,7 @@ class ManualTimeSource : public TimeSource
         return wall;
     }
     /// @brief Boot identifier distinguishing monotonic timelines across reboots.
-/// @return The boot id string.
+    /// @return The boot id string.
     std::string boot_id() override
     {
         return bid;
@@ -146,7 +146,7 @@ class TimeReconciler
         uint64_t mono_ns; ///< Monotonic reading taken before the lock.
     };
     /// @brief Queue of pending observations in arrival order.
-/// @return Queue of pending observations in arrival order.
+    /// @return Queue of pending observations in arrival order.
     const std::deque<Pending>& pending() const
     {
         return pending_;
@@ -171,7 +171,7 @@ class TimeReconciler
     /// @return The stamps drained from the reconciler.
     std::vector<Stamp> take_stamped();
     /// @brief View of stamps produced by reconcile() so far, ordered by seq.
-/// @return View of stamps produced by reconcile() so far, ordered by seq.
+    /// @return View of stamps produced by reconcile() so far, ordered by seq.
     const std::vector<Stamp>& stamped() const
     {
         return stamped_;
@@ -201,7 +201,7 @@ class TimeReconciler
         return offset_ns_;
     }
     /// @brief Identifier of the source that produced the last lock.
-/// @return Identifier of the source that produced the last lock.
+    /// @return Identifier of the source that produced the last lock.
     const std::string& source() const
     {
         return source_;

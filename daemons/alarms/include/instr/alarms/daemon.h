@@ -48,9 +48,9 @@ class AlarmsCore
 {
   public:
     /// @brief Bind the core to storage and a clock.
-/// @param fs Storage backend.
-/// @param db_path Active-alarm database path.
-/// @param ts Clock.
+    /// @param fs Storage backend.
+    /// @param db_path Active-alarm database path.
+    /// @param ts Clock.
     AlarmsCore(IFileSystem& fs, const std::string& db_path, TimeSource& ts) : mgr_(fs, db_path, ts), fs_(fs), ts_(ts)
     {
     }
@@ -64,14 +64,14 @@ class AlarmsCore
         bool snapshot_on_critical = true; ///< Snapshot-on-fault switch.
     };
     /// @brief Current configuration.
-/// @return Current configuration.
+    /// @return Current configuration.
     const Config& config() const
     {
         return cfg_;
     }
     /// @brief Apply an istate-delivered config document (rejects invalid values loudly).
-/// @param doc Parsed, schema-validated document.
-/// @return ok(), or an error describing why the values were refused.
+    /// @param doc Parsed, schema-validated document.
+    /// @return ok(), or an error describing why the values were refused.
     Error apply_config(const ConfigDocument& doc)
     {
         Config c;
@@ -86,14 +86,14 @@ class AlarmsCore
         return Error::none();
     }
     /// @brief Install a callback fired when a new config is accepted.
-/// @param f Config-accepted listener.
+    /// @param f Config-accepted listener.
     void set_config_listener(std::function<void(const Config&)> f)
     {
         on_config_ = std::move(f);
     }
 
     /// @brief Alarm manager access.
-/// @return Alarm manager access.
+    /// @return Alarm manager access.
     AlarmManager& manager()
     {
         return mgr_;
@@ -104,7 +104,7 @@ class AlarmsCore
         return ts_.mono_ns();
     }
     /// @brief Route manager events to the spoke.
-/// @param f Spoke event routing sink.
+    /// @param f Spoke event routing sink.
     void set_spoke_sink(std::function<void(const AlarmStateEvent&)> f)
     {
         spoke_sink_ = std::move(f);
@@ -132,11 +132,11 @@ class AlarmsSpoke
 {
   public:
     /// @brief Wire the channel, config sink and handlers together.
-/// @param core Domain core.
-/// @param log Logger.
-/// @param table Command table.
-/// @param hub_target istate gRPC target.
-/// @param build_version Build version to advertise.
+    /// @param core Domain core.
+    /// @param log Logger.
+    /// @param table Command table.
+    /// @param hub_target istate gRPC target.
+    /// @param build_version Build version to advertise.
     AlarmsSpoke(AlarmsCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version);
     /// @brief Start the channel.
     void start();
@@ -148,7 +148,7 @@ class AlarmsSpoke
         return channel_->registered();
     }
     /// @brief Install the schema every config delivery must satisfy (R4, §9).
-/// @param schema Schema every config delivery must satisfy.
+    /// @param schema Schema every config delivery must satisfy.
     void set_schema(JValue schema);
     /// @brief Revision of the last config applied.
     uint64_t config_revision() const
@@ -156,7 +156,7 @@ class AlarmsSpoke
         return channel_->config_revision();
     }
     /// @brief Queue an alarm state event to istate.
-/// @param ev Alarm state event to queue.
+    /// @param ev Alarm state event to queue.
     void send_event(const AlarmStateEvent& ev);
 
   private:

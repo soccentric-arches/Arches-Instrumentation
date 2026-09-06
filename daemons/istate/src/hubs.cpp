@@ -103,98 +103,98 @@ template <typename Service, typename SpokeFrame, typename HubFrame> class TypedH
     /// @brief Construct a hub for @p daemon wiring ingest into the istate core.
     /// @param core istate core the hub ingests into.
     /// @param daemon Spoke identity this hub accepts.
-/// @param ' '..
-/// @param S S..
-/// @param e E..
-/// @param r R..
-/// @param v V..
-/// @param i I..
-/// @param c C..
-/// @param e E..
-/// @param ' '..
-/// @param , ,..
-/// @param    ..
-/// @param ' '..
-/// @param S S..
-/// @param p P..
-/// @param o O..
-/// @param k K..
-/// @param e E..
-/// @param F F..
-/// @param r R..
-/// @param a A..
-/// @param m M..
-/// @param e E..
-/// @param ' '..
-/// @param ' '..
-/// @param S S..
-/// @param e E..
-/// @param r R..
-/// @param v V..
-/// @param i I..
-/// @param c C..
-/// @param e E..
-/// @param ' '..
-/// @param , ,..
-/// @param    ..
-/// @param ' '..
-/// @param S S..
-/// @param p P..
-/// @param o O..
-/// @param k K..
-/// @param e E..
-/// @param F F..
-/// @param r R..
-/// @param a A..
-/// @param m M..
-/// @param e E..
-/// @param ' '..
-/// @param ' '..
-/// @param S S..
-/// @param e E..
-/// @param r R..
-/// @param v V..
-/// @param i I..
-/// @param c C..
-/// @param e E..
-/// @param ' '..
-/// @param , ,..
-/// @param    ..
-/// @param ' '..
-/// @param S S..
-/// @param p P..
-/// @param o O..
-/// @param k K..
-/// @param e E..
-/// @param F F..
-/// @param r R..
-/// @param a A..
-/// @param m M..
-/// @param e E..
-/// @param ' '..
-/// @param ' '..
-/// @param S S..
-/// @param e E..
-/// @param r R..
-/// @param v V..
-/// @param i I..
-/// @param c C..
-/// @param e E..
-/// @param ' '..
-/// @param , ,..
-/// @param    ..
-/// @param ' '..
-/// @param S S..
-/// @param p P..
-/// @param o O..
-/// @param k K..
-/// @param e E..
-/// @param F F..
-/// @param r R..
-/// @param a A..
-/// @param m M..
-/// @param e E..
-/// @param ' '..
+    /// @param ' '..
+    /// @param S S..
+    /// @param e E..
+    /// @param r R..
+    /// @param v V..
+    /// @param i I..
+    /// @param c C..
+    /// @param e E..
+    /// @param ' '..
+    /// @param , ,..
+    /// @param    ..
+    /// @param ' '..
+    /// @param S S..
+    /// @param p P..
+    /// @param o O..
+    /// @param k K..
+    /// @param e E..
+    /// @param F F..
+    /// @param r R..
+    /// @param a A..
+    /// @param m M..
+    /// @param e E..
+    /// @param ' '..
+    /// @param ' '..
+    /// @param S S..
+    /// @param e E..
+    /// @param r R..
+    /// @param v V..
+    /// @param i I..
+    /// @param c C..
+    /// @param e E..
+    /// @param ' '..
+    /// @param , ,..
+    /// @param    ..
+    /// @param ' '..
+    /// @param S S..
+    /// @param p P..
+    /// @param o O..
+    /// @param k K..
+    /// @param e E..
+    /// @param F F..
+    /// @param r R..
+    /// @param a A..
+    /// @param m M..
+    /// @param e E..
+    /// @param ' '..
+    /// @param ' '..
+    /// @param S S..
+    /// @param e E..
+    /// @param r R..
+    /// @param v V..
+    /// @param i I..
+    /// @param c C..
+    /// @param e E..
+    /// @param ' '..
+    /// @param , ,..
+    /// @param    ..
+    /// @param ' '..
+    /// @param S S..
+    /// @param p P..
+    /// @param o O..
+    /// @param k K..
+    /// @param e E..
+    /// @param F F..
+    /// @param r R..
+    /// @param a A..
+    /// @param m M..
+    /// @param e E..
+    /// @param ' '..
+    /// @param ' '..
+    /// @param S S..
+    /// @param e E..
+    /// @param r R..
+    /// @param v V..
+    /// @param i I..
+    /// @param c C..
+    /// @param e E..
+    /// @param ' '..
+    /// @param , ,..
+    /// @param    ..
+    /// @param ' '..
+    /// @param S S..
+    /// @param p P..
+    /// @param o O..
+    /// @param k K..
+    /// @param e E..
+    /// @param F F..
+    /// @param r R..
+    /// @param a A..
+    /// @param m M..
+    /// @param e E..
+    /// @param ' '..
     TypedHub(IstateCore& core, std::string daemon) : HubServiceBase<Service, SpokeFrame, HubFrame>(daemon, INSTR_VERSION), core_(core)
     {
         this->set_ingest([this, &core](const GenericSpokeMsg& m) { core.on_spoke_msg(m); });
@@ -918,7 +918,7 @@ class ConfigurationApiImpl final : public istate::ConfigurationApi::Service
 
     /// @brief Map a proto origin enum to the domain enum.
     /// @param o Proto origin.
-/// @return The domain origin.
+    /// @return The domain origin.
     static instr::Origin origin_from_proto(common::Origin o)
     {
         switch (o)
@@ -1365,7 +1365,7 @@ class ApplicationApiImpl final : public istate::ApplicationApi::Service
     /// @param daemon Spoke to relay to.
     /// @param op Operation name.
     /// @param args Parsed argument object.
-/// @param data_json JSON payload relayed with the command.
+    /// @param data_json JSON payload relayed with the command.
     /// @return (delivered, ack JSON or error).
     std::pair<bool, std::string> relay(const std::string& daemon, const std::string& op, const JValue& args, std::string* data_json = nullptr)
     {
@@ -1396,7 +1396,7 @@ class ApplicationApiImpl final : public istate::ApplicationApi::Service
     /// @param args Parsed argument object.
     /// @param owner Alarm owner.
     /// @param alarm_id Packed alarm id.
-/// @param reply Receives the alarm-operation outcome.
+    /// @param reply Receives the alarm-operation outcome.
     /// @return gRPC status reflecting the outcome.
     grpc::Status relay_alarm(const std::string& op, const JValue& args, const std::string& owner, uint32_t alarm_id, istate::AlarmAck* reply)
     {

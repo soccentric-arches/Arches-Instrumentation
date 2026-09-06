@@ -48,17 +48,17 @@ class OtaCore
 {
   public:
     /// @brief Bind the core to storage, platform, a clock and the initial policy.
-/// @param fs Storage backend.
-/// @param plat Platform.
-/// @param ts Clock.
-/// @param cfg Initial policy.
+    /// @param fs Storage backend.
+    /// @param plat Platform.
+    /// @param ts Clock.
+    /// @param cfg Initial policy.
     OtaCore(IFileSystem& fs, platform::IPlatform& plat, TimeSource& ts, const OtaConfig& cfg) : engine_(fs, plat, ts, cfg)
     {
     }
 
     /// @brief Apply an istate-delivered config document (§7.9, §9; validates values).
-/// @param doc Parsed, schema-validated document.
-/// @return ok(), or an error describing why the values were refused.
+    /// @param doc Parsed, schema-validated document.
+    /// @return ok(), or an error describing why the values were refused.
     Error apply_config(const ConfigDocument& doc)
     {
         OtaConfig c;
@@ -84,7 +84,7 @@ class OtaCore
         return Error::none();
     }
     /// @brief Install a callback fired when a new config is accepted (tick interval).
-/// @param f Config-accepted listener (receives the tick interval).
+    /// @param f Config-accepted listener (receives the tick interval).
     void set_config_listener(std::function<void(double)> f)
     {
         on_config_ = std::move(f);
@@ -96,14 +96,14 @@ class OtaCore
     }
 
     /// @brief Engine access.
-/// @return Engine access.
+    /// @return Engine access.
     OtaEngine& engine()
     {
         return engine_;
     }
     /// @brief Hooks the table needs; provided by the wiring layer.
     /// @{
-/// @param f Enrollment-secret provider.
+    /// @param f Enrollment-secret provider.
     void set_secret_provider(std::function<std::string()> f)
     {
         secret_ = std::move(f);
@@ -122,13 +122,13 @@ class OtaCore
     }
     /// @}
     /// @brief Current enrollment secret (empty when no provider).
-/// @return The current enrollment secret (empty when no provider).
+    /// @return The current enrollment secret (empty when no provider).
     std::string secret() const
     {
         return secret_ ? secret_() : std::string();
     }
     /// @brief Currently running version ("0.0.0" when unknown).
-/// @return The currently running version ("0.0.0" when unknown).
+    /// @return The currently running version ("0.0.0" when unknown).
     std::string running_version() const
     {
         return running_ ? running_() : std::string("0.0.0");
@@ -144,7 +144,7 @@ class OtaCore
         return wall_fn_ ? wall_fn_() : 0;
     }
     /// @brief Route engine progress events to the spoke.
-/// @param f Spoke event routing sink.
+    /// @param f Spoke event routing sink.
     void set_spoke_sink(std::function<void(const OtaProgressEvent&)> f)
     {
         spoke_sink_ = std::move(f);
@@ -153,7 +153,7 @@ class OtaCore
         });
     }
     /// @brief Render engine state as JSON (ctrl "status").
-/// @return The engine state as JSON.
+    /// @return The engine state as JSON.
     std::string status_json() const;
 
   private:
@@ -177,11 +177,11 @@ class OtaSpoke
 {
   public:
     /// @brief Wire the channel, config sink and handlers together.
-/// @param core Domain core.
-/// @param log Logger.
-/// @param table Command table.
-/// @param hub_target istate gRPC target.
-/// @param build_version Build version to advertise.
+    /// @param core Domain core.
+    /// @param log Logger.
+    /// @param table Command table.
+    /// @param hub_target istate gRPC target.
+    /// @param build_version Build version to advertise.
     OtaSpoke(OtaCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version);
     /// @brief Start the channel.
     void start();
@@ -193,7 +193,7 @@ class OtaSpoke
         return channel_->registered();
     }
     /// @brief Install the schema every config delivery must satisfy (R4, §9).
-/// @param schema Schema every config delivery must satisfy.
+    /// @param schema Schema every config delivery must satisfy.
     void set_schema(JValue schema);
     /// @brief Revision of the last config applied.
     uint64_t config_revision() const
@@ -201,7 +201,7 @@ class OtaSpoke
         return channel_->config_revision();
     }
     /// @brief Queue a progress event to istate.
-/// @param ev Progress event to queue.
+    /// @param ev Progress event to queue.
     void send_event(const OtaProgressEvent& ev);
     /// @brief Queue a state report to istate.
     void send_status();

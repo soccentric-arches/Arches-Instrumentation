@@ -50,7 +50,7 @@ class IFileSystem
 {
   public:
     /// @brief Default destructor.
-/// @return Default destructor.
+    /// @return Default destructor.
     virtual ~IFileSystem() = default;
 
     /// @brief Test whether a path exists.
@@ -106,9 +106,9 @@ class IFileSystem
     /// @return ok(), or the underlying I/O error.
     virtual Error fsync_path(const std::string& path) = 0;
     /// @brief Join two path components with a single separator.
-/// @param a Left component.
-/// @param b Right component.
-/// @return The joined path.
+    /// @param a Left component.
+    /// @param b Right component.
+    /// @return The joined path.
     virtual std::string join(const std::string& a, const std::string& b) const
     {
         return a.empty() ? b : (a.back() == '/' ? a + b : a + "/" + b);
@@ -231,26 +231,26 @@ class SimulatedFileSystem : public IFileSystem
     Error fsync_path(const std::string& path) override;
 
     /// @brief Fail writes from the n-th write onwards (1-based; 0 disables).
-/// @param n Write number to fail from (1-based; 0 disables).
+    /// @param n Write number to fail from (1-based; 0 disables).
     void fail_writes_after(int n)
     {
         fail_writes_after_ = n;
     }
     /// @brief Corrupt data returned by reads of @p path from the n-th read onwards (simulates bit rot / torn sector).
-/// @param path Path whose reads are corrupted.
-/// @param from_read Read number to corrupt from (1-based).
+    /// @param path Path whose reads are corrupted.
+    /// @param from_read Read number to corrupt from (1-based).
     void corrupt_reads_of(const std::string& path, int from_read)
     {
         corrupt_[path] = from_read;
     }
     /// @brief Clamp reported free space (simulates a filling / full partition).
-/// @param bytes Free space to report.
+    /// @param bytes Free space to report.
     void set_free_space(uint64_t bytes)
     {
         free_space_ = bytes;
     }
     /// @brief Set the simulated clock; tests advance it to age files without waiting.
-/// @param t Simulated unix time in seconds.
+    /// @param t Simulated unix time in seconds.
     void set_now_unix_s(int64_t t)
     {
         now_unix_s_ = t;
@@ -261,20 +261,20 @@ class SimulatedFileSystem : public IFileSystem
         return now_unix_s_;
     }
     /// @brief Force the mtime of a file (ageing without waiting).
-/// @param path File to stamp.
-/// @param t Mtime in unix seconds.
+    /// @param path File to stamp.
+    /// @param t Mtime in unix seconds.
     void set_file_mtime_s(const std::string& path, int64_t t)
     {
         mtimes_[path] = t;
     }
     /// @brief Make every rename fail (simulates cross-device or ro-remount errors).
-/// @param v True to fail every rename.
+    /// @param v True to fail every rename.
     void fail_renames(bool v)
     {
         fail_renames_ = v;
     }
     /// @brief Make every mkdirs fail (simulates read-only storage).
-/// @param v True to fail every mkdirs.
+    /// @param v True to fail every mkdirs.
     void fail_mkdirs(bool v)
     {
         fail_mkdirs_ = v;
@@ -289,7 +289,7 @@ class SimulatedFileSystem : public IFileSystem
     }
 
     /// @brief View of the raw file contents (test introspection).
-/// @return View of the raw file contents (test introspection).
+    /// @return View of the raw file contents (test introspection).
     const std::map<std::string, std::string>& raw() const
     {
         return files_;

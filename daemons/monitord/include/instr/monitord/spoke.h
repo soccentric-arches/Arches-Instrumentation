@@ -56,11 +56,11 @@ class MonitorSpoke
 {
   public:
     /// @brief Wire the channel, config sink and handlers together.
-/// @param core Domain core.
-/// @param log Logger.
-/// @param table Command table.
-/// @param hub_target istate gRPC target.
-/// @param build_version Build version to advertise.
+    /// @param core Domain core.
+    /// @param log Logger.
+    /// @param table Command table.
+    /// @param hub_target istate gRPC target.
+    /// @param build_version Build version to advertise.
     MonitorSpoke(MonitorCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version);
 
     /// @brief Start the channel and the sampling thread.
@@ -73,7 +73,7 @@ class MonitorSpoke
         return channel_->registered();
     }
     /// @brief Install the schema every config delivery must satisfy (R4, §9).
-/// @param schema Schema every config delivery must satisfy.
+    /// @param schema Schema every config delivery must satisfy.
     void set_schema(JValue schema);
     /// @brief Revision of the last config applied.
     uint64_t config_revision() const

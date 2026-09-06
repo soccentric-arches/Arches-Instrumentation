@@ -209,20 +209,20 @@ class RemoteAccessManager
     Result<SshWindow> open(const std::string& operator_name, uint64_t ttl_s, int64_t now_unix_s);
     /// @brief Expire windows whose TTL elapsed.
     /// @return The windows expired by this sweep.
-/// @param now_unix_s Current wall time.
+    /// @param now_unix_s Current wall time.
     std::vector<SshWindow> sweep(int64_t now_unix_s);
     /// @brief Windows still open at @p now_unix_s.
-/// @param now_unix_s Current wall time.
-/// @return Windows still open.
+    /// @param now_unix_s Current wall time.
+    /// @return Windows still open.
     std::vector<SshWindow> active(int64_t now_unix_s) const;
     /// @brief True when any window is open.
-/// @param now_unix_s Current wall time.
-/// @return True when any window is open.
+    /// @param now_unix_s Current wall time.
+    /// @return True when any window is open.
     bool any_active(int64_t now_unix_s) const;
     /// @brief Close every window immediately.
     void close_all();
     /// @brief Upper bound on a window; longer requests are clamped, never granted (§7.2).
-/// @param s Window cap in seconds.
+    /// @param s Window cap in seconds.
     void set_max_ttl_s(uint64_t s)
     {
         max_ttl_s_ = s;

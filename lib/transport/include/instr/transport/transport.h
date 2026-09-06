@@ -113,9 +113,9 @@ template <typename StubOuter, typename SpokeFrame, typename HubFrame> class Spok
     };
 
     /// @brief Construct a channel with @p opts logging to @p log.
-/// @param opts Channel parameters.
-/// @param backoff_base_s Reconnect backoff base (unused after opts; kept for compatibility).
-/// @param backoff_max_s Reconnect backoff cap (unused after opts).
+    /// @param opts Channel parameters.
+    /// @param backoff_base_s Reconnect backoff base (unused after opts; kept for compatibility).
+    /// @param backoff_max_s Reconnect backoff cap (unused after opts).
     SpokeChannel(Options opts, Logger& log) : opts_(std::move(opts)), log_(log), backoff_(opts_.backoff_base_s, opts_.backoff_max_s)
     {
     }
@@ -131,13 +131,13 @@ template <typename StubOuter, typename SpokeFrame, typename HubFrame> class Spok
     using ConfigHandler = std::function<std::string(const common::ConfigDelivery&)>;
 
     /// @brief Install the hub-frame handler (commands, relays, time sync).
-/// @param h Hub-frame callback.
+    /// @param h Hub-frame callback.
     void set_hub_handler(HubHandler h)
     {
         hub_handler_ = std::move(h);
     }
     /// @brief Install the config-delivery handler.
-/// @param h Config-delivery callback.
+    /// @param h Config-delivery callback.
     void set_config_handler(ConfigHandler h)
     {
         config_handler_ = std::move(h);
@@ -188,19 +188,19 @@ template <typename StubOuter, typename SpokeFrame, typename HubFrame> class Spok
     }
 
     /// @brief Queue an ack frame.
-/// @param ack Ack frame to queue.
+    /// @param ack Ack frame to queue.
     void send_ack(const common::Ack& ack)
     {
         enqueue([&](SpokeFrame& f) { *f.mutable_ack() = ack; });
     }
     /// @brief Queue a liveness pong answering @p nonce.
-/// @param nonce Nonce being answered.
+    /// @param nonce Nonce being answered.
     void send_pong(uint64_t nonce)
     {
         enqueue([&](SpokeFrame& f) { f.mutable_pong()->set_nonce(nonce); });
     }
     /// @brief Queue a status JSON frame.
-/// @param status_json Status JSON to queue.
+    /// @param status_json Status JSON to queue.
     void send_status_json(const std::string& status_json)
     {
         enqueue([&](SpokeFrame& f) { f.set_status_json(status_json); });
@@ -402,20 +402,20 @@ template <typename Service, typename SpokeFrame, typename HubFrame> class HubSer
     using FrameOut = std::function<bool(const GenericHubMsg&)>;
 
     /// @brief Construct the hub for @p daemon reporting @p build_version.
-/// @param daemon Accepted spoke identity.
-/// @param build_version Build version returned in the handshake.
+    /// @param daemon Accepted spoke identity.
+    /// @param build_version Build version returned in the handshake.
     HubServiceBase(std::string daemon, std::string build_version) : daemon_(std::move(daemon)), build_version_(std::move(build_version))
     {
     }
 
     /// @brief Install the inbound frame consumer.
-/// @param f Inbound frame consumer.
+    /// @param f Inbound frame consumer.
     void set_ingest(FrameIn f)
     {
         ingest_ = std::move(f);
     }
     /// @brief Install the outbound frame source.
-/// @param f Outbound frame source.
+    /// @param f Outbound frame source.
     void set_outbound(FrameOut f)
     {
         outbound_ = std::move(f);
@@ -427,22 +427,22 @@ template <typename Service, typename SpokeFrame, typename HubFrame> class HubSer
     /// §11). Without this the handshake result never leaves the transport.
     using RegistrationFn = std::function<void(const common::RegistrationRequest&, bool accepted)>;
     /// @brief Install the registration-reporting callback.
-/// @param f Registration-reporting callback.
+    /// @param f Registration-reporting callback.
     void set_registration_fn(RegistrationFn f)
     {
         on_register_ = std::move(f);
     }
     /// @brief The daemon identity this hub accepts registrations from.
-/// @return The accepted spoke identity.
+    /// @return The accepted spoke identity.
     const std::string& daemon() const
     {
         return daemon_;
     }
 
     /// @brief Registration RPC: validates daemon name and proto version, reports the outcome.
-/// @param req Registration request.
-/// @param reply Reply to populate.
-/// @return gRPC status (always OK; acceptance is in @p reply).
+    /// @param req Registration request.
+    /// @param reply Reply to populate.
+    /// @return gRPC status (always OK; acceptance is in @p reply).
     grpc::Status Register(grpc::ServerContext*, const common::RegistrationRequest* req, common::RegistrationReply* reply) override
     {
         if (req->daemon() != daemon_)
@@ -471,8 +471,8 @@ template <typename Service, typename SpokeFrame, typename HubFrame> class HubSer
     }
 
     /// @brief Bidi channel RPC: reader on this thread, writer thread draining the outbound queue.
-/// @param stream Bidi stream to serve.
-/// @return gRPC status when the session ends.
+    /// @param stream Bidi stream to serve.
+    /// @return gRPC status when the session ends.
     grpc::Status Channel(grpc::ServerContext*, grpc::ServerReaderWriter<HubFrame, SpokeFrame>* stream) override
     {
         // Reader (this thread) + writer thread.
@@ -515,7 +515,7 @@ template <typename Service, typename SpokeFrame, typename HubFrame> class HubSer
     }
 
     /// @brief Queue a hub message for the spoke.
-/// @param m Hub message to queue.
+    /// @param m Hub message to queue.
     void push(const GenericHubMsg& m)
     {
         std::lock_guard<std::mutex> lk(mu_);
@@ -535,12 +535,12 @@ template <typename Service, typename SpokeFrame, typename HubFrame> class HubSer
 
   protected:
     /// @brief Convert a typed spoke frame into the generic transport message.
-/// @param f Typed spoke frame to convert.
-/// @return The generic transport message.
+    /// @param f Typed spoke frame to convert.
+    /// @return The generic transport message.
     virtual GenericSpokeMsg to_generic(const SpokeFrame& f) = 0;
     /// @brief Apply a generic hub message onto a typed hub frame.
-/// @param f Typed hub frame to fill.
-/// @param m Generic hub message.
+    /// @param f Typed hub frame to fill.
+    /// @param m Generic hub message.
     virtual void apply(HubFrame& f, const GenericHubMsg& m) = 0;
 
     std::string daemon_; ///< Accepted spoke identity.

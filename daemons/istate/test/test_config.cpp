@@ -190,7 +190,7 @@ struct HqSigner
         public_key.assign(reinterpret_cast<char*>(raw), len);
     }
     /// @brief Releases the signing key context.
-/// @return Releases the signing key context.
+    /// @return Releases the signing key context.
     ~HqSigner()
     {
         EVP_PKEY_free(key);

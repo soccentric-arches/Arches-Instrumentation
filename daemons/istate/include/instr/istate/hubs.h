@@ -69,9 +69,9 @@ class HqClient
 {
   public:
     /// @brief Construct the client over @p hq_target.
-/// @param core istate core.
-/// @param log Logger.
-/// @param hq_target HQ tunnel target.
+    /// @param core istate core.
+    /// @param log Logger.
+    /// @param hq_target HQ tunnel target.
     HqClient(IstateCore& core, Logger& log, const std::string& hq_target);
     /// @brief Start the session loop.
     void start();

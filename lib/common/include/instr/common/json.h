@@ -88,17 +88,17 @@ class JValue
     {
     }
     /// @brief Construct a boolean value.
-/// @param b Boolean payload.
+    /// @param b Boolean payload.
     explicit JValue(bool b) : type_(Type::Bool), bool_(b)
     {
     }
     /// @brief Construct a number value.
-/// @param n Numeric payload.
+    /// @param n Numeric payload.
     explicit JValue(double n) : type_(Type::Number), num_(n)
     {
     }
     /// @brief Construct a number value from an int.
-/// @param n Numeric payload.
+    /// @param n Numeric payload.
     explicit JValue(int n) : type_(Type::Number), num_(n)
     {
     }
@@ -113,7 +113,7 @@ class JValue
     {
     }
     /// @brief Construct a string value (overload that beats pointer→bool conversion).
-/// @param s String payload.
+    /// @param s String payload.
     explicit JValue(const char* s) : type_(Type::String), str_(s)
     {
     }
@@ -182,7 +182,7 @@ class JValue
         return is_number() ? num_ : dflt;
     }
     /// @brief String view; the empty string when this is not a string.
-/// @return The string value; the empty string when this is not a string.
+    /// @return The string value; the empty string when this is not a string.
     const std::string& as_string() const
     {
         static const std::string e;
@@ -190,13 +190,13 @@ class JValue
     }
 
     /// @brief Elements of this array, in order; empty when not an array.
-/// @return Elements of this array, in order; empty when not an array.
+    /// @return Elements of this array, in order; empty when not an array.
     const std::vector<JValue>& items() const
     {
         return arr_;
     }
     /// @brief Append a value to this array.
-/// @param v Value to append.
+    /// @param v Value to append.
     void push(JValue v)
     {
         arr_.push_back(std::move(v));
@@ -208,7 +208,7 @@ class JValue
     }
 
     /// @brief Members of this object in insertion order; empty when not an object.
-/// @return Members of this object in insertion order; empty when not an object.
+    /// @return Members of this object in insertion order; empty when not an object.
     const std::vector<std::pair<std::string, JValue>>& members() const
     {
         return obj_;
@@ -256,8 +256,8 @@ class JValue
         obj_.emplace_back(key, std::move(v));
     }
     /// @brief True when this object has a member with the given key.
-/// @param key Member key.
-/// @return True when present.
+    /// @param key Member key.
+    /// @return True when present.
     bool has(const std::string& key) const
     {
         return find(key) != nullptr;
@@ -272,26 +272,26 @@ class JValue
         return (v && v->is_string()) ? v->as_string() : (v && v->is_number() ? v->dump() : dflt);
     }
     /// @brief Numeric member with fallback.
-/// @param key Member key.
-/// @param dflt Value returned when absent or not numeric.
-/// @return The numeric value.
+    /// @param key Member key.
+    /// @param dflt Value returned when absent or not numeric.
+    /// @return The numeric value.
     double get_number(const std::string& key, double dflt = 0) const
     {
         const JValue* v = find(key);
         return v && v->is_number() ? v->as_number() : dflt;
     }
     /// @brief Integer member with fallback (truncates the numeric view).
-/// @param key Member key.
-/// @param dflt Value returned when absent or not numeric.
-/// @return The integer value.
+    /// @param key Member key.
+    /// @param dflt Value returned when absent or not numeric.
+    /// @return The integer value.
     int64_t get_int(const std::string& key, int64_t dflt = 0) const
     {
         return static_cast<int64_t>(get_number(key, double(dflt)));
     }
     /// @brief Boolean member with fallback.
-/// @param key Member key.
-/// @param dflt Value returned when absent or not a bool.
-/// @return The boolean value.
+    /// @param key Member key.
+    /// @param dflt Value returned when absent or not a bool.
+    /// @return The boolean value.
     bool get_bool(const std::string& key, bool dflt = false) const
     {
         const JValue* v = find(key);

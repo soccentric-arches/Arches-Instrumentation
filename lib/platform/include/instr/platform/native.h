@@ -47,13 +47,13 @@ class NativePlatform : public IPlatform
 {
   public:
     /// @brief Tear down open descriptors (watchdog, kmsg follow).
-/// @return Tear down open descriptors (watchdog, kmsg follow).
+    /// @return Tear down open descriptors (watchdog, kmsg follow).
     ~NativePlatform() override;
     /// @brief Construct the platform rooted at @p sysroot ("/" on a device).
     explicit NativePlatform(std::string sysroot = "/");
 
     /// @brief Test seam: redirect file reads to a fixture directory.
-/// @param root Directory to read files under.
+    /// @param root Directory to read files under.
     void set_sysroot(const std::string& root)
     {
         sysroot_ = root;
@@ -189,8 +189,8 @@ class NativePlatform : public IPlatform
 /// @return True when active, or an error.
     Result<bool> unit_active(const std::string& unit) override;
     /// @copydoc IPlatform::kernel_log_lines
-/// @param from_start True for boot backfill; false to follow with new lines only.
-/// @return Kernel log lines, or an error.
+    /// @param from_start True for boot backfill; false to follow with new lines only.
+    /// @return Kernel log lines, or an error.
     Result<std::vector<std::string>> kernel_log_lines(bool from_start) override;
 /// @brief Application log sink / journal access for LogManager.
 /// @param unit Unit whose journal to read.
@@ -220,7 +220,7 @@ class NativePlatform : public IPlatform
     /// @return ok(), or the error encountered.
     Error write_wireless_conf(const std::string& mode, const std::string& iface, const std::string& text);
     /// @brief What the last apply_network_plan did (or would have done on a host).
-/// @return Log of executed or intended network commands.
+    /// @return Log of executed or intended network commands.
     const std::vector<std::string>& applied_commands() const
     {
         return applied_commands_;
@@ -245,9 +245,9 @@ class NativePlatform : public IPlatform
     /// @return True when the condition holds; false otherwise.
     bool open_follow_fd();
     /// @brief Read up to @p max_lines kernel messages from @p fd into @p out.
-/// @param fd Descriptor to read from.
-/// @param out Receives the lines.
-/// @param max_lines Maximum lines to read.
+    /// @param fd Descriptor to read from.
+    /// @param out Receives the lines.
+    /// @param max_lines Maximum lines to read.
     static void read_kmsg_into(int fd, std::vector<std::string>* out, int max_lines);
     std::mutex kmsg_mu_; ///< Serialises /dev/kmsg follow access.
     int kmsg_follow_fd_ = -1; ///< Long-lived /dev/kmsg descriptor (-1 closed).
@@ -255,20 +255,20 @@ class NativePlatform : public IPlatform
     // Bootloader environment access (U-Boot fw_printenv/fw_setenv), with a
     // flag-file fallback for boards that have no U-Boot environment.
     /// @brief Read a U-Boot environment variable.
-/// @param var U-Boot variable to read.
-/// @return The variable value, or an error.
+    /// @param var U-Boot variable to read.
+    /// @return The variable value, or an error.
     Result<std::string> fw_getenv(const std::string& var);
     /// @brief Write a U-Boot environment variable.
-/// @param var U-Boot variable to write.
-/// @param value Value to write.
+    /// @param var U-Boot variable to write.
+    /// @param value Value to write.
     /// @return ok(), or the error encountered.
     Error fw_setenv(const std::string& var, const std::string& value);
     /// @brief Probe (once) whether the board has a U-Boot environment.
     /// @return True when the condition holds; false otherwise.
     bool have_fw_env();
     /// @brief Flag-file fallback for boards without U-Boot env.
-/// @param rel Flag-file relative path.
-/// @param value Value to record.
+    /// @param rel Flag-file relative path.
+    /// @param value Value to record.
     /// @return ok(), or the error encountered.
     Error write_boot_file(const std::string& rel, const std::string& value);
     bool fw_env_checked_ = false; ///< True after the first U-Boot env probe.
@@ -278,26 +278,26 @@ class NativePlatform : public IPlatform
     // write_conf, which record what they would do and only execute when
     // INSTR_APPLY_NETWORK=1 — so a build host is never reconfigured.
     /// @brief Record (and conditionally execute) a network command.
-/// @param cmd Command to record (and conditionally execute).
+    /// @param cmd Command to record (and conditionally execute).
     /// @return ok(), or the error encountered.
     Error run_cmd(const std::string& cmd);
     /// @brief Record (and conditionally execute) a config-file write.
-/// @param path Config file to write.
-/// @param text Configuration text.
+    /// @param path Config file to write.
+    /// @param text Configuration text.
     /// @return ok(), or the error encountered.
     Error write_conf(const std::string& path, const std::string& text);
 
     /// @brief Enrich a device with SMART / NVMe health where it is exposed.
-/// @param d Device to enrich with SMART/NVMe health.
+    /// @param d Device to enrich with SMART/NVMe health.
     void read_smart(StorageDevice* d);
 
     /// @brief Read a file under the sysroot.
-/// @param path File to read under the sysroot.
-/// @return File contents, or an error.
+    /// @param path File to read under the sysroot.
+    /// @return File contents, or an error.
     Result<std::string> read_file(const std::string& path);
     /// @brief List a directory under the sysroot.
-/// @param path Directory to list under the sysroot.
-/// @return Entry names.
+    /// @param path Directory to list under the sysroot.
+    /// @return Entry names.
     std::vector<std::string> list_dir(const std::string& path);
     /// @brief True when INSTR_APPLY_NETWORK=1 (mutations allowed).
     /// @return True when INSTR_APPLY_NETWORK=1 (mutations allowed).

@@ -95,19 +95,19 @@ class RuleEngine
     {
     }
     /// @brief Loaded rules.
-/// @return The compiled rule set.
+    /// @return The compiled rule set.
     const std::vector<FaultRule>& rules() const
     {
         return rules_;
     }
     /// @brief First matching rule for a kernel line.
     /// @return The rule, or std::nullopt when nothing matches.
-/// @param line Kernel line to match.
+    /// @param line Kernel line to match.
     std::optional<const FaultRule*> match(const std::string& line) const;
     /// @brief Render a dedup template, replacing $device with an extracted token.
-/// @param tmpl Dedup template from the rule.
-/// @param line Kernel line providing the tokens.
-/// @return The rendered dedup key.
+    /// @param tmpl Dedup template from the rule.
+    /// @param line Kernel line providing the tokens.
+    /// @return The rendered dedup key.
     static std::string render_dedup_key(const std::string& tmpl, const std::string& line);
 
   private:
@@ -178,13 +178,13 @@ class FaultProcessor
     /// @return The fault records produced by this batch.
     std::vector<FaultRecord> feed(const std::vector<std::string>& lines, uint64_t mono_ns, bool backfill);
     /// @brief Lifetime statistics.
-/// @return Lifetime statistics.
+    /// @return Lifetime statistics.
     const Stats& stats() const
     {
         return stats_;
     }
     /// @brief The rule engine's rule set.
-/// @return The rule engine's rule set.
+    /// @return The rule engine's rule set.
     const std::vector<FaultRule>& engine_rules() const
     {
         return engine_.rules();
@@ -194,7 +194,7 @@ class FaultProcessor
     ///
     /// §7.5: a stuck driver emitting 10k lines a second must not drown the
     /// system, even when it trips several rules at once. 0 disables it.
-/// @param per_s Global ceiling in events per second (0 disables).
+    /// @param per_s Global ceiling in events per second (0 disables).
     void set_global_rate_limit(double per_s)
     {
         global_rate_per_s_ = per_s;
@@ -214,8 +214,8 @@ class FaultProcessor
 
   private:
     /// @brief False when the global ceiling is exhausted for this instant.
-/// @param mono_ns Current monotonic time.
-/// @return True when the ceiling allows an emission.
+    /// @param mono_ns Current monotonic time.
+    /// @return True when the ceiling allows an emission.
     bool global_allow(uint64_t mono_ns);
 
     RuleEngine engine_; ///< Rule matching.

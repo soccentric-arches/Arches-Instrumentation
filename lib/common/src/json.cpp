@@ -148,14 +148,14 @@ struct Parser
     std::string err;
 
     /// @brief Bind the parser to @p text.
-/// @param text JSON source text.
+    /// @param text JSON source text.
     explicit Parser(const std::string& text) : s(text)
     {
     }
 
     /// @brief Fail the parse with @p msg plus the byte offset.
     /// @param msg Description of the syntax error.
-/// @return Fail the parse with @p msg plus the byte offset.
+    /// @return Fail the parse with @p msg plus the byte offset.
     [[noreturn]] void fail(const std::string& msg)
     {
         throw std::runtime_error(msg + " at byte " + std::to_string(i));
@@ -175,8 +175,8 @@ struct Parser
     }
     /// @brief Consume @p c when it is the current character.
     /// @return True when consumed.
-/// @param c Character to consume.
-/// @return True when consumed.
+    /// @param c Character to consume.
+    /// @return True when consumed.
     bool consume(char c)
     {
         skip_ws();
@@ -188,7 +188,7 @@ struct Parser
         return false;
     }
     /// @brief Consume @p c or fail with a diagnosable error.
-/// @param c Character to consume.
+    /// @param c Character to consume.
     void expect(char c)
     {
         if (!consume(c)) fail(std::string("expected '") + c + "'");
@@ -219,7 +219,7 @@ struct Parser
         return parse_number();
     }
     /// @brief Consume the expected literal text or fail.
-/// @param l Expected literal text.
+    /// @param l Expected literal text.
     void lit(const char* l)
     {
         for (const char* p = l; *p; ++p)

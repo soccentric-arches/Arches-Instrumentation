@@ -50,9 +50,9 @@ class HardwareCore
 {
   public:
     /// @brief Bind the core to the platform, a clock and the board descriptor.
-/// @param plat Platform primitives.
-/// @param ts Clock.
-/// @param desc Board device inventory.
+    /// @param plat Platform primitives.
+    /// @param ts Clock.
+    /// @param desc Board device inventory.
     HardwareCore(platform::IPlatform& plat, TimeSource& ts, const platform::DeviceDescriptor& desc) : mgr_(plat, ts, desc)
     {
     }
@@ -71,8 +71,8 @@ class HardwareCore
         return cfg_;
     }
     /// @brief Apply an istate-delivered config document (rejects invalid values).
-/// @param doc Parsed, schema-validated document.
-/// @return ok(), or an error describing why the values were refused.
+    /// @param doc Parsed, schema-validated document.
+    /// @return ok(), or an error describing why the values were refused.
     Error apply_config(const ConfigDocument& doc)
     {
         Config c;
@@ -90,7 +90,7 @@ class HardwareCore
         return Error::none();
     }
     /// @brief Install a callback fired when a new config is accepted.
-/// @param f Config-accepted listener.
+    /// @param f Config-accepted listener.
     void set_config_listener(std::function<void(const Config&)> f)
     {
         std::lock_guard<std::mutex> lk(mu_);
@@ -98,27 +98,27 @@ class HardwareCore
     }
 
     /// @brief Device manager access.
-/// @return Device manager access.
+    /// @return Device manager access.
     DeviceManager& manager()
     {
         return mgr_;
     }
     /// @brief Install the check-result sink (spoke emission).
-/// @param f Check-result sink (spoke emission).
+    /// @param f Check-result sink (spoke emission).
     void set_result_sink(std::function<void(const CheckResult&)> f)
     {
         std::lock_guard<std::mutex> lk(mu_);
         sink_ = std::move(f);
     }
     /// @brief Emit one check result to the installed sink.
-/// @param r Check result to emit.
+    /// @param r Check result to emit.
     void emit(const CheckResult& r)
     {
         std::lock_guard<std::mutex> lk(mu_);
         if (sink_) sink_(r);
     }
     /// @brief Render the board's device inventory as JSON (ctrl "devices").
-/// @return The board's device inventory as JSON.
+    /// @return The board's device inventory as JSON.
     std::string descriptor_summary_json() const;
 
   private:
@@ -139,11 +139,11 @@ class HardwareSpoke
 {
   public:
     /// @brief Wire the channel, config sink and handlers together.
-/// @param core Domain core.
-/// @param log Logger.
-/// @param table Command table.
-/// @param hub_target istate gRPC target.
-/// @param build_version Build version to advertise.
+    /// @param core Domain core.
+    /// @param log Logger.
+    /// @param table Command table.
+    /// @param hub_target istate gRPC target.
+    /// @param build_version Build version to advertise.
     HardwareSpoke(HardwareCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version);
     /// @brief Start the channel.
     void start();
@@ -155,7 +155,7 @@ class HardwareSpoke
         return channel_->registered();
     }
     /// @brief Install the schema every config delivery must satisfy (R4, §9).
-/// @param schema Schema every config delivery must satisfy.
+    /// @param schema Schema every config delivery must satisfy.
     void set_schema(JValue schema);
     /// @brief Revision of the last config applied.
     uint64_t config_revision() const
@@ -163,7 +163,7 @@ class HardwareSpoke
         return channel_->config_revision();
     }
     /// @brief Queue a check result to istate.
-/// @param r Check result to queue.
+    /// @param r Check result to queue.
     void send_result(const CheckResult& r);
 
   private:

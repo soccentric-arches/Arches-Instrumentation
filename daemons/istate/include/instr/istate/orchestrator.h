@@ -102,22 +102,22 @@ class Orchestrator
 {
   public:
     /// @brief Bind the orchestrator to the platform and a clock.
-/// @param plat systemd operations.
-/// @param ts Clock.
+    /// @param plat systemd operations.
+    /// @param ts Clock.
     Orchestrator(platform::IPlatform& plat, TimeSource& ts) : plat_(plat), ts_(ts)
     {
     }
 
     /// @brief Register all spokes in startup order.
-/// @param names Spoke names to declare.
+    /// @param names Spoke names to declare.
     void declare_spokes(const std::vector<std::string>& names);
 
     /// @brief Start sequence: requests start through systemd in dependency order.
-/// @param names Spoke names to declare.
+    /// @param names Spoke names to declare.
     ///
     /// Returns false when a required unit fails to start (the spoke
     /// re-registers on its own retry; istate keeps operating).
-/// @return True when every required unit started.
+    /// @return True when every required unit started.
     bool start_all();
     /// @brief Stop in reverse order.
     void stop_all();
@@ -131,31 +131,31 @@ class Orchestrator
     };
     /// @brief Process a registration handshake.
     /// @param refusal_reason Optional out-text for refusals.
-/// @param name Spoke registering.
-/// @param build_version Reported build version.
-/// @param proto_version Reported proto schema version.
-/// @param capabilities Reported capabilities.
+    /// @param name Spoke registering.
+    /// @param build_version Reported build version.
+    /// @param proto_version Reported proto schema version.
+    /// @param capabilities Reported capabilities.
     /// @return Process a registration handshake.
     Reg register_spoke(const std::string& name, const std::string& build_version, uint32_t proto_version, const std::vector<std::string>& capabilities, std::string* refusal_reason = nullptr);
     /// @brief Mark a spoke ready (channel established).
-/// @param name Spoke that became ready.
+    /// @param name Spoke that became ready.
     void mark_ready(const std::string& name);
     /// @brief Mark a spoke stopped.
-/// @param name Spoke registering.
-/// @param build_version Reported build version.
-/// @param proto_version Reported proto schema version.
-/// @param capabilities Reported capabilities.
-/// @param refusal_reason Receives the refusal reason on refusal.
-/// @return The handshake outcome.
+    /// @param name Spoke registering.
+    /// @param build_version Reported build version.
+    /// @param proto_version Reported proto schema version.
+    /// @param capabilities Reported capabilities.
+    /// @param refusal_reason Receives the refusal reason on refusal.
+    /// @return The handshake outcome.
     void mark_stopped(const std::string& name);
     /// @brief A spoke sent data: it is attached and responsive.
-/// @param name Spoke that became ready.
+    /// @param name Spoke that became ready.
     void note_spoke_activity(const std::string& name);
 
     /// @brief Install the ping sender (§3.1, §7.1 liveness).
     ///
-/// @param name Spoke that sent data.
-/// @param f Ping sender (daemon, nonce) → bool.
+    /// @param name Spoke that sent data.
+    /// @param f Ping sender (daemon, nonce) → bool.
     /// istate probes each registered spoke; a process that is running but not
     /// responding must not look healthy. Hung → request restart. The probe is
     /// a ping/pong over the spoke's own channel: a liveness-ping command
@@ -167,12 +167,12 @@ class Orchestrator
         send_ping_ = std::move(f);
     }
     /// @brief A spoke answered a ping.
-/// @param daemon Spoke that answered.
-/// @param nonce Ping nonce answered.
+    /// @param daemon Spoke that answered.
+    /// @param nonce Ping nonce answered.
     void note_pong(const std::string& daemon, uint64_t nonce);
     /// @brief Optional synchronous probe override (tests, and any spoke that offers a cheaper liveness signal).
-/// @param name Spoke to override.
-/// @param f Synchronous probe (true = alive).
+    /// @param name Spoke to override.
+    /// @param f Synchronous probe (true = alive).
     void set_probe_fn(const std::string& name, std::function<bool()> f)
     {
         probes_[name] = std::move(f);
@@ -184,47 +184,47 @@ class Orchestrator
         std::string event;     ///< hung / restarted / degraded.
     };
     /// @brief Sweep all spokes for hangs; returns events to emit.
-/// @param now_s Current monotonic seconds.
-/// @param hang_timeout_s Silence threshold in seconds.
-/// @return Liveness events to emit.
+    /// @param now_s Current monotonic seconds.
+    /// @param hang_timeout_s Silence threshold in seconds.
+    /// @return Liveness events to emit.
     std::vector<LivenessEvent> liveness_sweep(double now_s, double hang_timeout_s);
 
     /// @brief Watchdog policy: pet only while every must-live daemon is live.
-/// @param names Daemons that must be live for a pet.
+    /// @param names Daemons that must be live for a pet.
     void set_watchdog_required(const std::vector<std::string>& names)
     {
         must_live_ = names;
     }
     /// @brief Pet the watchdog when safe; false when a must-live daemon is down.
-/// @param now_s Current monotonic seconds.
-/// @param hang_timeout_s Silence threshold in seconds.
-/// @return Liveness events to emit.
+    /// @param now_s Current monotonic seconds.
+    /// @param hang_timeout_s Silence threshold in seconds.
+    /// @return Liveness events to emit.
     bool pet_watchdog();
 
     /// @brief All managed spokes.
-/// @return All managed spokes.
+    /// @return All managed spokes.
     const std::map<std::string, SpokeInfo>& spokes() const
     {
         return spokes_;
     }
     /// @brief Look up one spoke.
-/// @param f Event sink (kind, detail).
-/// @param name Spoke to look up.
-/// @return Pointer to the info, or NotFound.
+    /// @param f Event sink (kind, detail).
+    /// @param name Spoke to look up.
+    /// @return Pointer to the info, or NotFound.
     Result<const SpokeInfo*> spoke(const std::string& name) const;
     /// @brief True when every declared spoke is Ready.
     /// @return True when every declared spoke is Ready.
     bool all_ready() const;
     /// @brief True when any spoke is Degraded or Hung.
-/// @return All managed spokes.
+    /// @return All managed spokes.
     bool degraded() const;
     /// @brief Render the fleet status as JSON (ctrl "status").
-/// @param name Spoke to look up.
-/// @return Pointer to the info, or NotFound.
+    /// @param name Spoke to look up.
+    /// @return Pointer to the info, or NotFound.
     std::string status_json() const;
 
     /// @brief Install the event sink (liveness and lifecycle events).
-/// @param f Event sink (kind, detail).
+    /// @param f Event sink (kind, detail).
     void set_event_sink(std::function<void(const std::string& kind, const std::string& detail)> f)
     {
         event_sink_ = std::move(f);

@@ -65,7 +65,7 @@ class PeriodicWorker
     {
     }
     /// @brief Stop the worker and join its thread.
-/// @return Stop the worker and join its thread.
+    /// @return Stop the worker and join its thread.
     ~PeriodicWorker()
     {
         stop();
@@ -123,7 +123,7 @@ class PeriodicWorker
         return ticks_.load();
     }
     /// @brief Worker name.
-/// @return The worker name.
+    /// @return The worker name.
     const std::string& name() const
     {
         return name_;

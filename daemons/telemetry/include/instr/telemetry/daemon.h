@@ -66,14 +66,14 @@ class TelemetryCore
         std::vector<std::string> health_inputs{"monitord", "hardware", "faults", "alarms"};   ///< Health-score sources.
     };
     /// @brief Current configuration.
-/// @return Current configuration.
+    /// @return Current configuration.
     const Config& config() const
     {
         return cfg_;
     }
     /// @brief Apply an istate-delivered config document (retunes the shaper/buffer live).
-/// @param doc Parsed, schema-validated document.
-/// @return ok(), or an error describing why the values were refused.
+    /// @param doc Parsed, schema-validated document.
+    /// @return ok(), or an error describing why the values were refused.
     Error apply_config(const ConfigDocument& doc)
     {
         Config c;
@@ -94,52 +94,52 @@ class TelemetryCore
         return Error::none();
     }
     /// @brief Install a callback fired when a new config is accepted.
-/// @param f Config-accepted listener.
+    /// @param f Config-accepted listener.
     void set_config_listener(std::function<void(const Config&)> f)
     {
         on_config_ = std::move(f);
     }
 
     /// @brief Registry access.
-/// @return Registry access.
+    /// @return Registry access.
     MetricRegistry& registry()
     {
         return registry_;
     }
     /// @brief Shaper access.
-/// @return Shaper access.
+    /// @return Shaper access.
     BatchShaper& shaper()
     {
         return shaper_;
     }
     /// @brief Retention buffer access.
-/// @return Retention buffer access.
+    /// @return Retention buffer access.
     RetentionBuffer& buffer()
     {
         return buffer_;
     }
     /// @brief Clock access.
-/// @return Clock access.
+    /// @return Clock access.
     TimeSource& clock()
     {
         return ts_;
     }
 
     /// @brief Application metric registration API. Duplicate → alarm-visible event.
-/// @param name Metric name.
-/// @param unit Unit string.
-/// @param type gauge or counter.
-/// @param app Registering application.
-/// @return The registration outcome (Duplicate is alarm-visible).
+    /// @param name Metric name.
+    /// @param unit Unit string.
+    /// @param type gauge or counter.
+    /// @param app Registering application.
+    /// @return The registration outcome (Duplicate is alarm-visible).
     MetricRegistry::Reg register_metric(const std::string& name, const std::string& unit, const std::string& type, const std::string& app);
     /// @brief Ingest relayed samples (monitord via istate) into the shaper.
-/// @param metric Metric name.
-/// @param value Sample value.
-/// @param unit Unit string.
-/// @param tags Dimension tags.
+    /// @param metric Metric name.
+    /// @param value Sample value.
+    /// @param unit Unit string.
+    /// @param tags Dimension tags.
     void ingest_relayed(const std::string& metric, double value, const std::string& unit, const std::map<std::string, std::string>& tags);
     /// @brief Recompute the health score from inputs of the other daemons.
-/// @param in Health inputs from the other daemons.
+    /// @param in Health inputs from the other daemons.
     void update_health(const HealthInputs& in)
     {
         auto h = compute_health_score(in);
@@ -147,19 +147,19 @@ class TelemetryCore
         last_health_ = h;
     }
     /// @brief Last computed health score.
-/// @return The last computed health score.
+    /// @return The last computed health score.
     const HealthScoreValue& last_health() const
     {
         return last_health_;
     }
     /// @brief Attach reproducibility metadata to emitted batches.
-/// @param m Metadata to attach to emitted batches.
+    /// @param m Metadata to attach to emitted batches.
     void set_repro(const ReproMetadata& m)
     {
         shaper().set_repro(m);
     }
     /// @brief Install the batch sink (spoke emission).
-/// @param f Batch sink (spoke emission).
+    /// @param f Batch sink (spoke emission).
     void set_sink(std::function<void(const MetricBatch&)> f)
     {
         sink_ = std::move(f);
@@ -188,11 +188,11 @@ class TelemetrySpoke
 {
   public:
     /// @brief Wire the channel, config sink and handlers together.
-/// @param core Domain core.
-/// @param log Logger.
-/// @param table Command table.
-/// @param hub_target istate gRPC target.
-/// @param build_version Build version to advertise.
+    /// @param core Domain core.
+    /// @param log Logger.
+    /// @param table Command table.
+    /// @param hub_target istate gRPC target.
+    /// @param build_version Build version to advertise.
     TelemetrySpoke(TelemetryCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version);
     /// @brief Start the channel.
     void start();
@@ -204,7 +204,7 @@ class TelemetrySpoke
         return channel_->registered();
     }
     /// @brief Install the schema every config delivery must satisfy (R4, §9).
-/// @param schema Schema every config delivery must satisfy.
+    /// @param schema Schema every config delivery must satisfy.
     void set_schema(JValue schema);
     /// @brief Revision of the last config applied.
     uint64_t config_revision() const
@@ -212,7 +212,7 @@ class TelemetrySpoke
         return channel_->config_revision();
     }
     /// @brief Queue a telemetry batch to istate.
-/// @param b Batch to queue.
+    /// @param b Batch to queue.
     void send_batch(const MetricBatch& b);
 
   private:

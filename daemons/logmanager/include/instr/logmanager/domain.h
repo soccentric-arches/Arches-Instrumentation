@@ -93,20 +93,20 @@ class LogStore
     }
 
     /// @brief Replace the configured source set.
-/// @param sources Source specs to configure.
+    /// @param sources Source specs to configure.
     void configure(const std::vector<SourceSpec>& sources)
     {
         sources_ = sources;
     }
     /// @brief Currently configured sources.
-/// @return The currently configured sources.
+    /// @return The currently configured sources.
     const std::vector<SourceSpec>& sources() const
     {
         return sources_;
     }
     /// @brief Look up a configured source by name.
     /// @return Pointer to the spec, or NotFound when unknown.
-/// @param name Source name to look up.
+    /// @param name Source name to look up.
     Result<const SourceSpec*> find(const std::string& name) const;
 
     /// @brief Append one line; rotates when the active file exceeds the size limit.
@@ -125,15 +125,15 @@ class LogStore
     /// @return Counts of what this pass removed.
     PruneStats enforce_retention(uint64_t now_mono_ns);
     /// @brief Override the storage budget for this class.
-/// @param b Storage budget in bytes.
+    /// @param b Storage budget in bytes.
     void set_budget_bytes(uint64_t b)
     {
         budget_bytes_ = b;
     }
 
     /// @brief File names belonging to a source, active first (test helper).
-/// @param source Source to inspect.
-/// @return File names for the source, active first.
+    /// @param source Source to inspect.
+    /// @return File names for the source, active first.
     std::vector<std::string> files_for(const std::string& source) const;
     /// @brief Total bytes stored across all sources.
     /// @return Total bytes stored.
@@ -150,14 +150,14 @@ class LogStore
     /// @param level New level name (TRACE..CRITICAL).
     void set_runtime_level(const std::string& source, const std::string& level);
     /// @brief Effective runtime level of a source (its spec level unless overridden).
-/// @param source Source to query.
-/// @return The effective runtime level.
+    /// @param source Source to query.
+    /// @return The effective runtime level.
     std::string runtime_level(const std::string& source) const;
 
   private:
     /// @brief Path of the active file for a source.
-/// @param source Source to resolve.
-/// @return The active file path.
+    /// @param source Source to resolve.
+    /// @return The active file path.
     std::string active_path(const std::string& source) const
     {
         return fs_.join(base_, source + ".log");
@@ -186,12 +186,12 @@ class TailSession
     /// @return True when the line passes filter and rate limit.
     bool accept(const LogLine& line, uint64_t now_mono_ns);
     /// @brief True when the session timeout has elapsed.
-/// @param now_mono_ns Current monotonic time.
-/// @return True when the session timeout has elapsed.
+    /// @param now_mono_ns Current monotonic time.
+    /// @return True when the session timeout has elapsed.
     bool expired(uint64_t now_mono_ns) const;
     /// @brief True when the line matches the session's source/level/time filter.
-/// @param line Candidate line.
-/// @return True when it matches the filter.
+    /// @param line Candidate line.
+    /// @return True when it matches the filter.
     bool matches(const LogLine& line) const;
     /// @brief Lines emitted so far.
     uint64_t emitted() const
@@ -228,13 +228,13 @@ class BundleStore
 {
   public:
     /// @brief Bind the store to a filesystem and bundle directory.
-/// @param fs Storage backend.
-/// @param dir Bundle directory.
+    /// @param fs Storage backend.
+    /// @param dir Bundle directory.
     BundleStore(IFileSystem& fs, std::string dir) : fs_(fs), dir_(std::move(dir))
     {
     }
     /// @brief Where the LogStore keeps its files (needed to read payloads).
-/// @param d LogStore base directory (for reading payloads).
+    /// @param d LogStore base directory (for reading payloads).
     void set_log_base_dir(const std::string& d)
     {
         log_base_ = d;
@@ -247,36 +247,36 @@ class BundleStore
     /// @return Bundle metadata, or an error.
     Result<BundleMeta> create(LogStore& store, const std::vector<std::string>& sources, uint64_t now_mono_ns);
     /// @brief Metadata for a handle.
-/// @param handle Bundle handle.
-/// @return The bundle metadata, or an error.
+    /// @param handle Bundle handle.
+    /// @return The bundle metadata, or an error.
     Result<BundleMeta> meta(const std::string& handle) const;
     /// @brief Payload fetch — served on the daemon's data socket, never via istate.
-/// @param handle Bundle handle.
-/// @return The payload bytes, or an error.
+    /// @param handle Bundle handle.
+    /// @return The payload bytes, or an error.
     Result<std::string> payload(const std::string& handle) const;
     /// @brief Absolute path of a bundle's payload, for the bulk socket to stream from.
     ///
     /// §7.7: the payload never travels the control path. Errors for an unknown
     /// handle, so an unknown handle cannot be turned into a read of an
     /// arbitrary file.
-/// @param handle Bundle handle.
-/// @return The payload file path, or an error for unknown handles.
+    /// @param handle Bundle handle.
+    /// @return The payload file path, or an error for unknown handles.
     Result<std::string> payload_path(const std::string& handle) const;
     /// @brief All bundles currently stored, oldest first.
-/// @return All bundles currently stored, oldest first.
+    /// @return All bundles currently stored, oldest first.
     std::vector<BundleMeta> list() const;
 
   private:
     /// @brief Payload file path for a handle.
-/// @param handle Bundle handle.
-/// @return The payload file path.
+    /// @param handle Bundle handle.
+    /// @return The payload file path.
     std::string handle_path(const std::string& handle) const
     {
         return fs_.join(dir_, "bundle-" + handle + ".tar.gz");
     }
     /// @brief Metadata file path for a handle.
-/// @param handle Bundle handle.
-/// @return The metadata file path.
+    /// @param handle Bundle handle.
+    /// @return The metadata file path.
     std::string meta_path(const std::string& handle) const
     {
         return fs_.join(dir_, "bundle-" + handle + ".json");
@@ -291,8 +291,8 @@ class CrashForensics
 {
   public:
     /// @brief Bind forensics to a filesystem and storage directory.
-/// @param fs Storage backend.
-/// @param dir Forensics directory.
+    /// @param fs Storage backend.
+    /// @param dir Forensics directory.
     CrashForensics(IFileSystem& fs, std::string dir) : fs_(fs), dir_(std::move(dir))
     {
     }
@@ -317,7 +317,7 @@ class CrashForensics
     /// @return Capture record, or an error when storage failed.
     Result<Capture> capture(const std::string& daemon, const std::string& coredump_path, const std::vector<std::string>& last_lines, uint64_t max_coredump_bytes);
     /// @brief Files stored so far (for bundling).
-/// @return Files stored so far (for bundling).
+    /// @return Files stored so far (for bundling).
     std::vector<std::string> captured_files() const;
 
   private:

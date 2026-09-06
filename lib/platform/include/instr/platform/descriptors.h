@@ -94,8 +94,8 @@ struct CapabilityManifest
     std::string board; ///< Board variant name.
     std::vector<std::string> capabilities; ///< wifi, wifi_ap, can, display, gnss, ptp, watchdog, ...
     /// @brief Test membership of the manifest.
-/// @param c Capability name to test.
-/// @return True when the board declares it.
+    /// @param c Capability name to test.
+    /// @return True when the board declares it.
     bool has(const std::string& c) const
     {
         for (const auto& x : capabilities)

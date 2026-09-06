@@ -53,14 +53,14 @@ class MonitorCore
 {
   public:
     /// @brief Bind the core to the platform and a clock.
-/// @param plat Platform readings.
-/// @param ts Clock.
+    /// @param plat Platform readings.
+    /// @param ts Clock.
     MonitorCore(platform::IPlatform& plat, TimeSource& ts) : plat_(plat), sampler_(plat, ts), window_(60.0, 1.0), ts_(ts)
     {
     }
 
     /// @brief Apply a resource profile (intervals, budgets) from the board descriptor.
-/// @param profile Resource profile from the board descriptor.
+    /// @param profile Resource profile from the board descriptor.
     void configure(const platform::ResourceProfile& profile);
 
     /// @brief Configuration delivered by istate (§7.3, §9).
@@ -80,47 +80,47 @@ class MonitorCore
         double highres_interval_s = 1.0;         ///< Local high-res sampling interval.
     };
     /// @brief Current configuration.
-/// @return Current configuration.
+    /// @return Current configuration.
     const Config& config() const
     {
         return cfg_;
     }
     /// @brief Apply an istate-delivered config document.
-/// @param doc Parsed, schema-validated document.
-/// @return ok(), or an error describing why the values were refused.
+    /// @param doc Parsed, schema-validated document.
+    /// @return ok(), or an error describing why the values were refused.
     Error apply_config(const ConfigDocument& doc);
     /// @brief Install a callback fired when a new config is accepted.
-/// @param f Config-accepted listener.
+    /// @param f Config-accepted listener.
     void set_config_listener(std::function<void(const Config&)> f)
     {
         on_config_ = std::move(f);
     }
     /// @brief One sampling pass: samples → window + emit callback (spoke enqueue).
-/// @return Samples produced by this pass.
+    /// @return Samples produced by this pass.
     std::vector<MonitorSample> sample_once();
     /// @brief Storage wear projections for all devices.
-/// @param age_days Device age so far in days.
-/// @return Wear projections for all devices.
+    /// @param age_days Device age so far in days.
+    /// @return Wear projections for all devices.
     std::vector<WearProjector::Projection> wear_projections(uint64_t age_days) const;
 
     /// @brief High-resolution rolling window (local retention).
-/// @return The high-resolution rolling window.
+    /// @return The high-resolution rolling window.
     const RollingWindow& window() const
     {
         return window_;
     }
     /// @brief Sampler access.
-/// @return Sampler access.
+    /// @return Sampler access.
     Sampler& sampler()
     {
         return sampler_;
     }
     /// @brief Render the current status as JSON (ctrl "status").
-/// @return The current status as JSON.
+    /// @return The current status as JSON.
     std::string status_json() const;
 
     /// @brief Install the sample emission callback (spoke enqueue).
-/// @param f Sample emission callback (spoke enqueue).
+    /// @param f Sample emission callback (spoke enqueue).
     void set_emit(std::function<void(const MonitorSample&)> f)
     {
         std::lock_guard<std::mutex> lk(mu_);

@@ -134,13 +134,13 @@ class ConfigDocument
     /// @return The recorded origin; Origin::Default when the key is unset.
     Origin origin_of(const std::string& dot_path) const;
     /// @brief View of all flattened key → scalar-text values.
-/// @return View of all flattened key → scalar-text values.
+    /// @return View of all flattened key → scalar-text values.
     const std::map<std::string, std::string>& values() const
     {
         return values_;
     }
     /// @brief View of all key → origin assignments.
-/// @return View of all key → origin assignments.
+    /// @return View of all key → origin assignments.
     const std::map<std::string, Origin>& origins() const
     {
         return origins_;

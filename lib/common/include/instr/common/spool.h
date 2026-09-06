@@ -127,7 +127,7 @@ class DiskSpool
         uint64_t refused_protected = 0; ///< Appends refused because only protected records fit.
     };
     /// @brief Current statistics snapshot.
-/// @return Current statistics snapshot.
+    /// @return Current statistics snapshot.
     const Stats& stats() const
     {
         return stats_;
@@ -166,8 +166,8 @@ class DiskSpool
     /// @return ok(), or an error when storage fails.
     Error erase_index_record(size_t victim);
     /// @brief Segment file path for a segment sequence number.
-/// @param seg_seq Segment sequence number.
-/// @return The segment file path.
+    /// @param seg_seq Segment sequence number.
+    /// @return The segment file path.
     std::string segment_path(uint64_t seg_seq) const
     {
         return fs_.join(cfg_.dir, "spool-" + std::to_string(seg_seq) + ".seg");

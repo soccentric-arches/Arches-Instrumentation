@@ -72,7 +72,7 @@ class LogCore
         std::vector<SourceSpec> sources; ///< Configured log sources.
     };
     /// @brief Current configuration.
-/// @return Current configuration.
+    /// @return Current configuration.
     const Config& config() const
     {
         return cfg_;
@@ -82,45 +82,45 @@ class LogCore
     /// @return ok(), or an error describing why the values were refused.
     Error apply_config(const ConfigDocument& doc);
     /// @brief Install a callback fired whenever a new config is accepted.
-/// @param f Config-accepted listener.
+    /// @param f Config-accepted listener.
     void set_config_listener(std::function<void(const Config&)> f)
     {
         on_config_ = std::move(f);
     }
 
     /// @brief Where the bulk payload socket lives, reported to callers by bundle-fetch.
-/// @param p Bulk socket path to advertise.
+    /// @param p Bulk socket path to advertise.
     void set_bulk_socket_path(std::string p)
     {
         bulk_socket_path_ = std::move(p);
     }
     /// @brief Current bulk socket path.
-/// @return The current bulk socket path.
+    /// @return The current bulk socket path.
     const std::string& bulk_socket_path() const
     {
         return bulk_socket_path_;
     }
 
     /// @brief Log store access.
-/// @return Log store access.
+    /// @return Log store access.
     LogStore& store()
     {
         return store_;
     }
     /// @brief Bundle store access.
-/// @return Bundle store access.
+    /// @return Bundle store access.
     BundleStore& bundles()
     {
         return bundles_;
     }
     /// @brief Crash-forensics access.
-/// @return Crash-forensics access.
+    /// @return Crash-forensics access.
     CrashForensics& forensics()
     {
         return forensics_;
     }
     /// @brief Clock access.
-/// @return Clock access.
+    /// @return Clock access.
     TimeSource& clock()
     {
         return ts_;
@@ -132,7 +132,7 @@ class LogCore
     /// where coredumps land — that is platform knowledge. The resolver is
     /// injected from main so LogCore stays free of the platform layer and the
     /// domain stays testable.
-/// @param f Platform coredump resolver (daemon name → path).
+    /// @param f Platform coredump resolver (daemon name → path).
     void set_coredump_resolver(std::function<std::string(const std::string& daemon)> f)
     {
         std::lock_guard<std::mutex> lk(mu_);
@@ -140,7 +140,7 @@ class LogCore
     }
     /// @brief Resolve a daemon's coredump location via the injected resolver.
     /// @return Path, or empty when unknown.
-/// @param daemon Daemon whose coredump to locate.
+    /// @param daemon Daemon whose coredump to locate.
     std::string resolve_coredump(const std::string& daemon)
     {
         std::lock_guard<std::mutex> lk(mu_);
@@ -148,14 +148,14 @@ class LogCore
     }
 
     /// @brief Install the live log-line sink (feeds the collector's tail stream).
-/// @param f Live log-line sink.
+    /// @param f Live log-line sink.
     void set_sink(std::function<void(const LogLine&)> f)
     {
         std::lock_guard<std::mutex> lk(mu_);
         sink_ = std::move(f);
     }
     /// @brief Emit one line to the installed sink.
-/// @param l Line to emit.
+    /// @param l Line to emit.
     void emit(const LogLine& l)
     {
         std::lock_guard<std::mutex> lk(mu_);
@@ -186,11 +186,11 @@ class LogCollector
 {
   public:
     /// @brief Construct a collector over a core, platform, filesystem, clock and logger.
-/// @param core Domain core.
-/// @param plat Journal/kmsg access.
-/// @param fs File-sink access.
-/// @param ts Clock.
-/// @param log Logger.
+    /// @param core Domain core.
+    /// @param plat Journal/kmsg access.
+    /// @param fs File-sink access.
+    /// @param ts Clock.
+    /// @param log Logger.
     LogCollector(LogCore* core, platform::IPlatform* plat, IFileSystem* fs, TimeSource* ts, Logger* log);
 
     /// @brief One collection pass over every configured source.
@@ -205,7 +205,7 @@ class LogCollector
     /// @brief Stop the periodic worker.
     void stop();
     /// @brief Override the pass cadence.
-/// @param s Pass cadence in seconds.
+    /// @param s Pass cadence in seconds.
     void set_interval_s(double s)
     {
         worker_.set_interval_s(s);
@@ -223,17 +223,17 @@ class LogCollector
 
   private:
     /// @brief Collect one pass from a journal source.
-/// @param spec Journal source to collect.
-/// @return Lines appended.
+    /// @param spec Journal source to collect.
+    /// @return Lines appended.
     size_t collect_journal(const SourceSpec& spec);
     /// @brief Collect one pass from a file source.
-/// @param spec File source to collect.
-/// @return Lines appended.
+    /// @param spec File source to collect.
+    /// @return Lines appended.
     size_t collect_file(const SourceSpec& spec);
     /// @brief Split raw text into lines, emit and store them.
-/// @param spec Source the lines belong to.
-/// @param raw Raw collected text.
-/// @return Lines emitted and stored.
+    /// @param spec Source the lines belong to.
+    /// @param raw Raw collected text.
+    /// @return Lines emitted and stored.
     size_t emit(const SourceSpec& spec, const std::string& raw);
 
     // Per-source follow position. The journal has no cursor API, so dedup is
@@ -273,11 +273,11 @@ class LogSpoke
 {
   public:
     /// @brief Construct the spoke over the core's command table and hub target.
-/// @param core Domain core.
-/// @param log Logger.
-/// @param table Command table.
-/// @param hub_target istate gRPC target.
-/// @param build_version Build version to advertise.
+    /// @param core Domain core.
+    /// @param log Logger.
+    /// @param table Command table.
+    /// @param hub_target istate gRPC target.
+    /// @param build_version Build version to advertise.
     LogSpoke(LogCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version);
     /// @brief Start the channel.
     void start();
@@ -289,7 +289,7 @@ class LogSpoke
         return channel_->registered();
     }
     /// @brief Install the schema every config delivery must satisfy (R4, §9).
-/// @param schema Schema every config delivery must satisfy.
+    /// @param schema Schema every config delivery must satisfy.
     void set_schema(JValue schema);
     /// @brief Revision of the last config applied.
     uint64_t config_revision() const
@@ -297,15 +297,15 @@ class LogSpoke
         return channel_->config_revision();
     }
     /// @brief Queue a collected log line to istate.
-/// @param l Log line to queue.
+    /// @param l Log line to queue.
     void send_line(const LogLine& l);
     /// @brief Queue a bundle announcement to istate.
-/// @param m Bundle metadata to queue.
+    /// @param m Bundle metadata to queue.
     void send_bundle(const BundleMeta& m);
     /// @brief Queue a crash-forensics report to istate.
-/// @param daemon Daemon that crashed.
-/// @param coredump Stored coredump path.
-/// @param tail_lines Log-tail lines folded in.
+    /// @param daemon Daemon that crashed.
+    /// @param coredump Stored coredump path.
+    /// @param tail_lines Log-tail lines folded in.
     void send_crash(const std::string& daemon, const std::string& coredump, uint32_t tail_lines);
 
   private:

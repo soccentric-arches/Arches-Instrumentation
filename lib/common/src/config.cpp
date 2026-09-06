@@ -106,9 +106,9 @@ Result<ConfigDocument> ConfigDocument::parse(const std::string& yaml_text, const
     struct Flatten
     {
         /// @brief Recursively flatten a JSON document into dot-path → scalar-text pairs.
-/// @param v JSON node to flatten.
-/// @param prefix Dot-path prefix for nested keys.
-/// @param out Receives the flattened pairs.
+        /// @param v JSON node to flatten.
+        /// @param prefix Dot-path prefix for nested keys.
+        /// @param out Receives the flattened pairs.
         static void walk(const JValue& v, const std::string& prefix, std::map<std::string, std::string>* out)
         {
             if (v.is_object())
@@ -387,11 +387,11 @@ std::string quote(const std::string& s)
 struct YamlWriter
 {
     /// @brief Recursively rebuild nested YAML from flattened dot-path values.
-/// @param values Flattened values.
-/// @param origins Origin sidecar.
-/// @param prefix Current dot-path.
-/// @param indent Current indent level.
-/// @param out YAML buffer.
+    /// @param values Flattened values.
+    /// @param origins Origin sidecar.
+    /// @param prefix Current dot-path.
+    /// @param indent Current indent level.
+    /// @param out YAML buffer.
     static void walk(const std::map<std::string, std::string>& values, const std::map<std::string, Origin>& origins, const std::string& prefix, int indent, std::string* out)
     {
         // Collect direct children and list indices.
@@ -461,10 +461,10 @@ struct YamlWriter
     }
 
     /// @brief True when any value key lives under the dot-path prefix.
-/// @param values Flattened values.
-/// @param prefix Parent dot-path.
-/// @param head Child segment to test.
-/// @return True when a subtree exists.
+    /// @param values Flattened values.
+    /// @param prefix Parent dot-path.
+    /// @param head Child segment to test.
+    /// @return True when a subtree exists.
     static bool subtree_exists(const std::map<std::string, std::string>& values, const std::string& prefix, const std::string& head)
     {
         std::string child = prefix.empty() ? head : prefix + "." + head;
@@ -479,11 +479,11 @@ struct YamlWriter
     }
 
     /// @brief Emit one YAML mapping item at the current indentation.
-/// @param values Flattened values.
-/// @param origins Origin sidecar.
-/// @param item Dot-path of the item.
-/// @param indent Current indent level.
-/// @param out YAML buffer.
+    /// @param values Flattened values.
+    /// @param origins Origin sidecar.
+    /// @param item Dot-path of the item.
+    /// @param indent Current indent level.
+    /// @param out YAML buffer.
     static void emit_item(const std::map<std::string, std::string>& values, const std::map<std::string, Origin>& origins, const std::string& item, int indent, std::string* out)
     {
         std::string pad(indent * 2, ' ');
@@ -520,16 +520,16 @@ struct YamlWriter
     }
 
     /// @brief Parent dot-path of a flattened key ("" at the root).
-/// @param p Flattened key.
-/// @return The parent path, or "" at the root.
+    /// @param p Flattened key.
+    /// @return The parent path, or "" at the root.
     static std::string parent_of(const std::string& p)
     {
         size_t pos = p.find_last_of('.');
         return pos == std::string::npos ? std::string() : p.substr(0, pos);
     }
     /// @brief Last path segment of a flattened key.
-/// @param p Flattened key.
-/// @return The last segment.
+    /// @param p Flattened key.
+    /// @return The last segment.
     static std::string last_of(const std::string& p)
     {
         size_t pos = p.find_last_of('.');

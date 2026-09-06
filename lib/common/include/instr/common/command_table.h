@@ -53,8 +53,8 @@ struct CommandResult
     std::string json_data; ///< JSON object/string payload on success.
 
     /// @brief Construct a success result carrying a JSON payload.
-/// @param json JSON payload text.
-/// @return The success result.
+    /// @param json JSON payload text.
+    /// @return The success result.
     static CommandResult good(std::string json)
     {
         CommandResult r;
@@ -62,16 +62,16 @@ struct CommandResult
         return r;
     }
     /// @brief Construct a success result carrying a serialised JValue.
-/// @param v Value to serialise.
-/// @return The success result.
+    /// @param v Value to serialise.
+    /// @return The success result.
     static CommandResult good(JValue v)
     {
         return good(v.dump());
     }
     /// @brief Construct a failure result from an Errc code and message.
-/// @param c Failure category.
-/// @param msg Diagnosable failure text.
-/// @return The failure result.
+    /// @param c Failure category.
+    /// @param msg Diagnosable failure text.
+    /// @return The failure result.
     static CommandResult err(Errc c, const std::string& msg)
     {
         CommandResult r;
@@ -81,16 +81,16 @@ struct CommandResult
         return r;
     }
     /// @brief Construct a failure result (extra context argument kept for ABI compatibility).
-/// @param c Failure category.
-/// @param msg Diagnosable failure text.
-/// @return The failure result.
+    /// @param c Failure category.
+    /// @param msg Diagnosable failure text.
+    /// @return The failure result.
     static CommandResult err(Errc c, const std::string& msg, const std::string&)
     {
         return err(c, msg);
     }
     /// @brief Convert a generic Error into a result (success maps to an empty JSON object).
-/// @param e Error to convert.
-/// @return The result (success maps to an empty JSON object).
+    /// @param e Error to convert.
+    /// @return The result (success maps to an empty JSON object).
     static CommandResult from_error(const Error& e)
     {
         return e.ok() ? good(std::string("{}")) : err(e.code, e.str());
@@ -122,22 +122,22 @@ class CommandTable
 {
   public:
     /// @brief Register a command (replaces any existing spec with the same op).
-/// @param spec Command to register.
+    /// @param spec Command to register.
     void add(CommandSpec spec)
     {
         ops_[spec.op] = std::move(spec);
     }
     /// @brief Look up a command by operation name.
     /// @return Pointer to the spec, or nullptr when unknown.
-/// @param op Operation name.
-/// @return Pointer to the spec, or nullptr when unknown.
+    /// @param op Operation name.
+    /// @return Pointer to the spec, or nullptr when unknown.
     const CommandSpec* find(const std::string& op) const
     {
         auto it = ops_.find(op);
         return it == ops_.end() ? nullptr : &it->second;
     }
     /// @brief All registered commands, in op order.
-/// @return All registered commands, in op order.
+    /// @return All registered commands, in op order.
     std::vector<const CommandSpec*> all() const
     {
         std::vector<const CommandSpec*> out;

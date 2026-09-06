@@ -62,8 +62,8 @@ class Sampler
 {
   public:
     /// @brief Bind the sampler to the platform and a clock.
-/// @param plat Platform readings.
-/// @param ts Clock.
+    /// @param plat Platform readings.
+    /// @param ts Clock.
     Sampler(platform::IPlatform& plat, TimeSource& ts) : plat_(plat), ts_(ts)
     {
     }
@@ -77,21 +77,21 @@ class Sampler
     std::vector<MonitorSample> tick();
 
     /// @brief Override the default sampling interval.
-/// @param s Default sampling interval in seconds.
+    /// @param s Default sampling interval in seconds.
     void set_default_interval_s(double s)
     {
         default_interval_ = s;
     }
     /// @brief Override the interval for one resource class.
-/// @param resource_class Resource class to retune.
-/// @param s Interval in seconds.
+    /// @param resource_class Resource class to retune.
+    /// @param s Interval in seconds.
     void set_interval_for(const std::string& resource_class, double s)
     {
         intervals_[resource_class] = s;
     }
     /// @brief Effective interval for a resource class.
-/// @param resource_class Resource class to query.
-/// @return The effective interval in seconds.
+    /// @param resource_class Resource class to query.
+    /// @return The effective interval in seconds.
     double interval_for(const std::string& resource_class) const;
 
     /// @brief Lifetime counters.
@@ -101,7 +101,7 @@ class Sampler
         uint64_t dropped = 0;    ///< Samples dropped (e.g. unsupported metrics).
     };
     /// @brief Current statistics.
-/// @return Current statistics.
+    /// @return Current statistics.
     const Stats& stats() const
     {
         return stats_;
@@ -122,18 +122,18 @@ class RollingWindow
 {
   public:
     /// @brief Construct a window of @p window_s seconds sampled at @p interval_s.
-/// @param window_s Window length in seconds.
-/// @param interval_s Expected sampling interval in seconds.
+    /// @param window_s Window length in seconds.
+    /// @param interval_s Expected sampling interval in seconds.
     RollingWindow(double window_s, double interval_s) : window_ns_(uint64_t(window_s * 1e9)), interval_ns_(uint64_t(interval_s * 1e9))
     {
     }
 
     /// @brief Append a sample, evicting entries older than the window.
-/// @param mono_ns Sample time.
-/// @param s Sample to append.
+    /// @param mono_ns Sample time.
+    /// @param s Sample to append.
     void push(uint64_t mono_ns, const MonitorSample& s);
     /// @brief Samples within the window, oldest first.
-/// @return Samples within the window, oldest first.
+    /// @return Samples within the window, oldest first.
     std::vector<MonitorSample> window() const;
     /// @brief Entries currently retained.
     size_t size() const

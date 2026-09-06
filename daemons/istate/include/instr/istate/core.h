@@ -69,25 +69,25 @@ class IstateCore
 {
   public:
     /// @brief Construct the core over storage, platform, clock, logger and options.
-/// @param opts Runtime options.
-/// @param fs Storage backend.
-/// @param plat Platform.
-/// @param ts Clock.
-/// @param log Logger.
+    /// @param opts Runtime options.
+    /// @param fs Storage backend.
+    /// @param plat Platform.
+    /// @param ts Clock.
+    /// @param log Logger.
     IstateCore(IstateOptions opts, IFileSystem& fs, platform::IPlatform& plat, TimeSource& ts, Logger& log);
 
     /// @brief Mount /pst, validate, seed defaults on virgin; provisioning; start the spokes in order.
     ///
     /// Returns false only when the platform is unusable.
-/// @param default_yaml Image default YAML per daemon.
-/// @return True when the platform is usable; false only when unusable.
+    /// @param default_yaml Image default YAML per daemon.
+    /// @return True when the platform is usable; false only when unusable.
     bool boot(const std::map<std::string, std::string>& default_yaml);
     /// @brief Graceful shutdown: stop spokes, persist state, write the clean marker.
     void shutdown();
 
     /// @brief Subsystems (wired into the hub server).
     /// @{
-/// @return The /pst store.
+    /// @return The /pst store.
     PstStore& pst()
     {
         return pst_;
@@ -147,26 +147,26 @@ class IstateCore
         return audit_;
     }
     /// @brief Logger access.
-/// @return Logger access.
+    /// @return Logger access.
     Logger& log()
     {
         return log_;
     }
     /// @}
     /// @brief Clock access.
-/// @return Clock access.
+    /// @return Clock access.
     TimeSource& clock()
     {
         return ts_;
     }
     /// @brief Platform access.
-/// @return Platform access.
+    /// @return Platform access.
     platform::IPlatform& platform()
     {
         return plat_;
     }
     /// @brief Runtime options.
-/// @return Runtime options.
+    /// @return Runtime options.
     const IstateOptions& options() const
     {
         return opts_;
@@ -183,18 +183,18 @@ class IstateCore
         bool locked = false;          ///< Any source disciplined.
     };
     /// @brief Time-policy state access.
-/// @return Time-policy state access.
+    /// @return Time-policy state access.
     TimePolicyState& time_policy()
     {
         return time_policy_;
     }
     /// @brief Called when a time source acquires lock: re-stamp spooled data (§4).
-/// @param source Lock source name.
-/// @param offset_ns Wall-clock correction in nanoseconds.
-/// @return Number of pending records re-stamped.
+    /// @param source Lock source name.
+    /// @param offset_ns Wall-clock correction in nanoseconds.
+    /// @return Number of pending records re-stamped.
     size_t on_time_lock(const std::string& source, int64_t offset_ns);
     /// @brief Wall-clock reconciler access.
-/// @return Wall-clock reconciler access.
+    /// @return Wall-clock reconciler access.
     TimeReconciler& reconciler()
     {
         return reconciler_;
@@ -206,7 +206,7 @@ class IstateCore
     /// telemetry → northbound spool (SPOOL_TELEMETRY), faults → protected,
     /// alarms → protected + timeline, samples → relay to telemetry, logs → tail
     /// fanout + spool refs, ota/backup events → timeline.
-/// @param msg Spoke frame routed by type.
+    /// @param msg Spoke frame routed by type.
     void on_spoke_msg(const transport::GenericSpokeMsg& msg);
 
     /// @brief Spoke command relay (Configuration → spoke, §3.3): correlated acks.
@@ -215,17 +215,17 @@ class IstateCore
         std::promise<std::string> promise;   ///< Fulfilled by the spoke's ack.
     };
     /// @brief Relay a command to a spoke; resolves when its ack arrives.
-/// @param daemon Spoke to relay to.
-/// @param cmd Command to run.
-/// @return Resolves with the ack JSON when the spoke answers.
+    /// @param daemon Spoke to relay to.
+    /// @param cmd Command to run.
+    /// @return Resolves with the ack JSON when the spoke answers.
     std::future<std::string> relay_command(const std::string& daemon, const common::Command& cmd);
     /// @brief Complete a pending relay with a spoke's ack.
-/// @param daemon Spoke that acked.
-/// @param ack Ack frame.
+    /// @param daemon Spoke that acked.
+    /// @param ack Ack frame.
     void on_spoke_ack(const std::string& daemon, const common::Ack& ack);
 
     /// @brief Install the HQ send hook (implemented in hubs.cpp against the HqPeer stub).
-/// @param f HQ send hook (type, json) → bool.
+    /// @param f HQ send hook (type, json) → bool.
     void set_hq_send(std::function<bool(const std::string& type, const std::string& json)> f)
     {
         hq_send_ = std::move(f);
@@ -239,25 +239,25 @@ class IstateCore
         relay_to_spoke_ = std::move(f);
     }
     /// @brief Image default YAML provider (used for seeding + system reset).
-/// @param f Image defaults provider.
+    /// @param f Image defaults provider.
     void set_default_provider(std::function<std::map<std::string, std::string>()> f)
     {
         default_provider_ = std::move(f);
     }
     /// @brief Enrollment secret (factory-provisioned) for signature verification.
-/// @param s Enrollment secret.
+    /// @param s Enrollment secret.
     void set_enrollment_secret(std::string s)
     {
         enrollment_secret_ = std::move(s);
     }
     /// @brief Enrollment secret accessor.
-/// @return The enrollment secret.
+    /// @return The enrollment secret.
     const std::string& enrollment_secret() const
     {
         return enrollment_secret_;
     }
     /// @brief Apply or release HQ backpressure.
-/// @param pause True to pause; false to resume draining.
+    /// @param pause True to pause; false to resume draining.
     void set_hq_backpressure(bool pause);
     /// @brief True while HQ asked us to pause.
     bool hq_backpressured() const
@@ -265,8 +265,8 @@ class IstateCore
         return hq_backpressured_;
     }
     /// @brief Drain the northbound spool toward HQ (called when connected).
-/// @param max_batch Maximum records this drain.
-/// @return The drain report.
+    /// @param max_batch Maximum records this drain.
+    /// @return The drain report.
     NorthboundSpool::DrainReport drain_northbound(size_t max_batch = 50);
 
     /// @brief A spoke completed (or failed) the registration handshake (§3.1).
@@ -274,8 +274,8 @@ class IstateCore
     /// The orchestrator records build version, proto version and capabilities,
     /// and a mismatch raises an alarm — refusing quietly would leave a
     /// partially updated fleet looking healthy.
-/// @param req Registration request.
-/// @param accepted Whether the handshake was accepted.
+    /// @param req Registration request.
+    /// @param accepted Whether the handshake was accepted.
     void on_spoke_registration(const common::RegistrationRequest& req, bool accepted);
 
     /// @brief Alarms istate declares (R5, §6, §11).
@@ -286,8 +286,8 @@ class IstateCore
     /// does so by asking the Alarms daemon through the same relay everything
     /// else uses (R1); it never writes the alarm table itself.
     /// @{
-/// @param alarm_id Packed alarm identity.
-/// @param text Additional text.
+    /// @param alarm_id Packed alarm identity.
+    /// @param text Additional text.
     void raise_alarm(uint32_t alarm_id, const std::string& text);
     /// @brief Clear an istate-declared alarm through the Alarms relay.
     /// @param alarm_id Packed alarm identity.
@@ -299,13 +299,13 @@ class IstateCore
     /// istate must report what this board actually has: a hardcoded list claims
     /// GNSS and CAN on every target and turns "honest reporting" into "fails
     /// the call later".
-/// @param caps Board capability manifest.
+    /// @param caps Board capability manifest.
     void set_capabilities(std::vector<std::string> caps)
     {
         capabilities_ = std::move(caps);
     }
     /// @brief Reported capabilities.
-/// @return Reported capabilities.
+    /// @return Reported capabilities.
     const std::vector<std::string>& capabilities() const
     {
         return capabilities_;
@@ -317,14 +317,14 @@ class IstateCore
     /// pushed a new delivery whenever its config changes.
     /// @{
     /// @brief Push a daemon's config; false when it has no open session (it will ask again on reconnect).
-/// @param daemon Daemon to push to.
-/// @return False when the spoke has no open session.
+    /// @param daemon Daemon to push to.
+    /// @return False when the spoke has no open session.
     bool deliver_config(const std::string& daemon);
     /// @brief Push the current config to every spoke with an open session.
     void deliver_config_all();
     /// @brief Revision of the config last delivered to a daemon (0 = never).
-/// @param daemon Daemon to query.
-/// @return The last delivered revision (0 = never).
+    /// @param daemon Daemon to query.
+    /// @return The last delivered revision (0 = never).
     uint64_t config_revision(const std::string& daemon) const;
     /// @brief Last delivery outcome reported by a spoke (§9: a rejected push is loud).
     struct ConfigAckState
@@ -334,26 +334,26 @@ class IstateCore
         std::string reason;          ///< Rejection reason when not applied.
     };
     /// @brief Ack state for a daemon.
-/// @param daemon Daemon to query.
-/// @return The last ack state for the daemon.
+    /// @param daemon Daemon to query.
+    /// @return The last ack state for the daemon.
     ConfigAckState config_ack_state(const std::string& daemon) const;
     /// @}
 
     /// @brief System info for the Configuration API.
-/// @return The system info as JSON.
+    /// @return The system info as JSON.
     std::string system_info_json() const;
     /// @brief Budget usage report.
-/// @return The budget usage report as JSON.
+    /// @return The budget usage report as JSON.
     std::string budgets_json() const;
 
     /// @brief System reset (§6.1, §3.3 Configuration API).
-/// @param actor Who requested the reset (audit).
-/// @return True when performed, or an error.
+    /// @param actor Who requested the reset (audit).
+    /// @return True when performed, or an error.
     Result<bool> system_reset(const std::string& actor);
     /// @brief Factory reset (manufacturing operation, explicitly gated).
-/// @param actor Who requested the reset (audit).
-/// @param confirmation Required confirmation string.
-/// @return True when performed, or an error.
+    /// @param actor Who requested the reset (audit).
+    /// @param confirmation Required confirmation string.
+    /// @return True when performed, or an error.
     Result<bool> factory_reset(const std::string& actor, const std::string& confirmation);
 
     /// @brief Unclean-shutdown detection (§11).
@@ -364,7 +364,7 @@ class IstateCore
     /// shutdown() writes it again.
     void write_clean_shutdown_marker();
     /// @brief Marker file path.
-/// @return The marker file path.
+    /// @return The marker file path.
     std::string clean_shutdown_marker_path() const;
     /// @brief True when the previous shutdown was clean.
     bool last_shutdown_clean() const
@@ -373,7 +373,7 @@ class IstateCore
     }
 
     /// @brief Queue a timeline event into the northbound spool.
-/// @param payload_json Timeline event payload.
+    /// @param payload_json Timeline event payload.
     void push_event_to_spool(const std::string& payload_json)
     {
         northbound_spool_.enqueue(SpoolPriority::Event, payload_json, ts_.mono_ns());

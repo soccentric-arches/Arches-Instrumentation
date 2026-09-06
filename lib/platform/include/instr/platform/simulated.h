@@ -55,10 +55,10 @@ class SimulatedPlatform : public IPlatform
     SimulatedPlatform();
 
     /// @brief Script the factory identity returned to the daemons.
-/// @param id Identity the daemons will read.
+    /// @param id Identity the daemons will read.
     void set_factory_identity(const FactoryIdentity& id);
     /// @brief Script entropy availability.
-/// @param v Entropy availability to script.
+    /// @param v Entropy availability to script.
     void set_entropy_available(bool v)
     {
         entropy_ = v;
@@ -93,19 +93,19 @@ class SimulatedPlatform : public IPlatform
         mem_ = m;
     }
     /// @brief Script the CPU snapshot.
-/// @param c CPU snapshot to script.
+    /// @param c CPU snapshot to script.
     void set_cpu(const CpuSnapshot& c)
     {
         cpu_ = c;
     }
     /// @brief Script the load average.
-/// @param l Load average to script.
+    /// @param l Load average to script.
     void set_load(double l)
     {
         load_ = l;
     }
     /// @brief Script the process count.
-/// @param n Process count to script.
+    /// @param n Process count to script.
     void set_processes(uint32_t n)
     {
         processes_ = n;
@@ -115,72 +115,72 @@ class SimulatedPlatform : public IPlatform
         uptime_ = s;
     }
     /// @brief Script the boot count.
-/// @param n Boot count to script.
+    /// @param n Boot count to script.
     void set_boot_count(uint32_t n)
     {
         boot_count_ = n;
     }
     /// @brief Script the last-shutdown-clean state.
-/// @param v Last-shutdown-clean state to script.
+    /// @param v Last-shutdown-clean state to script.
     void set_last_shutdown_clean(bool v)
     {
         clean_shutdown_ = v;
     }
 
     /// @brief Fault injection (REQ §12): watchdog failures.
-/// @param v True to fail watchdog operations.
+    /// @param v True to fail watchdog operations.
     void fail_watchdog(bool v)
     {
         fail_watchdog_ = v;
     }
     /// @brief Fault injection: GPIO failures.
-/// @param v True to fail GPIO operations.
+    /// @param v True to fail GPIO operations.
     void fail_gpio(bool v)
     {
         fail_gpio_ = v;
     }
     /// @brief Fault injection: USB reset failures.
-/// @param v True to fail USB reset operations.
+    /// @param v True to fail USB reset operations.
     void fail_usb(bool v)
     {
         fail_usb_ = v;
     }
     /// @brief Fault injection: CAN failures.
-/// @param v True to fail CAN operations.
+    /// @param v True to fail CAN operations.
     void fail_can(bool v)
     {
         fail_can_ = v;
     }
     /// @brief Fault injection: display failures.
-/// @param v True to fail display operations.
+    /// @param v True to fail display operations.
     void fail_display(bool v)
     {
         fail_display_ = v;
     }
     /// @brief Fault injection: unit start failures.
-/// @param v True to fail unit starts.
+    /// @param v True to fail unit starts.
     void fail_unit_start(bool v)
     {
         fail_unit_start_ = v;
     }
     /// @brief Fault injection: boot-slot operation failures.
-/// @param v True to fail boot-slot operations.
+    /// @param v True to fail boot-slot operations.
     void fail_boot_slot_ops(bool v)
     {
         fail_boot_slots_ = v;
     }
     /// @brief Replace the whole scripted kernel log.
-/// @param lines Kernel log lines to script.
+    /// @param lines Kernel log lines to script.
     void set_kernel_log(const std::vector<std::string>& lines)
     {
         kernel_log_ = lines;
     }
     /// @brief Append one kernel log line (emits it to followers too).
-/// @param line Line to append.
+    /// @param line Line to append.
     void append_kernel_line(const std::string& line);
 
     /// @brief Network plans applied (or recorded) so far — test observation.
-/// @return Network plans applied (or recorded) so far.
+    /// @return Network plans applied (or recorded) so far.
     const std::vector<std::string>& applied_plans() const
     {
         return applied_plans_;
@@ -196,43 +196,43 @@ class SimulatedPlatform : public IPlatform
         return watchdog_running_;
     }
     /// @brief Current LED states.
-/// @return Current LED states.
+    /// @return Current LED states.
     const std::map<std::string, bool>& led_state() const
     {
         return leds_;
     }
     /// @brief Current GPIO states.
-/// @return Current GPIO states.
+    /// @return Current GPIO states.
     const std::map<int, bool>& gpio_state() const
     {
         return gpios_;
     }
     /// @brief Units started so far.
-/// @return Units started so far.
+    /// @return Units started so far.
     const std::vector<std::string>& started_units() const
     {
         return started_units_;
     }
     /// @brief Current unit states.
-/// @return Current unit states.
+    /// @return Current unit states.
     const std::map<std::string, bool>& unit_states() const
     {
         return units_;
     }
     /// @brief USB ports reset so far.
-/// @return USB ports reset so far.
+    /// @return USB ports reset so far.
     const std::vector<std::string>& usb_resets() const
     {
         return usb_resets_;
     }
     /// @brief Display commands received so far.
-/// @return Display commands received so far.
+    /// @return Display commands received so far.
     const std::vector<std::string>& display_commands() const
     {
         return display_cmds_;
     }
     /// @brief Units restarted so far.
-/// @return Units restarted so far.
+    /// @return Units restarted so far.
     const std::vector<std::string>& unit_restarts() const
     {
         return restarts_;
@@ -404,7 +404,7 @@ class SimulatedPlatform : public IPlatform
     /// @}
 
     /// @brief Script per-unit journal contents for LogManager tests.
-/// @param j Per-unit journal contents to script.
+    /// @param j Per-unit journal contents to script.
     void set_journal(const std::map<std::string, std::vector<std::string>>& j)
     {
         journal_ = j;
@@ -412,19 +412,19 @@ class SimulatedPlatform : public IPlatform
     /// @brief Fault-injection / scenario knobs for the newer platform surfaces.
     /// @{
     /// @brief Script the partition topology.
-/// @param p Partition topology to script.
+    /// @param p Partition topology to script.
     void set_partitions(std::vector<Partition> p)
     {
         partitions_ = std::move(p);
     }
     /// @brief Script the time-source inventory.
-/// @param t Time-source inventory to script.
+    /// @param t Time-source inventory to script.
     void set_time_sources(std::vector<TimeSourceInfo> t)
     {
         time_sources_ = std::move(t);
     }
     /// @brief Script the measured-boot state.
-/// @param m Measured-boot state to script.
+    /// @param m Measured-boot state to script.
     void set_measured_boot(MeasuredBootState m)
     {
         measured_boot_ = std::move(m);
@@ -432,22 +432,22 @@ class SimulatedPlatform : public IPlatform
     /// @brief Queue a frame a can_recv on this interface will hand back
     /// (loopback by default: whatever was sent comes back, which is what a
     /// health check expects).
-/// @param iface Interface to queue the frame on.
-/// @param f Frame to hand to can_recv.
+    /// @param iface Interface to queue the frame on.
+    /// @param f Frame to hand to can_recv.
     void push_can_frame(const std::string& iface, const CanFrame& f)
     {
         can_rx_[iface].push_back(f);
     }
     /// @brief Frames sent on this interface so far (test observation).
-/// @param iface Interface to inspect.
-/// @return Frames sent on this interface so far.
+    /// @param iface Interface to inspect.
+    /// @return Frames sent on this interface so far.
     const std::vector<CanFrame>& can_sent(const std::string& iface)
     {
         return can_tx_[iface];
     }
     /// @brief Script CAN controller presence for an interface.
-/// @param iface CAN interface.
-/// @param present Controller presence to script.
+    /// @param iface CAN interface.
+    /// @param present Controller presence to script.
     void set_can_present(const std::string& iface, bool present)
     {
         can_present_[iface] = present;
