@@ -31,10 +31,12 @@
 
 namespace instr
 {
+/// @brief networkd: network plan application, tunnel guard and remote access (§7.2).
 namespace networkd
 {
 
 /// @brief Set the running plan without applying it.
+/// @param plan Plan to make current (without applying).
 Error NetworkdCore::load_plan(const NetworkPlan& plan)
 {
     plan_ = plan;
@@ -52,6 +54,9 @@ Error NetworkdCore::apply()
 }
 
 /// @brief Apply a new plan under the tunnel-loss guard.
+/// @param next Candidate plan.
+/// @param timeout_s Revert grace period in seconds.
+/// @return What happened (applied, reverted, detail).
 TunnelGuard::Result NetworkdCore::guarded_apply(const NetworkPlan& next, double timeout_s)
 {
     NetworkPlan previous = plan_;
@@ -72,6 +77,7 @@ TunnelGuard::Result NetworkdCore::guarded_apply(const NetworkPlan& next, double 
 }
 
 /// @brief Render and hand the time-daemon configs to the platform.
+/// @param policy Time policy from istate.
 Error NetworkdCore::apply_time_policy(const TimePolicy& policy)
 {
     plan_.time = policy;
@@ -89,6 +95,7 @@ Error NetworkdCore::apply_time_policy(const TimePolicy& policy)
 }
 
 /// @brief Render effective state as JSON.
+/// @return The effective state as JSON.
 std::string NetworkdCore::status_json() const
 {
     int64_t now = ts_.wall_ns() / 1'000'000'000ll;
@@ -99,6 +106,8 @@ std::string NetworkdCore::status_json() const
 // ---------------- command table (full coverage; runtime-only) ----------------
 
 /// @brief Build a NetworkPlan from a delivered config document.
+/// @param doc Parsed, schema-validated document.
+/// @return The rendered plan, or an error.
 Result<NetworkPlan> NetworkdCore::plan_from_config(const ConfigDocument& doc)
 {
     NetworkPlan p;
@@ -172,6 +181,8 @@ Result<NetworkPlan> NetworkdCore::plan_from_config(const ConfigDocument& doc)
 }
 
 /// @brief Apply an istate-delivered config document.
+/// @param doc Parsed, schema-validated document.
+/// @return ok(), or an error describing why the values were refused.
 Error NetworkdCore::apply_config(const ConfigDocument& doc)
 {
     Config c;
@@ -203,6 +214,7 @@ Error NetworkdCore::apply_config(const ConfigDocument& doc)
 }
 
 /// @brief Expire SSH windows and return the events to emit.
+/// @return Events to emit upward.
 std::vector<std::pair<std::string, std::string>> NetworkdCore::sweep_remote_access()
 {
     std::vector<std::pair<std::string, std::string>> events;
@@ -224,6 +236,7 @@ std::vector<std::pair<std::string, std::string>> NetworkdCore::sweep_remote_acce
 }
 
 /// @brief Probe interfaces and re-rank; returns events to emit.
+/// @return Events to emit upward.
 std::vector<std::pair<std::string, std::string>> NetworkdCore::probe_connectivity()
 {
     std::vector<std::pair<std::string, std::string>> events;
@@ -261,6 +274,8 @@ std::vector<std::pair<std::string, std::string>> NetworkdCore::probe_connectivit
 }
 
 /// @brief Build the networkd ctrl command table.
+/// @param core Domain core the table reads from.
+/// @return The command table.
 CommandTable build_networkd_table(NetworkdCore* core)
 {
     CommandTable t;
@@ -379,6 +394,11 @@ CommandTable build_networkd_table(NetworkdCore* core)
 // ---------------- spoke ----------------
 
 /// @brief Wire the channel, config sink and handlers together.
+/// @param core Domain core.
+/// @param log Logger.
+/// @param table Command table.
+/// @param hub_target istate gRPC target.
+/// @param build_version Build version to advertise.
 NetworkdSpoke::NetworkdSpoke(NetworkdCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version) : core_(core), log_(log), table_(table)
 {
     SpokeChannel<networkd::NetworkHub, networkd::NetworkSpokeFrame, networkd::NetworkHubFrame>::Options o;
@@ -406,6 +426,7 @@ NetworkdSpoke::NetworkdSpoke(NetworkdCore* core, Logger* log, const CommandTable
 }
 
 /// @brief Install the schema every config delivery must satisfy.
+/// @param schema Schema every config delivery must satisfy.
 void NetworkdSpoke::set_schema(JValue schema)
 {
     config_sink_ = std::make_unique<ConfigSink>("networkd", std::move(schema), [this](const ConfigDocument& doc) { return core_->apply_config(doc); });
@@ -424,6 +445,7 @@ void NetworkdSpoke::stop()
 }
 
 /// @brief Queue a network event to istate.
+/// @param ev Network event to queue.
 void NetworkdSpoke::send_event(const networkd::NetworkEvent& ev)
 {
     channel_->enqueue([ev](networkd::NetworkSpokeFrame& f) { *f.mutable_event() = ev; });

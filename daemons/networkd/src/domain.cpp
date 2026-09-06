@@ -32,12 +32,16 @@
 
 namespace instr
 {
+/// @brief networkd: network plan application, tunnel guard and remote access (§7.2).
 namespace networkd
 {
+/// @brief Pure domain logic for this daemon: no transport, no sockets, fully unit-testable.
 namespace domain
 {
 
 /// @brief Render a plan to the JSON shape handed to platform.apply_network_plan.
+/// @param plan Plan to render.
+/// @return The plan as the apply-seam JSON shape.
 JValue render_plan_json(const NetworkPlan& plan)
 {
     JValue j = JValue::object();
@@ -137,6 +141,13 @@ JValue render_plan_json(const NetworkPlan& plan)
 }
 
 /// @brief Apply @p next, reverting to @p previous when HQ becomes unreachable.
+/// @param previous Currently running plan (revert target).
+/// @param next Candidate plan.
+/// @param apply Plan-apply callback.
+/// @param reachability HQ-reachability probe.
+/// @param timeout_s Grace period before reverting.
+/// @param clock_s Monotonic seconds.
+/// @return What happened (applied, reverted, detail).
 TunnelGuard::Result TunnelGuard::guarded_change(const NetworkPlan& previous, const NetworkPlan& next, const std::function<Error(const NetworkPlan&)>& apply, const std::function<bool()>& reachability, double timeout_s, const std::function<double()>& clock_s)
 {
     Result r;
@@ -172,6 +183,10 @@ TunnelGuard::Result TunnelGuard::guarded_change(const NetworkPlan& previous, con
 }
 
 /// @brief Open a time-boxed, clamped SSH window.
+/// @param operator_name Who requested the window.
+/// @param ttl_s Requested lifetime (clamped to the cap).
+/// @param now_unix_s Current wall time.
+/// @return The opened window, or an error.
 Result<SshWindow> RemoteAccessManager::open(const std::string& operator_name, uint64_t ttl_s, int64_t now_unix_s)
 {
     if (operator_name.empty()) return Result<SshWindow>::fail(Errc::InvalidArgument, "remote access must be attributed to a named operator", "");
@@ -189,6 +204,8 @@ Result<SshWindow> RemoteAccessManager::open(const std::string& operator_name, ui
 }
 
 /// @brief Expire windows whose TTL elapsed.
+/// @param now_unix_s Current wall time.
+/// @return The windows expired by this sweep.
 std::vector<SshWindow> RemoteAccessManager::sweep(int64_t now_unix_s)
 {
     std::vector<SshWindow> expired;
@@ -204,6 +221,8 @@ std::vector<SshWindow> RemoteAccessManager::sweep(int64_t now_unix_s)
 }
 
 /// @brief Windows still open.
+/// @param now_unix_s Current wall time.
+/// @return Windows still open.
 std::vector<SshWindow> RemoteAccessManager::active(int64_t now_unix_s) const
 {
     std::vector<SshWindow> out;
@@ -213,6 +232,8 @@ std::vector<SshWindow> RemoteAccessManager::active(int64_t now_unix_s) const
 }
 
 /// @brief True when any window is open.
+/// @param now_unix_s Current wall time.
+/// @return True when any window is open.
 bool RemoteAccessManager::any_active(int64_t now_unix_s) const
 {
     return !active(now_unix_s).empty();
@@ -225,6 +246,8 @@ void RemoteAccessManager::close_all()
 }
 
 /// @brief Render chrony/ptp4l/phc2sys/gpsd configuration from the policy.
+/// @param policy Time policy from istate.
+/// @return The rendered daemon configurations.
 TimeDaemonConfig render_time_daemons(const TimePolicy& policy)
 {
     TimeDaemonConfig c;
@@ -259,6 +282,9 @@ TimeDaemonConfig render_time_daemons(const TimePolicy& policy)
 }
 
 /// @brief Rank interfaces: reachable by priority, unreachable last.
+/// @param cfgs Configured interfaces with priorities.
+/// @param probes Probe results per interface.
+/// @return Interface names, best first.
 std::vector<std::string> ConnectivityRanker::rank(const std::vector<IfaceConfig>& cfgs, const std::vector<Reachability>& probes)
 {
     std::map<std::string, uint32_t> prio;
@@ -281,6 +307,10 @@ std::vector<std::string> ConnectivityRanker::rank(const std::vector<IfaceConfig>
 }
 
 /// @brief Render the effective-state snapshot as JSON.
+/// @param plan Current plan.
+/// @param windows Open SSH windows.
+/// @param tunnel_up Tunnel state.
+/// @return The effective-state snapshot as JSON.
 std::string plan_status_json(const NetworkPlan& plan, const std::vector<SshWindow>& windows, bool tunnel_up)
 {
     JValue j = render_plan_json(plan);
@@ -304,12 +334,17 @@ std::string plan_status_json(const NetworkPlan& plan, const std::vector<SshWindo
 } // namespace instr
 namespace instr
 {
+/// @brief networkd: network plan application, tunnel guard and remote access (§7.2).
 namespace networkd
 {
+/// @brief Pure domain logic for this daemon: no transport, no sockets, fully unit-testable.
 namespace domain
 {
 
 /// @brief Render supplicant/hostapd configuration for a wireless plan.
+/// @param w Wireless configuration.
+/// @param psk PSK resolved by the caller from /pst.
+/// @return The rendered supplicant/AP configuration.
 WirelessRender render_wireless(const WirelessConfig& w, const std::string& psk)
 {
     WirelessRender r;

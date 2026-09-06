@@ -42,8 +42,10 @@
 
 namespace instr
 {
+/// @brief networkd: network plan application, tunnel guard and remote access (§7.2).
 namespace networkd
 {
+/// @brief Pure domain logic for this daemon: no transport, no sockets, fully unit-testable.
 namespace domain
 {
 
@@ -165,6 +167,8 @@ struct NetworkPlan
 };
 
 /// @brief Render a plan to the JSON shape handed to platform.apply_network_plan.
+/// @param plan Plan to render.
+/// @return The plan as the apply-seam JSON shape.
 JValue render_plan_json(const NetworkPlan& plan);
 
 /// @brief Tunnel-loss guard (mandatory, §7.2): any change that kills the tunnel auto-reverts.
@@ -205,14 +209,20 @@ class RemoteAccessManager
     Result<SshWindow> open(const std::string& operator_name, uint64_t ttl_s, int64_t now_unix_s);
     /// @brief Expire windows whose TTL elapsed.
     /// @return The windows expired by this sweep.
+/// @param now_unix_s Current wall time.
     std::vector<SshWindow> sweep(int64_t now_unix_s);
     /// @brief Windows still open at @p now_unix_s.
+/// @param now_unix_s Current wall time.
+/// @return Windows still open.
     std::vector<SshWindow> active(int64_t now_unix_s) const;
     /// @brief True when any window is open.
+/// @param now_unix_s Current wall time.
+/// @return True when any window is open.
     bool any_active(int64_t now_unix_s) const;
     /// @brief Close every window immediately.
     void close_all();
     /// @brief Upper bound on a window; longer requests are clamped, never granted (§7.2).
+/// @param s Window cap in seconds.
     void set_max_ttl_s(uint64_t s)
     {
         max_ttl_s_ = s;
@@ -238,6 +248,8 @@ struct TimeDaemonConfig
 };
 
 /// @brief Render the time daemons' configuration from the policy.
+/// @param policy Time policy from istate.
+/// @return The rendered daemon configurations.
 TimeDaemonConfig render_time_daemons(const TimePolicy& policy);
 
 /// @brief Wireless rendering result (§7.2).
@@ -253,6 +265,9 @@ struct WirelessRender
 };
 
 /// @brief Render the supplicant / AP configuration for a wireless plan.
+/// @param w Wireless configuration.
+/// @param psk PSK resolved by the caller from /pst.
+/// @return The rendered supplicant/AP configuration.
 WirelessRender render_wireless(const WirelessConfig& w, const std::string& psk);
 
 /// @brief One interface's reachability probe result.
@@ -275,6 +290,10 @@ class ConnectivityRanker
 };
 
 /// @brief Effective-state snapshot for status reporting.
+/// @param plan Current plan.
+/// @param windows Open SSH windows.
+/// @param tunnel_up Tunnel state.
+/// @return The effective-state snapshot as JSON.
 std::string plan_status_json(const NetworkPlan& plan, const std::vector<SshWindow>& windows, bool tunnel_up);
 
 } // namespace domain
