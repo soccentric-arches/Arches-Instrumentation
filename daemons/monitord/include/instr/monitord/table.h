@@ -36,8 +36,9 @@ namespace instr
 namespace monitord
 {
 
-class MonitorCore; // domain+state facade, defined in transport.h
+class MonitorCore; ///< domain+state facade, defined in transport.h
 
+/// @brief Build the monitord ctrl command table (status, samples, wear).
 CommandTable build_monitor_table(MonitorCore* core);
 
 } // namespace monitord

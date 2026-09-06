@@ -49,46 +49,53 @@ using namespace instr::transport;
 namespace domain
 {
 
+/// @brief Spoke: transport to istate, schema-validated config sink and the sampling thread.
 class MonitorSpoke
 {
   public:
+    /// @brief Wire the channel, config sink and handlers together.
     MonitorSpoke(MonitorCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version);
 
+    /// @brief Start the channel and the sampling thread.
     void start();
+    /// @brief Stop the channel and the sampling thread.
     void stop();
+    /// @brief True while registered with istate.
     bool registered() const
     {
         return channel_->registered();
     }
-    // Configuration is delivered by istate over the channel (R4, §9).
+    /// @brief Install the schema every config delivery must satisfy (R4, §9).
     void set_schema(JValue schema);
+    /// @brief Revision of the last config applied.
     uint64_t config_revision() const
     {
         return channel_->config_revision();
     }
 
-    // Number of frames handed to the transport (for tests).
+    /// @brief Number of frames handed to the transport (for tests).
     uint64_t frames_enqueued() const
     {
         return frames_.load();
     }
 
   private:
+    /// @brief Periodic sampling loop driving sample_once() into the channel.
     void sample_loop();
 
-    MonitorCore* core_;
-    Logger* log_;
-    const CommandTable* table_;
-    std::unique_ptr<ConfigSink> config_sink_;
-    std::unique_ptr<SpokeChannel<monitord::MonitorHub, monitord::MonitorSpokeFrame, monitord::MonitorHubFrame>> channel_;
-    std::atomic<bool> running_{false};
-    std::thread sampler_thread_;
-    std::mutex sample_mu_;
-    std::condition_variable sample_cv_;
-    std::atomic<uint64_t> frames_{0};
+    MonitorCore* core_;                     ///< Domain core (not owned).
+    Logger* log_;                           ///< Logger (not owned).
+    const CommandTable* table_;             ///< Command table (not owned).
+    std::unique_ptr<ConfigSink> config_sink_;    ///< Validates and applies config deliveries.
+    std::unique_ptr<SpokeChannel<monitord::MonitorHub, monitord::MonitorSpokeFrame, monitord::MonitorHubFrame>> channel_;   ///< gRPC channel to istate.
+    std::atomic<bool> running_{false};           ///< Sampling-thread lifecycle flag.
+    std::thread sampler_thread_;            ///< Thread running sample_loop().
+    std::mutex sample_mu_;                  ///< Guards the sampling wait.
+    std::condition_variable sample_cv_;     ///< Signals the sampling wait.
+    std::atomic<uint64_t> frames_{0};            ///< Frames enqueued so far.
 };
 
-// Build the spoke channel with hub-frame dispatch wired to the command table.
+/// @brief Build the spoke channel with hub-frame dispatch wired to the command table.
 std::unique_ptr<SpokeChannel<monitord::MonitorHub, monitord::MonitorSpokeFrame, monitord::MonitorHubFrame>> make_monitor_channel(MonitorCore* core, const CommandTable* table, Logger* log, const std::string& hub_target, const std::string& build_version,
                                                                                                                                  SpokeChannel<monitord::MonitorHub, monitord::MonitorSpokeFrame, monitord::MonitorHubFrame>::Options opts);
 

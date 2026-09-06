@@ -38,6 +38,7 @@ namespace domain
 
 using ChannelT = SpokeChannel<monitord::MonitorHub, monitord::MonitorSpokeFrame, monitord::MonitorHubFrame>;
 
+/// @brief Wire the channel, config sink and handlers together.
 MonitorSpoke::MonitorSpoke(MonitorCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version) : core_(core), log_(log), table_(table)
 {
     ChannelT::Options o;
@@ -68,12 +69,14 @@ MonitorSpoke::MonitorSpoke(MonitorCore* core, Logger* log, const CommandTable* t
     set_schema(JValue::object());
 }
 
+/// @brief Install the schema every config delivery must satisfy.
 void MonitorSpoke::set_schema(JValue schema)
 {
     config_sink_ = std::make_unique<ConfigSink>("monitord", std::move(schema), [this](const ConfigDocument& doc) { return core_->apply_config(doc); });
     channel_->set_config_handler([this](const common::ConfigDelivery& delivery) { return config_sink_->deliver(delivery.yaml(), delivery.revision()); });
 }
 
+/// @brief Start the channel and the sampling thread.
 void MonitorSpoke::start()
 {
     running_ = true;
@@ -81,6 +84,7 @@ void MonitorSpoke::start()
     sampler_thread_ = std::thread([this] { sample_loop(); });
 }
 
+/// @brief Stop the channel and the sampling thread.
 void MonitorSpoke::stop()
 {
     running_ = false;
@@ -89,6 +93,7 @@ void MonitorSpoke::stop()
     channel_->stop();
 }
 
+/// @brief Periodic sampling loop driving samples into the channel.
 void MonitorSpoke::sample_loop()
 {
     while (running_.load())

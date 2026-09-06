@@ -34,6 +34,7 @@ namespace instr
 namespace monitord
 {
 
+/// @brief Apply a resource profile to the sampler intervals.
 void MonitorCore::configure(const platform::ResourceProfile& p)
 {
     sampler_.set_default_interval_s(p.sample_interval_default_s);
@@ -41,6 +42,7 @@ void MonitorCore::configure(const platform::ResourceProfile& p)
     window_ = RollingWindow(p.highres_window_s, p.highres_interval_s);
 }
 
+/// @brief One sampling pass: sample, retain locally and emit.
 std::vector<MonitorSample> MonitorCore::sample_once()
 {
     auto samples = sampler_.tick();
@@ -61,6 +63,7 @@ std::vector<MonitorSample> MonitorCore::sample_once()
     return samples;
 }
 
+/// @brief Wear projections for every storage device.
 std::vector<WearProjector::Projection> MonitorCore::wear_projections(uint64_t age_days) const
 {
     std::vector<WearProjector::Projection> out;
@@ -68,6 +71,7 @@ std::vector<WearProjector::Projection> MonitorCore::wear_projections(uint64_t ag
     return out;
 }
 
+/// @brief Render the current status as JSON.
 std::string MonitorCore::status_json() const
 {
     JValue v = JValue::object();
@@ -82,6 +86,7 @@ std::string MonitorCore::status_json() const
 
 // ---------------- command table ----------------
 
+/// @brief Apply an istate-delivered config document.
 Error MonitorCore::apply_config(const ConfigDocument& doc)
 {
     Config c;
@@ -115,6 +120,7 @@ Error MonitorCore::apply_config(const ConfigDocument& doc)
     return Error::none();
 }
 
+/// @brief Build the monitord ctrl command table.
 CommandTable build_monitor_table(MonitorCore* core)
 {
     CommandTable t;

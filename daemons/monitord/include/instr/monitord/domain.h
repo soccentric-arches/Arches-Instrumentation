@@ -44,103 +44,123 @@ namespace monitord
 namespace domain
 {
 
+/// @brief One measured metric sample produced by the sampler.
 struct MonitorSample
 {
-    std::string metric;
-    double value = 0;
-    std::string unit;
-    std::map<std::string, std::string> tags;
-    std::string resource_class; // cpu / memory / storage / thermal / load / system
-    uint64_t mono_ns = 0;
+    std::string metric;                          ///< Metric name, e.g. "cpu.util".
+    double value = 0;                            ///< Measured value.
+    std::string unit;                            ///< Unit string.
+    std::map<std::string, std::string> tags;       ///< Dimension tags (device, core...).
+    std::string resource_class;                  ///< cpu / memory / storage / thermal / load / system.
+    uint64_t mono_ns = 0;                        ///< Sample time.
 };
 
-// Per-tick sampler: computes rate deltas (CPU%), gauges, and wear indicators.
+/// @brief Per-tick sampler: computes rate deltas (CPU%), gauges and wear indicators.
 class Sampler
 {
   public:
+    /// @brief Bind the sampler to the platform and a clock.
     Sampler(platform::IPlatform& plat, TimeSource& ts) : plat_(plat), ts_(ts)
     {
     }
 
-    // One sampling pass. First tick after construction yields no CPU util
-    // (deltas need two snapshots) but yields gauges.
+    /// @brief One sampling pass.
+    ///
+    /// First tick after construction yields no CPU util (deltas need two
+    /// snapshots) but yields gauges.
+    ///
+    /// @return Samples produced this tick.
     std::vector<MonitorSample> tick();
 
+    /// @brief Override the default sampling interval.
     void set_default_interval_s(double s)
     {
         default_interval_ = s;
     }
+    /// @brief Override the interval for one resource class.
     void set_interval_for(const std::string& resource_class, double s)
     {
         intervals_[resource_class] = s;
     }
+    /// @brief Effective interval for a resource class.
     double interval_for(const std::string& resource_class) const;
 
+    /// @brief Lifetime counters.
     struct Stats
     {
-        uint64_t produced = 0;
-        uint64_t dropped = 0;
+        uint64_t produced = 0;   ///< Samples produced.
+        uint64_t dropped = 0;    ///< Samples dropped (e.g. unsupported metrics).
     };
+    /// @brief Current statistics.
     const Stats& stats() const
     {
         return stats_;
     }
 
   private:
-    platform::IPlatform& plat_;
-    TimeSource& ts_;
-    platform::CpuSnapshot prev_cpu_;
-    bool have_prev_cpu_ = false;
-    double default_interval_ = 5.0;
-    std::map<std::string, double> intervals_;
-    Stats stats_;
+    platform::IPlatform& plat_;       ///< Platform readings (not owned).
+    TimeSource& ts_;                   ///< Clock (not owned).
+    platform::CpuSnapshot prev_cpu_;  ///< Previous tick snapshot for rate deltas.
+    bool have_prev_cpu_ = false;      ///< False until the second tick.
+    double default_interval_ = 5.0;   ///< Default per-class interval.
+    std::map<std::string, double> intervals_;   ///< Per-class interval overrides.
+    Stats stats_;                     ///< Lifetime counters.
 };
 
-// High-resolution rolling window for thermal and power retained locally at
-// finer granularity than telemetry ships (REQ §7.3).
+/// @brief High-resolution rolling window for thermal and power retained locally at finer granularity than telemetry ships (REQ §7.3).
 class RollingWindow
 {
   public:
+    /// @brief Construct a window of @p window_s seconds sampled at @p interval_s.
     RollingWindow(double window_s, double interval_s) : window_ns_(uint64_t(window_s * 1e9)), interval_ns_(uint64_t(interval_s * 1e9))
     {
     }
 
+    /// @brief Append a sample, evicting entries older than the window.
     void push(uint64_t mono_ns, const MonitorSample& s);
-    // Samples within the window, oldest first.
+    /// @brief Samples within the window, oldest first.
     std::vector<MonitorSample> window() const;
+    /// @brief Entries currently retained.
     size_t size() const
     {
         return buf_.size();
     }
+    /// @brief Discard all retained samples.
     void clear()
     {
         buf_.clear();
     }
 
   private:
+    /// @brief One retained sample.
     struct Entry
     {
-        uint64_t mono_ns;
-        MonitorSample sample;
+        uint64_t mono_ns;        ///< Sample time.
+        MonitorSample sample;    ///< The sample.
     };
-    std::deque<Entry> buf_;
-    uint64_t window_ns_;
-    uint64_t interval_ns_;
+    std::deque<Entry> buf_;          ///< Ring, oldest first.
+    uint64_t window_ns_;             ///< Window length in nanoseconds.
+    uint64_t interval_ns_;           ///< Expected sampling interval in nanoseconds.
 };
 
-// Predictive storage wear: project remaining life from wear indicators
-// (REQ §7.3). Linear model over measured wear rate; falls back to a
-// conservative 10-year estimate when the indicator is unknown.
+/// @brief Predictive storage wear: project remaining life from wear indicators (REQ §7.3).
+///
+/// Linear model over measured wear rate; falls back to a conservative 10-year
+/// estimate when the indicator is unknown.
 class WearProjector
 {
   public:
+    /// @brief One device's wear projection.
     struct Projection
     {
-        std::string device;
-        double wear_pct = 0;
-        uint32_t remaining_days = 0;
-        std::string model;
+        std::string device;             ///< Device name.
+        double wear_pct = 0;            ///< Measured wear so far.
+        uint32_t remaining_days = 0;    ///< Projected remaining life.
+        std::string model;              ///< Model used ("linear" / "conservative").
     };
+    /// @brief Project remaining life for one device.
+    /// @param d Device with wear indicators.
+    /// @param age_days Age of the device so far.
     static Projection project(const platform::StorageDevice& d, uint64_t age_days);
 };
 

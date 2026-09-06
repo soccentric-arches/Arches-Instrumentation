@@ -34,17 +34,20 @@ namespace monitord
 namespace domain
 {
 
+/// @brief Effective sampling interval for a resource class.
 double Sampler::interval_for(const std::string& resource_class) const
 {
     auto it = intervals_.find(resource_class);
     return it == intervals_.end() ? default_interval_ : it->second;
 }
 
+/// @brief Append a sample and bump the produced counter.
 static void push(std::vector<MonitorSample>* v, const MonitorSample& s)
 {
     v->push_back(s);
 }
 
+/// @brief One sampling pass: rate deltas, gauges and wear indicators.
 std::vector<MonitorSample> Sampler::tick()
 {
     std::vector<MonitorSample> out;
@@ -214,6 +217,7 @@ std::vector<MonitorSample> Sampler::tick()
     return out;
 }
 
+/// @brief Append a sample and evict entries older than the window.
 void RollingWindow::push(uint64_t mono_ns, const MonitorSample& s)
 {
     buf_.push_back(Entry{mono_ns, s});
@@ -221,6 +225,7 @@ void RollingWindow::push(uint64_t mono_ns, const MonitorSample& s)
     while (!buf_.empty() && buf_.front().mono_ns + window_ns_ < mono_ns) buf_.pop_front();
 }
 
+/// @brief Samples within the window, oldest first.
 std::vector<MonitorSample> RollingWindow::window() const
 {
     std::vector<MonitorSample> out;
@@ -228,6 +233,7 @@ std::vector<MonitorSample> RollingWindow::window() const
     return out;
 }
 
+/// @brief Project remaining life from wear indicators.
 WearProjector::Projection WearProjector::project(const platform::StorageDevice& d, uint64_t age_days)
 {
     Projection p;

@@ -47,53 +47,65 @@ namespace monitord
 
 using namespace instr::monitord::domain;
 
+/// @brief monitord domain+state facade: sampler, rolling window, config and emission.
 class MonitorCore
 {
   public:
+    /// @brief Bind the core to the platform and a clock.
     MonitorCore(platform::IPlatform& plat, TimeSource& ts) : plat_(plat), sampler_(plat, ts), window_(60.0, 1.0), ts_(ts)
     {
     }
 
+    /// @brief Apply a resource profile (intervals, budgets) from the board descriptor.
     void configure(const platform::ResourceProfile& profile);
 
-    // Configuration delivered by istate (§7.3, §9). monitord observes only —
-    // the thresholds here are reported, never turned into alarms (R5).
+    /// @brief Configuration delivered by istate (§7.3, §9).
+    ///
+    /// monitord observes only — the thresholds here are reported, never turned
+    /// into alarms (R5).
     struct Config
     {
-        bool enabled = true;
-        double interval = 5.0;
-        std::map<std::string, double> intervals_per_class;
-        double thermal_warn_c = 75.0;
-        double thermal_critical_c = 85.0;
-        double storage_warn_pct = 90.0;
-        uint32_t wear_projection_threshold_days = 180;
-        double highres_window_s = 60.0;
-        double highres_interval_s = 1.0;
+        bool enabled = true;                     ///< Master switch.
+        double interval = 5.0;                   ///< Default sampling interval.
+        std::map<std::string, double> intervals_per_class;   ///< Per-class interval overrides.
+        double thermal_warn_c = 75.0;            ///< Reported thermal warn threshold.
+        double thermal_critical_c = 85.0;        ///< Reported thermal critical threshold.
+        double storage_warn_pct = 90.0;          ///< Reported storage-full threshold.
+        uint32_t wear_projection_threshold_days = 180;   ///< Remaining-life warning threshold.
+        double highres_window_s = 60.0;          ///< Local high-res window length.
+        double highres_interval_s = 1.0;         ///< Local high-res sampling interval.
     };
+    /// @brief Current configuration.
     const Config& config() const
     {
         return cfg_;
     }
+    /// @brief Apply an istate-delivered config document.
     Error apply_config(const ConfigDocument& doc);
+    /// @brief Install a callback fired when a new config is accepted.
     void set_config_listener(std::function<void(const Config&)> f)
     {
         on_config_ = std::move(f);
     }
-    // One sampling pass: samples → window + emit callback (spoke enqueue).
+    /// @brief One sampling pass: samples → window + emit callback (spoke enqueue).
     std::vector<MonitorSample> sample_once();
-    // Storage wear projections for all devices.
+    /// @brief Storage wear projections for all devices.
     std::vector<WearProjector::Projection> wear_projections(uint64_t age_days) const;
 
+    /// @brief High-resolution rolling window (local retention).
     const RollingWindow& window() const
     {
         return window_;
     }
+    /// @brief Sampler access.
     Sampler& sampler()
     {
         return sampler_;
     }
+    /// @brief Render the current status as JSON (ctrl "status").
     std::string status_json() const;
 
+    /// @brief Install the sample emission callback (spoke enqueue).
     void set_emit(std::function<void(const MonitorSample&)> f)
     {
         std::lock_guard<std::mutex> lk(mu_);
@@ -101,14 +113,14 @@ class MonitorCore
     }
 
   private:
-    platform::IPlatform& plat_;
-    Sampler sampler_;
-    RollingWindow window_;
-    TimeSource& ts_;
-    std::function<void(const MonitorSample&)> emit_;
-    std::mutex mu_;
-    Config cfg_;
-    std::function<void(const Config&)> on_config_;
+    platform::IPlatform& plat_;      ///< Platform readings (not owned).
+    Sampler sampler_;                ///< Per-tick sampler.
+    RollingWindow window_;           ///< High-res local window.
+    TimeSource& ts_;                  ///< Clock (not owned).
+    std::function<void(const MonitorSample&)> emit_;   ///< Sample sink (guarded by mu_).
+    std::mutex mu_;                  ///< Guards emit_.
+    Config cfg_;                     ///< Current configuration.
+    std::function<void(const Config&)> on_config_;   ///< Config-accepted listener.
 };
 
 } // namespace monitord
