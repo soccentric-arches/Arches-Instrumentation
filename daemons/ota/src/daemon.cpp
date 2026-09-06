@@ -32,6 +32,7 @@ namespace instr
 namespace ota
 {
 
+/// @brief Render the update history as a JSON array.
 static JValue history_json_value(const std::vector<HistoryEntry>& h)
 {
     JValue arr = JValue::array();
@@ -47,6 +48,7 @@ static JValue history_json_value(const std::vector<HistoryEntry>& h)
     return arr;
 }
 
+/// @brief Render engine state as JSON.
 std::string OtaCore::status_json() const
 {
     const UpdateState& st = engine_.state();
@@ -61,6 +63,7 @@ std::string OtaCore::status_json() const
     return o.dump();
 }
 
+/// @brief Build the ota ctrl command table.
 CommandTable build_ota_table(OtaCore* core)
 {
     CommandTable t;
@@ -139,6 +142,7 @@ CommandTable build_ota_table(OtaCore* core)
     return t;
 }
 
+/// @brief Wire the channel, config sink and handlers together.
 OtaSpoke::OtaSpoke(OtaCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version) : core_(core), log_(log), table_(table)
 {
     using ChannelT = SpokeChannel<ota::OtaHub, ota::OtaSpokeFrame, ota::OtaHubFrame>;
@@ -161,21 +165,25 @@ OtaSpoke::OtaSpoke(OtaCore* core, Logger* log, const CommandTable* table, const 
     set_schema(JValue::object());
 }
 
+/// @brief Install the schema every config delivery must satisfy.
 void OtaSpoke::set_schema(JValue schema)
 {
     config_sink_ = std::make_unique<ConfigSink>("ota", std::move(schema), [this](const ConfigDocument& doc) { return core_->apply_config(doc); });
     channel_->set_config_handler([this](const common::ConfigDelivery& delivery) { return config_sink_->deliver(delivery.yaml(), delivery.revision()); });
 }
 
+/// @brief Start the transport channel.
 void OtaSpoke::start()
 {
     channel_->start();
 }
+/// @brief Stop the transport channel.
 void OtaSpoke::stop()
 {
     channel_->stop();
 }
 
+/// @brief Queue a progress event to istate.
 void OtaSpoke::send_event(const OtaProgressEvent& ev)
 {
     channel_->enqueue([&ev](ota::OtaSpokeFrame& f) {
@@ -188,6 +196,7 @@ void OtaSpoke::send_event(const OtaProgressEvent& ev)
     });
 }
 
+/// @brief Queue a state report to istate.
 void OtaSpoke::send_status()
 {
     channel_->send_status_json(core_->status_json());

@@ -44,6 +44,7 @@ namespace ota
 namespace domain
 {
 
+/// @brief Dotted-numeric version comparison with v-prefix tolerance.
 Result<int> compare_versions(const std::string& a, const std::string& b)
 {
     auto split = [](const std::string& s) {
@@ -76,6 +77,7 @@ Result<int> compare_versions(const std::string& a, const std::string& b)
     return Result<int>::good(0);
 }
 
+/// @brief Append one artifact chunk with resume support.
 Result<uint64_t> OtaEngine::receive_chunk(const std::string& data, uint64_t offset)
 {
     // Resume support: offset persisted alongside the artifact.
@@ -103,6 +105,7 @@ Result<uint64_t> OtaEngine::receive_chunk(const std::string& data, uint64_t offs
     return Result<uint64_t>::good(current);
 }
 
+/// @brief Bytes stored so far for the in-flight artifact.
 Result<uint64_t> OtaEngine::received_bytes() const
 {
     auto off_txt = fs_.read(offset_path());
@@ -117,6 +120,7 @@ Result<uint64_t> OtaEngine::received_bytes() const
     }
 }
 
+/// @brief Parse and validate a manifest JSON document.
 Result<ArtifactManifest> OtaEngine::parse_manifest(const std::string& manifest_json) const
 {
     auto j = json_parse(manifest_json);
@@ -132,6 +136,7 @@ Result<ArtifactManifest> OtaEngine::parse_manifest(const std::string& manifest_j
     return Result<ArtifactManifest>::good(m);
 }
 
+/// @brief Verify integrity, then signature, then anti-rollback floor.
 Error OtaEngine::verify(const ArtifactManifest& m, const std::string& enrollment_secret, const std::string& running_version)
 {
     emit("verifying", 0.1, "integrity check");
@@ -179,6 +184,7 @@ Error OtaEngine::verify(const ArtifactManifest& m, const std::string& enrollment
     return Error::none();
 }
 
+/// @brief Run the install engine (SWUpdate or the injected installer).
 Result<int> OtaEngine::run_install(const std::string& artifact, const std::string& target_slot, const ArtifactManifest& m)
 {
     if (install_fn_) return install_fn_(artifact, target_slot, m);
@@ -207,6 +213,7 @@ Result<int> OtaEngine::run_install(const std::string& artifact, const std::strin
     return Result<int>::good(0);
 }
 
+/// @brief Verify and place the artifact in the staging slot.
 Error OtaEngine::stage(const ArtifactManifest& m, const std::string& enrollment_secret, const std::string& running_version)
 {
     Error e = verify(m, enrollment_secret, running_version);
@@ -243,6 +250,7 @@ Error OtaEngine::stage(const ArtifactManifest& m, const std::string& enrollment_
     return Error::none();
 }
 
+/// @brief Run the installer and switch boot slots.
 Error OtaEngine::apply()
 {
     if (state_.state != "staged") return Error::make(Errc::Busy, "no staged update to apply (state " + state_.state + ")", "apply");
@@ -254,6 +262,7 @@ Error OtaEngine::apply()
     return Error::none();
 }
 
+/// @brief Confirm the pending trial slot.
 Error OtaEngine::confirm()
 {
     if (state_.state != "applied_pending_confirm") return Error::make(Errc::Busy, "nothing pending confirmation", "confirm");
@@ -271,6 +280,7 @@ Error OtaEngine::confirm()
     return Error::none();
 }
 
+/// @brief Roll back to the previous slot.
 Error OtaEngine::rollback(const std::string& reason)
 {
     auto slots = plat_.boot_slots();
@@ -292,6 +302,7 @@ Error OtaEngine::rollback(const std::string& reason)
     return Error::none();
 }
 
+/// @brief Periodic call: fires the automatic rollback when overdue.
 std::optional<OtaProgressEvent> OtaEngine::tick(uint64_t now_mono_ns)
 {
     if (state_.state == "applied_pending_confirm" && now_mono_ns > state_.confirm_deadline_mono)
@@ -303,6 +314,7 @@ std::optional<OtaProgressEvent> OtaEngine::tick(uint64_t now_mono_ns)
     return std::nullopt;
 }
 
+/// @brief True when updates are permitted at this wall time.
 bool OtaEngine::in_maintenance_window(int64_t wall_unix_s) const
 {
     if (cfg_.windows.empty()) return true; // no schedule → always permitted
@@ -335,6 +347,7 @@ bool OtaEngine::in_maintenance_window(int64_t wall_unix_s) const
     return false;
 }
 
+/// @brief Bytes the token-bucket limiter permits right now.
 uint64_t OtaEngine::bandwidth_allotment(double dt_s)
 {
     if (cfg_.bandwidth_limit_bytes_per_s == 0) return 1ull << 30; // unlimited
@@ -353,6 +366,7 @@ uint64_t OtaEngine::bandwidth_allotment(double dt_s)
     return grant;
 }
 
+/// @brief Load the update history from disk.
 std::string OtaEngine::history_json() const
 {
     std::ostringstream o;
@@ -368,6 +382,7 @@ std::string OtaEngine::history_json() const
     return o.str();
 }
 
+/// @brief Render the canary status for HQ staged rollouts.
 std::string OtaEngine::canary_json(double health_score, double fault_rate_24h) const
 {
     JValue o = JValue::object();
@@ -378,6 +393,7 @@ std::string OtaEngine::canary_json(double health_score, double fault_rate_24h) c
     return o.dump();
 }
 
+/// @brief Emit a progress event and record the state.
 Error OtaEngine::emit(const std::string& stage, double progress, const std::string& message)
 {
     state_.progress = progress;

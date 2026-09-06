@@ -42,14 +42,16 @@ namespace ota
 using namespace domain;
 using namespace instr::transport;
 
+/// @brief OTA domain core: engine wrapper plus injected providers and spoke routing.
 class OtaCore
 {
   public:
+    /// @brief Bind the core to storage, platform, a clock and the initial policy.
     OtaCore(IFileSystem& fs, platform::IPlatform& plat, TimeSource& ts, const OtaConfig& cfg) : engine_(fs, plat, ts, cfg)
     {
     }
 
-    // Configuration delivered by istate (§7.9, §9).
+    /// @brief Apply an istate-delivered config document (§7.9, §9; validates values).
     Error apply_config(const ConfigDocument& doc)
     {
         OtaConfig c;
@@ -74,20 +76,24 @@ class OtaCore
         if (on_config_) on_config_(tick_interval_s_);
         return Error::none();
     }
+    /// @brief Install a callback fired when a new config is accepted (tick interval).
     void set_config_listener(std::function<void(double)> f)
     {
         on_config_ = std::move(f);
     }
+    /// @brief Periodic tick interval from the config.
     double tick_interval_s() const
     {
         return tick_interval_s_;
     }
 
+    /// @brief Engine access.
     OtaEngine& engine()
     {
         return engine_;
     }
-    // Hooks the table needs; provided by the wiring layer.
+    /// @brief Hooks the table needs; provided by the wiring layer.
+    /// @{
     void set_secret_provider(std::function<std::string()> f)
     {
         secret_ = std::move(f);
@@ -104,22 +110,28 @@ class OtaCore
     {
         wall_fn_ = std::move(f);
     }
+    /// @}
+    /// @brief Current enrollment secret (empty when no provider).
     std::string secret() const
     {
         return secret_ ? secret_() : std::string();
     }
+    /// @brief Currently running version ("0.0.0" when unknown).
     std::string running_version() const
     {
         return running_ ? running_() : std::string("0.0.0");
     }
+    /// @brief Current monotonic time.
     uint64_t now_mono() const
     {
         return clock_fn_ ? clock_fn_() : 0;
     }
+    /// @brief Current wall seconds.
     int64_t wall_now_s() const
     {
         return wall_fn_ ? wall_fn_() : 0;
     }
+    /// @brief Route engine progress events to the spoke.
     void set_spoke_sink(std::function<void(const OtaProgressEvent&)> f)
     {
         spoke_sink_ = std::move(f);
@@ -127,47 +139,56 @@ class OtaCore
             if (spoke_sink_) spoke_sink_(ev);
         });
     }
+    /// @brief Render engine state as JSON (ctrl "status").
     std::string status_json() const;
 
   private:
-    OtaEngine engine_;
-    std::function<void(const OtaProgressEvent&)> spoke_sink_;
-    std::function<std::string()> secret_;
-    std::function<std::string()> running_;
-    std::function<uint64_t()> clock_fn_;
-    std::function<int64_t()> wall_fn_;
-    double tick_interval_s_ = 5.0;
-    std::function<void(double)> on_config_;
+    OtaEngine engine_;                     ///< Update engine.
+    std::function<void(const OtaProgressEvent&)> spoke_sink_;   ///< Spoke event routing.
+    std::function<std::string()> secret_;       ///< Enrollment-secret provider.
+    std::function<std::string()> running_;      ///< Running-version provider.
+    std::function<uint64_t()> clock_fn_;        ///< Monotonic provider.
+    std::function<int64_t()> wall_fn_;          ///< Wall-clock provider.
+    double tick_interval_s_ = 5.0;         ///< Periodic tick cadence.
+    std::function<void(double)> on_config_;     ///< Config-accepted listener.
 };
 
+/// @brief Build the ota ctrl command table (status, receive, verify, stage, apply, confirm).
 CommandTable build_ota_table(OtaCore* core);
 
+/// @brief Spoke: transport to istate plus the schema-validated config sink.
 class OtaSpoke
 {
   public:
+    /// @brief Wire the channel, config sink and handlers together.
     OtaSpoke(OtaCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version);
+    /// @brief Start the channel.
     void start();
+    /// @brief Stop the channel.
     void stop();
+    /// @brief True while registered with istate.
     bool registered() const
     {
         return channel_->registered();
     }
-    // Configuration is delivered by istate over the channel and validated
-    // against this schema before it can change behaviour (R4, §9).
+    /// @brief Install the schema every config delivery must satisfy (R4, §9).
     void set_schema(JValue schema);
+    /// @brief Revision of the last config applied.
     uint64_t config_revision() const
     {
         return channel_->config_revision();
     }
+    /// @brief Queue a progress event to istate.
     void send_event(const OtaProgressEvent& ev);
+    /// @brief Queue a state report to istate.
     void send_status();
 
   private:
-    OtaCore* core_;
-    Logger* log_;
-    const CommandTable* table_;
-    std::unique_ptr<ConfigSink> config_sink_;
-    std::unique_ptr<SpokeChannel<ota::OtaHub, ota::OtaSpokeFrame, ota::OtaHubFrame>> channel_;
+    OtaCore* core_;                        ///< Domain core (not owned).
+    Logger* log_;                          ///< Logger (not owned).
+    const CommandTable* table_;            ///< Command table (not owned).
+    std::unique_ptr<ConfigSink> config_sink_;    ///< Validates and applies config deliveries.
+    std::unique_ptr<SpokeChannel<ota::OtaHub, ota::OtaSpokeFrame, ota::OtaHubFrame>> channel_;   ///< gRPC channel to istate.
 };
 
 } // namespace ota
