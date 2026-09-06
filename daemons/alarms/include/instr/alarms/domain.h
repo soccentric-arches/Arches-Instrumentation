@@ -46,8 +46,10 @@
 
 namespace instr
 {
+/// @brief Alarms daemon: X.733 alarm state machine, escalation and catalog (§7.6).
 namespace alarms
 {
+/// @brief Pure domain logic for this daemon: no transport, no sockets, fully unit-testable.
 namespace domain
 {
 
@@ -125,25 +127,34 @@ class AlarmManager
     /// @return The emitted event, or an error when the id is not decodable.
     Result<AlarmStateEvent> raise(uint32_t alarm_id, const std::string& owner, const std::string& additional_text, const std::vector<uint32_t>& correlated = {});
     /// @brief Acknowledge an active alarm.
+/// @param alarm_id Alarm to acknowledge.
+/// @return The emitted event, or NotFound when inactive.
     Result<AlarmStateEvent> acknowledge(uint32_t alarm_id);
     /// @brief Clear an active alarm.
+/// @param alarm_id Alarm to clear.
+/// @param owner Clearing component (must own the alarm).
+/// @return The emitted event, or an error.
     Result<AlarmStateEvent> clear(uint32_t alarm_id, const std::string& owner);
 
     /// @brief Currently active alarms.
+/// @return Currently active alarms.
     const std::vector<AlarmRecord>& active() const
     {
         return active_;
     }
     /// @brief Look up an active alarm.
     /// @return Pointer to the record, or NotFound when inactive.
+/// @param alarm_id Alarm to look up.
     Result<const AlarmRecord*> find(uint32_t alarm_id) const;
 
     /// @brief Replace the escalation rules.
+/// @param rules Escalation rules to install.
     void set_escalation(const std::vector<EscalationRule>& rules)
     {
         escalation_ = rules;
     }
     /// @brief Current escalation rules.
+/// @return Current escalation rules.
     const std::vector<EscalationRule>& escalation() const
     {
         return escalation_;
@@ -161,11 +172,13 @@ class AlarmManager
     /// @brief Snapshot-on-fault: request a bounded diagnostic capture when a CRITICAL alarm fires.
     ///
     /// The evidence must exist at the moment it matters.
+/// @param f Diagnostic-capture request sink.
     void set_snapshot_sink(std::function<void(uint32_t alarm_id)> f)
     {
         snapshot_sink_ = std::move(f);
     }
     /// @brief Configuration may turn the capture off on resource-constrained boards.
+/// @param on True to capture on CRITICAL alarms.
     void set_snapshot_on_critical(bool on)
     {
         snapshot_on_critical_ = on;
@@ -176,6 +189,7 @@ class AlarmManager
         return snapshot_on_critical_;
     }
     /// @brief Install the event sink (spoke emission).
+/// @param f Event sink (spoke emission).
     void set_event_sink(std::function<void(const AlarmStateEvent&)> f)
     {
         event_sink_ = std::move(f);
@@ -195,27 +209,35 @@ class AlarmManager
         size_t preserved_operator_edits = 0; ///< Operator edits kept through the merge.
     };
     /// @brief Perform the catalog merge.
+/// @param incoming Catalog entries from the release.
+/// @return Counts of what was added, updated and preserved.
     MergeStats merge_catalog(const std::vector<CatalogEntry>& incoming);
     /// @brief Current catalog.
+/// @return Current catalog.
     const std::vector<CatalogEntry>& catalog() const
     {
         return catalog_;
     }
     /// @brief Mutable catalog access (codegen regeneration path).
+/// @return Mutable catalog access (codegen regeneration path).
     std::vector<CatalogEntry>& mutable_catalog()
     {
         return catalog_;
     }
     /// @brief Save the catalog to @p path.
+/// @param path Catalog file to write.
     Error save_catalog(const std::string& path);
     /// @brief Load the catalog from @p path.
+/// @param path Catalog file to read.
     Error load_catalog(const std::string& path);
 
     /// @brief Render the active table as JSON (ctrl "list" response).
+/// @return The active table as JSON.
     std::string active_table_json() const;
 
   private:
     /// @brief Serialise the active table for persistence.
+/// @return The active table serialised for persistence.
     std::string active_json() const;
     IFileSystem& fs_; ///< Storage backend.
     std::string db_path_; ///< Active-alarm database path.

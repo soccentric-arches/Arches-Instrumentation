@@ -29,10 +29,13 @@
 
 namespace instr
 {
+/// @brief Alarms daemon: X.733 alarm state machine, escalation and catalog (§7.6).
 namespace alarms
 {
 
 /// @brief Map a severity name to the proto enum (table handlers).
+/// @param s Severity name to map.
+/// @return The proto severity enum.
 static common::Severity sev_from_name(const std::string& s)
 {
     if (s == "CRITICAL") return common::SEV_CRITICAL;
@@ -43,6 +46,8 @@ static common::Severity sev_from_name(const std::string& s)
 }
 
 /// @brief Build the alarms ctrl command table.
+/// @param core Domain core the table reads from.
+/// @return The command table.
 CommandTable build_alarms_table(AlarmsCore* core)
 {
     CommandTable t;
@@ -136,6 +141,11 @@ CommandTable build_alarms_table(AlarmsCore* core)
 }
 
 /// @brief Wire the channel, config sink and handlers together.
+/// @param core Domain core.
+/// @param log Logger.
+/// @param table Command table.
+/// @param hub_target istate gRPC target.
+/// @param build_version Build version to advertise.
 AlarmsSpoke::AlarmsSpoke(AlarmsCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version) : core_(core), log_(log), table_(table)
 {
     using ChannelT = SpokeChannel<alarms::AlarmHub, alarms::AlarmSpokeFrame, alarms::AlarmHubFrame>;
@@ -160,6 +170,7 @@ AlarmsSpoke::AlarmsSpoke(AlarmsCore* core, Logger* log, const CommandTable* tabl
 }
 
 /// @brief Install the schema every config delivery must satisfy.
+/// @param schema Schema every config delivery must satisfy.
 void AlarmsSpoke::set_schema(JValue schema)
 {
     config_sink_ = std::make_unique<ConfigSink>("alarms", std::move(schema), [this](const ConfigDocument& doc) { return core_->apply_config(doc); });
@@ -178,6 +189,7 @@ void AlarmsSpoke::stop()
 }
 
 /// @brief Queue an alarm state event to istate.
+/// @param ev Alarm state event to queue.
 void AlarmsSpoke::send_event(const AlarmStateEvent& ev)
 {
     channel_->enqueue([&ev](alarms::AlarmSpokeFrame& f) {

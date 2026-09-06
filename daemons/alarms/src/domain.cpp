@@ -36,12 +36,16 @@
 
 namespace instr
 {
+/// @brief Alarms daemon: X.733 alarm state machine, escalation and catalog (§7.6).
 namespace alarms
 {
+/// @brief Pure domain logic for this daemon: no transport, no sockets, fully unit-testable.
 namespace domain
 {
 
 /// @brief Map a catalog severity string to the proto enum (INFO on unknown).
+/// @param s Severity string from the catalog.
+/// @return The proto severity enum.
 static common::Severity sev_from(const std::string& s)
 {
     if (s == "CRITICAL") return common::SEV_CRITICAL;
@@ -52,6 +56,8 @@ static common::Severity sev_from(const std::string& s)
 }
 
 /// @brief Canonical lowercase severity name.
+/// @param s Severity to name.
+/// @return Canonical lowercase name.
 static const char* sev_name(common::Severity s)
 {
     switch (s)
@@ -65,6 +71,8 @@ static const char* sev_name(common::Severity s)
 }
 
 /// @brief Parse catalog YAML into entries.
+/// @param yaml_text Catalog YAML source.
+/// @return Parsed entries, or a diagnosable parse error.
 Result<std::vector<CatalogEntry>> load_catalog_entries(const std::string& yaml_text)
 {
     try
@@ -110,6 +118,11 @@ Result<std::vector<CatalogEntry>> load_catalog_entries(const std::string& yaml_t
 }
 
 /// @brief Raise an alarm: insert or refresh, emitting the state event.
+/// @param alarm_id Packed alarm identity.
+/// @param owner Raising component.
+/// @param additional_text Free-text detail.
+/// @param correlated Correlated alarm ids.
+/// @return The emitted event, or an error.
 Result<AlarmStateEvent> AlarmManager::raise(uint32_t alarm_id, const std::string& owner, const std::string& additional_text, const std::vector<uint32_t>& correlated)
 {
     // Catalog lookup supplies X.733 fields so applications declare ids only.
@@ -186,6 +199,8 @@ Result<AlarmStateEvent> AlarmManager::raise(uint32_t alarm_id, const std::string
 }
 
 /// @brief Acknowledge an active alarm.
+/// @param alarm_id Alarm to acknowledge.
+/// @return The emitted event, or NotFound when inactive.
 Result<AlarmStateEvent> AlarmManager::acknowledge(uint32_t alarm_id)
 {
     for (auto& r : active_)
@@ -204,6 +219,9 @@ Result<AlarmStateEvent> AlarmManager::acknowledge(uint32_t alarm_id)
 }
 
 /// @brief Clear an active alarm.
+/// @param alarm_id Alarm to clear.
+/// @param owner Clearing component (must own the alarm).
+/// @return The emitted event, or an error.
 Result<AlarmStateEvent> AlarmManager::clear(uint32_t alarm_id, const std::string& owner)
 {
     // Only the owner may clear (applications declare alarms; R5).
@@ -224,6 +242,8 @@ Result<AlarmStateEvent> AlarmManager::clear(uint32_t alarm_id, const std::string
 }
 
 /// @brief Look up an active alarm.
+/// @param alarm_id Alarm to look up.
+/// @return Pointer to the record, or NotFound.
 Result<const AlarmRecord*> AlarmManager::find(uint32_t alarm_id) const
 {
     for (const auto& r : active_)
@@ -232,6 +252,8 @@ Result<const AlarmRecord*> AlarmManager::find(uint32_t alarm_id) const
 }
 
 /// @brief Promote stale unacknowledged alarms per the escalation rules.
+/// @param now_mono_ns Current monotonic time.
+/// @return Events emitted by the sweep.
 std::vector<AlarmStateEvent> AlarmManager::escalation_sweep(uint64_t now_mono_ns)
 {
     std::vector<AlarmStateEvent> out;
@@ -265,6 +287,7 @@ std::vector<AlarmStateEvent> AlarmManager::escalation_sweep(uint64_t now_mono_ns
 }
 
 /// @brief Serialise the active table for persistence.
+/// @return The active table serialised for persistence.
 std::string AlarmManager::active_json() const
 {
     std::ostringstream o;
@@ -319,6 +342,8 @@ Error AlarmManager::load()
 }
 
 /// @brief Merge a regenerated catalog, preserving operator edits.
+/// @param incoming Catalog entries from the release.
+/// @return Counts of what was added, updated and preserved.
 AlarmManager::MergeStats AlarmManager::merge_catalog(const std::vector<CatalogEntry>& incoming)
 {
     MergeStats st;
@@ -358,6 +383,7 @@ AlarmManager::MergeStats AlarmManager::merge_catalog(const std::vector<CatalogEn
 }
 
 /// @brief Persist the catalog atomically.
+/// @param path Catalog file to write.
 Error AlarmManager::save_catalog(const std::string& path)
 {
     std::ostringstream o;
@@ -380,6 +406,7 @@ Error AlarmManager::save_catalog(const std::string& path)
 }
 
 /// @brief Load the catalog from disk (missing file is not an error).
+/// @param path Catalog file to read.
 Error AlarmManager::load_catalog(const std::string& path)
 {
     auto txt = fs_.read(path);
@@ -420,6 +447,7 @@ Error AlarmManager::load_catalog(const std::string& path)
 }
 
 /// @brief Render the active table as JSON for ctrl responses.
+/// @return The active table as JSON.
 std::string AlarmManager::active_table_json() const
 {
     return active_json();
