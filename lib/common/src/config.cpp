@@ -37,6 +37,7 @@
 namespace instr
 {
 
+/// @brief Stable lowercase name of an origin.
 const char* origin_name(Origin o)
 {
     switch (o)
@@ -49,6 +50,7 @@ const char* origin_name(Origin o)
     return "default";
 }
 
+/// @brief Parse an origin name (case-insensitive); unknown names are rejected.
 Result<Origin> origin_from_name(const std::string& n)
 {
     if (n == "default") return Result<Origin>::good(Origin::Default);
@@ -58,6 +60,7 @@ Result<Origin> origin_from_name(const std::string& n)
     return Result<Origin>::fail(Errc::InvalidArgument, "unknown origin: " + n, "origin_from_name");
 }
 
+/// @brief Load a JSON schema from text.
 Result<JValue> load_schema_text(const std::string& text)
 {
     auto j = json_parse(text);
@@ -66,11 +69,13 @@ Result<JValue> load_schema_text(const std::string& text)
     return j;
 }
 
+/// @brief Empty document (no schema validation) for programmatic construction.
 ConfigDocument ConfigDocument::empty()
 {
     return ConfigDocument();
 }
 
+/// @brief Parse YAML, validate against the schema and flatten to dot-paths.
 Result<ConfigDocument> ConfigDocument::parse(const std::string& yaml_text, const JValue& schema, const std::string& source_name)
 {
     auto j = json_from_yaml_text(yaml_text);
@@ -126,17 +131,20 @@ Result<ConfigDocument> ConfigDocument::parse(const std::string& yaml_text, const
     return Result<ConfigDocument>::good(std::move(doc));
 }
 
+/// @brief True when the dot-path exists in this document.
 bool ConfigDocument::has(const std::string& dot_path) const
 {
     return values_.count(dot_path) > 0;
 }
 
+/// @brief Raw scalar text for a dot-path, "" when absent.
 std::string ConfigDocument::raw(const std::string& dot_path) const
 {
     auto it = values_.find(dot_path);
     return it == values_.end() ? std::string() : it->second;
 }
 
+/// @brief String value at a dot-path with fallback.
 std::string ConfigDocument::get_string(const std::string& dot_path, const std::string& dflt) const
 {
     std::string v = raw(dot_path);
@@ -144,6 +152,7 @@ std::string ConfigDocument::get_string(const std::string& dot_path, const std::s
     return v;
 }
 
+/// @brief Integer value at a dot-path with fallback.
 int64_t ConfigDocument::get_int(const std::string& dot_path, int64_t dflt) const
 {
     std::string v = raw(dot_path);
@@ -158,6 +167,7 @@ int64_t ConfigDocument::get_int(const std::string& dot_path, int64_t dflt) const
     }
 }
 
+/// @brief Floating-point value at a dot-path with fallback.
 double ConfigDocument::get_double(const std::string& dot_path, double dflt) const
 {
     std::string v = raw(dot_path);
@@ -172,6 +182,7 @@ double ConfigDocument::get_double(const std::string& dot_path, double dflt) cons
     }
 }
 
+/// @brief Boolean value at a dot-path with fallback.
 bool ConfigDocument::get_bool(const std::string& dot_path, bool dflt) const
 {
     std::string v = raw(dot_path);
@@ -179,6 +190,7 @@ bool ConfigDocument::get_bool(const std::string& dot_path, bool dflt) const
     return v == "true" || v == "True" || v == "1" || v == "yes";
 }
 
+/// @brief List values (e.g. log sources); empty when absent.
 std::vector<std::string> ConfigDocument::get_list(const std::string& dot_path) const
 {
     std::vector<std::string> out;
@@ -189,6 +201,7 @@ std::vector<std::string> ConfigDocument::get_list(const std::string& dot_path) c
     return out;
 }
 
+/// @brief Set a scalar string value with its origin.
 void ConfigDocument::set(const std::string& dot_path, const std::string& scalar, Origin origin)
 {
     values_[dot_path] = scalar;
@@ -197,6 +210,7 @@ void ConfigDocument::set(const std::string& dot_path, const std::string& scalar,
     values_.erase(dot_path + ".__count");
 }
 
+/// @brief Set a numeric value with its origin.
 void ConfigDocument::set_number(const std::string& dot_path, double v, Origin origin)
 {
     if (v == std::floor(v) && std::fabs(v) < 9.0e15)
@@ -205,17 +219,20 @@ void ConfigDocument::set_number(const std::string& dot_path, double v, Origin or
         set(dot_path, std::to_string(v), origin);
 }
 
+/// @brief Set a boolean value with its origin.
 void ConfigDocument::set_bool(const std::string& dot_path, bool v, Origin origin)
 {
     set(dot_path, v ? "true" : "false", origin);
 }
 
+/// @brief Origin of a key; Origin::Default when unset.
 Origin ConfigDocument::origin_of(const std::string& dot_path) const
 {
     auto it = origins_.find(dot_path);
     return it == origins_.end() ? Origin::Default : it->second;
 }
 
+/// @brief Merge incoming values honouring origin protection rules.
 std::vector<std::string> ConfigDocument::merge_from(const ConfigDocument& incoming, Origin in_origin, bool force)
 {
     std::vector<std::string> rejected;
@@ -239,6 +256,7 @@ std::vector<std::string> ConfigDocument::merge_from(const ConfigDocument& incomi
     return rejected;
 }
 
+/// @brief Release merge: add only keys that are missing entirely.
 std::vector<std::string> ConfigDocument::merge_release(const ConfigDocument& defaults)
 {
     std::vector<std::string> added;
@@ -254,6 +272,7 @@ std::vector<std::string> ConfigDocument::merge_release(const ConfigDocument& def
     return added;
 }
 
+/// @brief System reset: drop everything except origin=Default entries.
 void ConfigDocument::reset_to_defaults()
 {
     for (auto it = values_.begin(); it != values_.end();)
@@ -275,6 +294,7 @@ namespace
 
 // Escapes a scalar minimally: quote when it would otherwise parse as another
 // type or contain YAML specials.
+/// @brief Decide whether a scalar needs YAML quoting.
 bool needs_quotes(const std::string& s)
 {
     // Quote only when the scalar would break YAML parsing: empty, leading or
@@ -288,6 +308,7 @@ bool needs_quotes(const std::string& s)
     return false;
 }
 
+/// @brief Quote a scalar for YAML output when required.
 std::string quote(const std::string& s)
 {
     std::string out = "\"";
@@ -431,6 +452,7 @@ struct YamlWriter
 
 } // namespace
 
+/// @brief Serialise the document back to nested YAML.
 std::string ConfigDocument::to_yaml() const
 {
     std::string out;
@@ -438,6 +460,7 @@ std::string ConfigDocument::to_yaml() const
     return out;
 }
 
+/// @brief Serialise the origins sidecar (dot-path → origin name) as YAML.
 std::string ConfigDocument::origins_to_yaml() const
 {
     std::string out;
@@ -445,6 +468,7 @@ std::string ConfigDocument::origins_to_yaml() const
     return out;
 }
 
+/// @brief Load an origins sidecar produced by origins_to_yaml().
 void ConfigDocument::load_origins_yaml(const std::string& text)
 {
     try
@@ -468,6 +492,7 @@ void ConfigDocument::load_origins_yaml(const std::string& text)
 namespace instr
 {
 
+/// @brief Load a daemon's JSON Schema from the image; missing schemas are non-fatal.
 Result<JValue> load_daemon_schema(IFileSystem& fs, const std::string& sysroot, const std::string& daemon)
 {
     const std::string path = sysroot + "/usr/share/instrumentation/schemas/" + daemon + ".schema.json";

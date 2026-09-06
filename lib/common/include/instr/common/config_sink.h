@@ -47,20 +47,35 @@
 namespace instr
 {
 
+/// @brief Spoke-side receiver for configuration delivered by istate (R4, §7, §9).
+///
+/// Every delivery is validated against the daemon's JSON Schema before it
+/// reaches the daemon. On rejection the previously accepted document stays in
+/// force and the daemon keeps running (R10).
 class ConfigSink
 {
   public:
-    // Applies an accepted document to the daemon's domain objects. Returning a
-    // non-ok Error rejects the delivery: the sink rolls back to the previous
-    // document so a bad push cannot leave a daemon half-configured.
+    /// @brief Applies an accepted document to the daemon's domain objects.
+    ///
+    /// Returning a non-ok Error rejects the delivery: the sink rolls back to
+    /// the previous document so a bad push cannot leave a daemon half-configured.
     using Apply = std::function<Error(const ConfigDocument&)>;
 
+    /// @brief Construct a sink for one daemon.
+    /// @param daemon Daemon name (used in diagnostics).
+    /// @param schema JSON Schema deliveries must satisfy.
+    /// @param apply Callback applying an accepted document to the domain.
     ConfigSink(std::string daemon, JValue schema, Apply apply) : daemon_(std::move(daemon)), schema_(std::move(schema)), apply_(std::move(apply))
     {
     }
 
-    // Returns "" when the delivery was accepted and applied, otherwise a
-    // diagnosable reason. Never throws; never leaves a partial config.
+    /// @brief Deliver a candidate document.
+    ///
+    /// Never throws; never leaves a partial config.
+    ///
+    /// @param yaml Candidate YAML text.
+    /// @param revision istate's monotonically increasing revision for this delivery.
+    /// @return "" when accepted and applied, otherwise a diagnosable reason.
     std::string deliver(const std::string& yaml, uint64_t revision)
     {
         auto parsed = ConfigDocument::parse(yaml, schema_, daemon_ + " config (revision " + std::to_string(revision) + ")");
@@ -83,18 +98,22 @@ class ConfigSink
         return "";
     }
 
+    /// @brief Copy of the currently accepted document (empty until configured).
     ConfigDocument current() const
     {
         std::lock_guard<std::mutex> lk(mu_);
         return current_;
     }
+    /// @brief Revision of the currently accepted document; 0 before any delivery.
     uint64_t revision() const
     {
         std::lock_guard<std::mutex> lk(mu_);
         return revision_;
     }
-    // True once a delivery has been accepted; until then the daemon runs on
-    // its compiled defaults (a virgin /pst must not stop it starting).
+    /// @brief True once a delivery has been accepted.
+    ///
+    /// Until then the daemon runs on its compiled defaults — a virgin /pst
+    /// must not stop it starting.
     bool configured() const
     {
         std::lock_guard<std::mutex> lk(mu_);
@@ -106,18 +125,24 @@ class ConfigSink
     }
 
   private:
-    mutable std::mutex mu_;
-    std::string daemon_;
-    JValue schema_;
-    Apply apply_;
-    ConfigDocument current_;
-    uint64_t revision_ = 0;
+    mutable std::mutex mu_;         ///< Serialises deliver()/current()/revision() across threads.
+    std::string daemon_;            ///< Owning daemon name for diagnostics.
+    JValue schema_;                 ///< Schema every delivery is validated against.
+    Apply apply_;                   ///< Domain-apply callback; a non-ok result rejects the delivery.
+    ConfigDocument current_;        ///< Last accepted document (rolled back to on rejection).
+    uint64_t revision_ = 0;         ///< Revision of the last accepted delivery.
 };
 
-// Loads a daemon's JSON Schema from the image (installed by the recipe into
-// ${datadir}/instrumentation/schemas). A missing schema is not fatal: the
-// document is then accepted unvalidated and the caller warns, because a
-// packaging slip must not stop the device booting (R10).
+/// @brief Loads a daemon's JSON Schema from the image (installed into ${datadir}/instrumentation/schemas).
+///
+/// A missing schema is not fatal: the document is then accepted unvalidated
+/// and the caller warns, because a packaging slip must not stop the device
+/// booting (R10).
+///
+/// @param fs Filesystem abstraction for the load.
+/// @param sysroot Root to resolve the schema directory under.
+/// @param daemon Daemon name whose schema is wanted.
+/// @return Parsed schema, or an Error (typically NotFound) when unavailable.
 Result<JValue> load_daemon_schema(class IFileSystem& fs, const std::string& sysroot, const std::string& daemon);
 
 } // namespace instr
