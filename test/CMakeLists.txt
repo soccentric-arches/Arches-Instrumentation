@@ -73,6 +73,15 @@ target_link_libraries(integration_harness PRIVATE
   instr_ota_lib instr_backup_lib)
 gtest_discover_tests(integration_harness)
 
+# ---- the real topology: hub + spokes over gRPC/UDS on the simulated
+# platform (§12: "the full topology must be testable on a laptop") ----
+add_executable(integration_topology integration/topology.cpp)
+target_link_libraries(integration_topology PRIVATE
+  instr_istate_lib instr_monitord_lib instr_networkd_lib instr_hardware_lib
+  instr_faults_lib instr_alarms_lib instr_logmanager_lib instr_telemetry_lib
+  instr_ota_lib instr_backup_lib)
+gtest_discover_tests(integration_topology)
+
 # ---- fault injection (§12): storage errors, link loss, hangs, corrupt
 # /pst, full disk, clock jumps, proto mismatch ----
 add_executable(fault_injection fault-injection/fault_tests.cpp)
