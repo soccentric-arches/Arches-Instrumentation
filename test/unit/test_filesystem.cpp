@@ -230,40 +230,38 @@ TEST(BulkTransfer, ASinkMayStopEarlyWithoutHangingTheTransfer)
     ::unlink(path.c_str());
 }
 
-TEST(CtrlLoopback, FinishedConnectionsAreReapedRatherThanAccumulated) {
-  // A _ctrl tool connects, asks one question and goes away. On a fielded
-  // device that happens on a timer for years.
-  //
-  // serve_accept() used to prune with `if (!it->joinable())`, which is never
-  // true — a std::thread stays joinable after its function returns, right up
-  // until it is joined or detached. The erase branch was dead, so the vector
-  // grew by one entry, and one unjoined OS thread, per connection ever
-  // accepted, in all ten daemons.
-  CommandTable t;
-  t.add({"ping", "liveness", {}, [](const std::string&) {
-           return CommandResult::good(std::string("{\"pong\":true}"));
-         }});
-  std::string path = "/tmp/instr-test-ctrl-reap-" + std::to_string(::getpid()) + ".sock";
-  ctrl::CtrlServer server(&t, path);
-  ASSERT_TRUE(server.start().ok());
+TEST(CtrlLoopback, FinishedConnectionsAreReapedRatherThanAccumulated)
+{
+    // A _ctrl tool connects, asks one question and goes away. On a fielded
+    // device that happens on a timer for years.
+    //
+    // serve_accept() used to prune with `if (!it->joinable())`, which is never
+    // true — a std::thread stays joinable after its function returns, right up
+    // until it is joined or detached. The erase branch was dead, so the vector
+    // grew by one entry, and one unjoined OS thread, per connection ever
+    // accepted, in all ten daemons.
+    CommandTable t;
+    t.add({"ping", "liveness", {}, [](const std::string&) { return CommandResult::good(std::string("{\"pong\":true}")); }});
+    std::string path = "/tmp/instr-test-ctrl-reap-" + std::to_string(::getpid()) + ".sock";
+    ctrl::CtrlServer server(&t, path);
+    ASSERT_TRUE(server.start().ok());
 
-  const int kConnections = 60;
-  for (int i = 0; i < kConnections; ++i) {
-    ctrl::CtrlClient client(path);
-    ASSERT_TRUE(client.connect().ok()) << "connection " << i;
-    EXPECT_TRUE(client.call("ping", "{}").ok);
-    client.close();
-    // Give the server a moment to notice the close before the next accept,
-    // which is when reaping happens.
-    std::this_thread::sleep_for(std::chrono::milliseconds(2));
-  }
+    const int kConnections = 60;
+    for (int i = 0; i < kConnections; ++i)
+    {
+        ctrl::CtrlClient client(path);
+        ASSERT_TRUE(client.connect().ok()) << "connection " << i;
+        EXPECT_TRUE(client.call("ping", "{}").ok);
+        client.close();
+        // Give the server a moment to notice the close before the next accept,
+        // which is when reaping happens.
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
 
-  // Reaping runs on accept, so a couple of recent entries may still be
-  // tracked. What must not happen is growth proportional to the number of
-  // connections served.
-  EXPECT_LT(server.tracked_connections(), size_t(kConnections / 4))
-      << "connection threads are accumulating: " << server.tracked_connections() << " tracked after "
-      << kConnections << " closed connections";
-  server.stop();
-  EXPECT_EQ(server.tracked_connections(), 0u) << "stop() must join and clear every connection";
+    // Reaping runs on accept, so a couple of recent entries may still be
+    // tracked. What must not happen is growth proportional to the number of
+    // connections served.
+    EXPECT_LT(server.tracked_connections(), size_t(kConnections / 4)) << "connection threads are accumulating: " << server.tracked_connections() << " tracked after " << kConnections << " closed connections";
+    server.stop();
+    EXPECT_EQ(server.tracked_connections(), 0u) << "stop() must join and clear every connection";
 }
