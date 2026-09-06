@@ -41,6 +41,7 @@
 
 #pragma once
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <deque>
 #include <functional>
@@ -121,6 +122,15 @@ class SpokeChannel {  // StubOuter = the generated service stub factory.
   }
   void stop() {
     running_ = false;
+    // Cancel the in-flight RPC. The reader is parked in rw->Read(), which
+    // does not return merely because a flag changed — on a quiet channel
+    // (no commands, no pings) it would block indefinitely and the join
+    // below would never complete. On a device that is a daemon that ignores
+    // SIGTERM until systemd escalates to SIGKILL.
+    {
+      std::lock_guard<std::mutex> lk(ctx_mu_);
+      if (active_ctx_) active_ctx_->TryCancel();
+    }
     {
       std::lock_guard<std::mutex> lk(mu_);
       queue_.clear();
@@ -185,6 +195,9 @@ class SpokeChannel {  // StubOuter = the generated service stub factory.
     // Registration handshake (§3.1): daemon name, build version, proto schema
     // version, capabilities. Mismatch → refuse; never guess.
     grpc::ClientContext rctx;
+    // Bound the handshake so a hub that accepts the connection but never
+    // answers cannot wedge the reconnect loop.
+    rctx.set_deadline(std::chrono::system_clock::now() + std::chrono::seconds(10));
     common::RegistrationRequest req;
     req.set_daemon(opts_.daemon);
     req.set_build_version(opts_.build_version);
@@ -202,6 +215,20 @@ class SpokeChannel {  // StubOuter = the generated service stub factory.
     registered_ = true;
 
     grpc::ClientContext cctx;
+    {
+      std::lock_guard<std::mutex> lk(ctx_mu_);
+      if (!running_.load()) return true;  // stopped between register and stream
+      active_ctx_ = &cctx;
+    }
+    // The context outlives the stream below; clear the pointer before it
+    // goes out of scope so stop() never cancels a dangling context.
+    struct CtxGuard {
+      SpokeChannel* self;
+      ~CtxGuard() {
+        std::lock_guard<std::mutex> lk(self->ctx_mu_);
+        self->active_ctx_ = nullptr;
+      }
+    } ctx_guard{this};
     auto rw = stub->Channel(&cctx);
     // Writer thread.
     std::atomic<bool> stream_ok{true};
@@ -287,6 +314,8 @@ class SpokeChannel {  // StubOuter = the generated service stub factory.
   std::atomic<bool> registered_{false};
   ConfigHandler config_handler_;
   std::atomic<uint64_t> config_revision_{0};
+  std::mutex ctx_mu_;
+  grpc::ClientContext* active_ctx_ = nullptr;  // guarded by ctx_mu_
 };
 
 // ---- istate-side hub service base ----
