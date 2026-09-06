@@ -16,6 +16,7 @@ devices:
         op: gpio_toggle_read
   - name: can0
     kind: can
+    controls: [can_send, can_recv]
     params:
       iface: can0
     checks:

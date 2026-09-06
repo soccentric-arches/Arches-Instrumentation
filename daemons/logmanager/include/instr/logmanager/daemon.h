@@ -37,6 +37,7 @@
 #include "instr/common/periodic.h"
 #include "instr/logmanager/domain.h"
 #include "instr/transport/transport.h"
+#include "instr/platform/platform.h"
 #include "logmanager.grpc.pb.h"
 
 namespace instr {
@@ -96,6 +97,53 @@ class LogCore {
   Config cfg_;
   std::function<void(const Config&)> on_config_;
   std::string bulk_socket_path_ = "/run/instrumentation/logmanager-bulk.sock";
+};
+
+// ---- collection (§7.7: "Collects from the journal and from application log
+// sinks") ----
+//
+// Same shape as the Faults daemon's FaultFollower: a periodic poll that
+// feeds the store, kept out of the transport so it is testable against a
+// simulated platform and an in-memory filesystem with no sockets.
+//
+// Without this the daemon rotates, prunes, tails and bundles a store that
+// nothing ever writes to — which is what it did before this existed.
+class LogCollector {
+ public:
+  LogCollector(LogCore* core, platform::IPlatform* plat, IFileSystem* fs, TimeSource* ts,
+               Logger* log);
+
+  // One collection pass over every configured source. Returns the number of
+  // lines appended. Sources are re-read from the core's config each pass, so
+  // a delivery from istate takes effect without a restart.
+  size_t poll();
+  void start();
+  void stop();
+  void set_interval_s(double s) { worker_.set_interval_s(s); }
+  uint64_t polls() const { return worker_.ticks(); }
+  uint64_t lines_collected() const { return lines_.load(); }
+
+ private:
+  size_t collect_journal(const SourceSpec& spec);
+  size_t collect_file(const SourceSpec& spec);
+  size_t emit(const SourceSpec& spec, const std::string& raw);
+
+  // Per-source follow position. The journal has no cursor API, so dedup is
+  // by remembering the last line handed back; a file sink tracks a byte
+  // offset and restarts at 0 when the file shrinks (rotation or truncation).
+  struct Cursor {
+    std::string last_line;
+    uint64_t offset = 0;
+  };
+  std::map<std::string, Cursor> cursors_;
+
+  LogCore* core_;
+  platform::IPlatform* plat_;
+  IFileSystem* fs_;
+  TimeSource* ts_;
+  Logger* log_;
+  std::atomic<uint64_t> lines_{0};
+  PeriodicWorker worker_;
 };
 
 CommandTable build_log_table(LogCore* core);

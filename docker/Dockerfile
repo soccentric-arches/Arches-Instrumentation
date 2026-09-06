@@ -46,5 +46,13 @@ RUN curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key \
       clang-18 clang-format-18 clang-tidy-18 \
     && rm -rf /var/lib/apt/lists/*
 
+# ccache: compile cache persisted on the host (docker/Makefile mounts it at
+# /ccache, so it survives container runs and `make clean`). Under qemu on
+# x86_64 hosts a cache hit skips the emulated compile entirely — which is
+# where all the rebuild time goes. Kept in its own final layer so the
+# layers above stay cached when only this one changes.
+RUN apt-get update && apt-get install -y --no-install-recommends ccache \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /src
 CMD ["/bin/bash"]

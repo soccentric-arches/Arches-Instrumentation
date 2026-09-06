@@ -83,7 +83,16 @@ class CtrlServer {
   int listen_fd_ = -1;
   std::atomic<bool> running_{false};
   std::thread accept_thread_;
-  std::vector<std::thread> conn_threads_;
+  // Each connection thread flags itself done on exit; serve_accept() joins
+  // the flagged ones before spawning more. A plain vector<thread> pruned by
+  // joinable() never shrinks — a thread stays joinable after its function
+  // returns — so that leaked one handle and one unjoined OS thread per
+  // connection, for the life of the daemon.
+  struct Conn {
+    std::thread thread;
+    std::shared_ptr<std::atomic<bool>> done;
+  };
+  std::vector<Conn> conn_threads_;
   std::map<std::string, std::function<void(const std::string&, StreamSink&)>> streams_;
   std::mutex mu_;
 };

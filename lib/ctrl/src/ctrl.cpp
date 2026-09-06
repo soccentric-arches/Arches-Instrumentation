@@ -99,9 +99,12 @@ void CtrlServer::stop() {
     listen_fd_ = -1;
   }
   if (accept_thread_.joinable()) accept_thread_.join();
-  for (auto& t : conn_threads_)
-    if (t.joinable()) t.join();
-  conn_threads_.clear();
+  {
+    std::lock_guard<std::mutex> lk(mu_);
+    for (auto& c : conn_threads_)
+      if (c.thread.joinable()) c.thread.join();
+    conn_threads_.clear();
+  }
   ::unlink(path_.c_str());
 }
 
@@ -113,16 +116,25 @@ void CtrlServer::serve_accept() {
       continue;
     }
     std::lock_guard<std::mutex> lk(mu_);
-    // Join finished threads before spawning new ones.
+    // Reap connections that have finished. Testing joinable() here (as this
+    // once did) never reaps anything: a thread remains joinable after its
+    // function returns, so the erase branch was dead and the vector grew by
+    // one unjoined thread per connection for the life of the daemon. The
+    // done flag is what actually distinguishes finished from running.
     for (auto it = conn_threads_.begin(); it != conn_threads_.end();) {
-      if (!it->joinable()) {
+      if (it->done->load()) {
+        if (it->thread.joinable()) it->thread.join();
         it = conn_threads_.erase(it);
-        continue;
+      } else {
+        ++it;
       }
-      // Detached-style: threads for finished connections join on stop().
-      ++it;
     }
-    conn_threads_.emplace_back([this, fd] { serve_conn(fd); });
+    auto done = std::make_shared<std::atomic<bool>>(false);
+    conn_threads_.push_back(Conn{std::thread([this, fd, done] {
+                                   serve_conn(fd);
+                                   done->store(true);
+                                 }),
+                                 done});
   }
 }
 

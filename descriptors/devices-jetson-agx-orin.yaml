@@ -8,6 +8,7 @@ devices:
         op: led_blink_ack
   - name: can0
     kind: can
+    controls: [can_send, can_recv]
     params:
       iface: can0
     checks:

@@ -27,6 +27,8 @@
 
 #include "instr/hardware/domain.h"
 
+#include <cctype>
+
 #include "instr/platform/simulated.h"
 
 #include <algorithm>
@@ -104,6 +106,40 @@ Error DeviceManager::control(const std::string& device, const std::string& contr
   } else if (dev->kind == "usb") {
     if (control_op == "usb_reset")
       return plat_.usb_reset(dev->params.count("port") ? dev->params.at("port") : device);
+  } else if (dev->kind == "can") {
+    const std::string iface = dev->params.count("iface") ? dev->params.at("iface") : device;
+    if (control_op == "can_send") {
+      // id is hex or decimal; data is a hex byte string ("deadbeef"), which
+      // is how a CAN payload is written everywhere else in the toolchain.
+      auto id_it = args.find("id");
+      if (id_it == args.end()) return Error::make(Errc::InvalidArgument, "id required", device);
+      platform::IPlatform::CanFrame frame;
+      frame.id = uint32_t(std::stoul(id_it->second, nullptr, 0));
+      auto ext = args.find("extended");
+      frame.extended = ext != args.end() && (ext->second == "true" || ext->second == "1");
+      auto data_it = args.find("data");
+      if (data_it != args.end()) {
+        const std::string& hex = data_it->second;
+        if (hex.size() % 2 != 0)
+          return Error::make(Errc::InvalidArgument, "data must be an even-length hex string",
+                             device);
+        for (size_t i = 0; i < hex.size(); i += 2) {
+          if (!std::isxdigit(static_cast<unsigned char>(hex[i])) ||
+              !std::isxdigit(static_cast<unsigned char>(hex[i + 1])))
+            return Error::make(Errc::InvalidArgument, "data is not hex", device);
+          frame.data.push_back(uint8_t(std::stoul(hex.substr(i, 2), nullptr, 16)));
+        }
+      }
+      if (frame.data.size() > 8 && !frame.extended)
+        return Error::make(Errc::InvalidArgument, "classic CAN payload exceeds 8 bytes", device);
+      return plat_.can_send(iface, frame);
+    }
+    if (control_op == "can_recv") {
+      // Declared so the descriptor can gate it; the frames come back through
+      // can_receive(), which has a Result signature to carry them.
+      auto r = plat_.can_recv(iface, 1);
+      return r.ok() ? Error::none() : r.error;
+    }
   } else if (dev->kind == "display") {
     if (control_op == "display_control") {
       auto it = args.find("cmd");
@@ -113,6 +149,22 @@ Error DeviceManager::control(const std::string& device, const std::string& contr
   }
   return Error::make(Errc::NotSupported, "control op not implemented for kind " + dev->kind,
                      control_op);
+}
+
+Result<std::vector<platform::IPlatform::CanFrame>> DeviceManager::can_receive(
+    const std::string& device, size_t max_frames) {
+  using Ret = Result<std::vector<platform::IPlatform::CanFrame>>;
+  const platform::DeviceSpec* dev = find(device);
+  if (!dev) return Ret::fail(Errc::NotFound, "unknown device: " + device, "hardware");
+  if (dev->kind != "can") return Ret::fail(Errc::NotSupported, "not a can device", device);
+  bool declared = false;
+  for (const auto& c : dev->controls)
+    if (c == "can_recv") declared = true;
+  if (!declared)
+    return Ret::fail(Errc::NotSupported, "control op not declared for device " + device + ": can_recv",
+                     device);
+  const std::string iface = dev->params.count("iface") ? dev->params.at("iface") : device;
+  return plat_.can_recv(iface, max_frames == 0 ? 1 : max_frames);
 }
 
 Result<bool> DeviceManager::gpio_read(const std::string& device) {

@@ -69,6 +69,12 @@ class DeviceManager {
   // Read a GPIO line via the platform (read side of the control op).
   Result<bool> gpio_read(const std::string& device);
 
+  // Read side of the CAN control op. control() returns Error and so cannot
+  // hand back frames; receiving gets its own entry point for the same reason
+  // gpio_read does. Returns the frames buffered since the previous call.
+  Result<std::vector<platform::IPlatform::CanFrame>> can_receive(const std::string& device,
+                                                                 size_t max_frames);
+
   // ---- quick health checks: presence + cheap behavioural sanity (one per
   // device; not a full qualification test — that is the IV&V path) ----
   CheckResult run_check(const platform::DeviceSpec& dev, const platform::DeviceCheck& chk);

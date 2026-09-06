@@ -163,6 +163,50 @@ CommandTable build_hardware_table(HardwareCore* core) {
            return e.ok() ? CommandResult::good(std::string("{\"ok\":true}"))
                          : CommandResult::from_error(e);
          }});
+  t.add({"can-send",
+         "transmit a CAN frame",
+         {{"device", true, "can device name"},
+          {"id", true, "frame id (0x123 or decimal)"},
+          {"data", false, "payload as a hex byte string, e.g. deadbeef"},
+          {"extended", false, "true for a 29-bit extended id"}},
+         [core](const std::string& args) {
+           auto a = args_object(args);
+           if (!a.ok()) return CommandResult::from_error(a.error);
+           std::map<std::string, std::string> m;
+           m["id"] = (*a).get_string("id");
+           m["data"] = (*a).get_string("data");
+           m["extended"] = (*a).get_bool("extended") ? "true" : "false";
+           Error e = core->manager().control((*a).get_string("device"), "can_send", m);
+           return e.ok() ? CommandResult::good(std::string("{\"sent\":true}"))
+                         : CommandResult::from_error(e);
+         }});
+  t.add({"can-recv",
+         "read CAN frames buffered since the last call",
+         {{"device", true, "can device name"}, {"max", false, "max frames (default 16)"}},
+         [core](const std::string& args) {
+           auto a = args_object(args);
+           if (!a.ok()) return CommandResult::from_error(a.error);
+           size_t max = size_t((*a).get_number("max", 16));
+           auto r = core->manager().can_receive((*a).get_string("device"), max);
+           if (!r.ok()) return CommandResult::from_error(r.error);
+           JValue arr = JValue::array();
+           for (const auto& f : *r) {
+             JValue o = JValue::object();
+             o.set("id", JValue(double(f.id)));
+             o.set("extended", JValue(f.extended));
+             static const char* kHex = "0123456789abcdef";
+             std::string hex;
+             for (uint8_t b : f.data) {
+               hex.push_back(kHex[b >> 4]);
+               hex.push_back(kHex[b & 0xf]);
+             }
+             o.set("data", JValue(hex));
+             arr.push(o);
+           }
+           JValue out = JValue::object();
+           out.set("frames", arr);
+           return CommandResult::good(out.dump());
+         }});
   t.add({"periodic-interval",
          "set the periodic check interval",
          {{"seconds", true, "interval in seconds"}},
