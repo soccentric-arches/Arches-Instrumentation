@@ -29,10 +29,13 @@
 
 namespace instr
 {
+/// @brief Backup daemon: encrypted archives, restore and reset (§7.10).
 namespace backup
 {
 
 /// @brief Render archive metadata as JSON.
+/// @param i Archive to render.
+/// @return The archive metadata as JSON.
 static JValue info_json(const ArchiveInfo& i)
 {
     JValue o = JValue::object();
@@ -47,6 +50,8 @@ static JValue info_json(const ArchiveInfo& i)
 }
 
 /// @brief Build the backup ctrl command table.
+/// @param core Domain core the table reads from.
+/// @return The command table.
 CommandTable build_backup_table(BackupCore* core)
 {
     CommandTable t;
@@ -147,6 +152,11 @@ CommandTable build_backup_table(BackupCore* core)
 }
 
 /// @brief Wire the channel, config sink and handlers together.
+/// @param core Domain core.
+/// @param log Logger.
+/// @param table Command table.
+/// @param hub_target istate gRPC target.
+/// @param build_version Build version to advertise.
 BackupSpoke::BackupSpoke(BackupCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version) : core_(core), log_(log), table_(table)
 {
     using ChannelT = SpokeChannel<backup::BackupHub, backup::BackupSpokeFrame, backup::BackupHubFrame>;
@@ -170,6 +180,7 @@ BackupSpoke::BackupSpoke(BackupCore* core, Logger* log, const CommandTable* tabl
 }
 
 /// @brief Install the schema every config delivery must satisfy.
+/// @param schema Schema every config delivery must satisfy.
 void BackupSpoke::set_schema(JValue schema)
 {
     config_sink_ = std::make_unique<ConfigSink>("backup", std::move(schema), [this](const ConfigDocument& doc) { return core_->apply_config(doc); });
@@ -188,6 +199,11 @@ void BackupSpoke::stop()
 }
 
 /// @brief Queue a backup event to istate.
+/// @param action Event kind.
+/// @param archive Archive name.
+/// @param meta Detail.
+/// @param ok Outcome.
+/// @param err Error text when failed.
 void BackupSpoke::send_event(const std::string& action, const std::string& archive, const std::string& meta, bool ok, const std::string& err)
 {
     channel_->enqueue([&](backup::BackupSpokeFrame& f) {

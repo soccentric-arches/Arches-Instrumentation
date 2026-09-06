@@ -45,8 +45,10 @@
 
 namespace instr
 {
+/// @brief Backup daemon: encrypted archives, restore and reset (§7.10).
 namespace backup
 {
+/// @brief Pure domain logic for this daemon: no transport, no sockets, fully unit-testable.
 namespace domain
 {
 
@@ -90,6 +92,8 @@ class BackupEngine
 {
   public:
     /// @brief Bind the engine to storage and its options.
+/// @param fs Storage backend.
+/// @param opts Identity, versions and keys.
     BackupEngine(IFileSystem& fs, const BackupOptions& opts) : fs_(fs), opts_(opts)
     {
     }
@@ -108,8 +112,12 @@ class BackupEngine
     Result<ArchiveInfo> create(const std::vector<std::string>& paths, const std::vector<std::string>& excludes, const std::string& archive_dir, int64_t now_unix_s);
 
     /// @brief List archives in a directory.
+/// @param archive_dir Directory to scan.
+/// @return Archive summaries, oldest first.
     std::vector<ArchiveInfo> list(const std::string& archive_dir) const;
     /// @brief Read and verify a manifest.
+/// @param archive_path Archive to inspect.
+/// @return The embedded manifest, or an error.
     Result<BackupManifest> read_manifest(const std::string& archive_path) const;
 
     /// @brief Restore preview: what will change before committing.
@@ -134,6 +142,9 @@ class BackupEngine
         std::vector<PreviewEntry> entries;     ///< Per-path actions.
     };
     /// @brief Compute the restore preview for an archive.
+/// @param archive_path Archive to preview.
+/// @param restore_roots Roots restores may touch.
+/// @return The preview, or an error.
     Result<RestorePreview> restore_preview(const std::string& archive_path, const std::vector<std::string>& restore_roots);
 
     /// @brief Transactional restore: completes fully or leaves prior state.
@@ -144,9 +155,14 @@ class BackupEngine
     using CommitFn = std::function<Error(const std::vector<tar::FileEntry>&)>;
     /// @brief Run the transactional restore.
     /// @return Number of entries committed, or an error (prior state intact).
+/// @param archive_path Archive to restore.
+/// @param commit istate-directed commit callback.
     Result<size_t> restore_commit(const std::string& archive_path, const CommitFn& commit);
 
     /// @brief Decide whether a relative path is excluded by the built-ins and @p excludes.
+/// @param rel Relative path to test.
+/// @param excludes Configured exclusion patterns.
+/// @return True when excluded.
     static bool excluded_path(const std::string& rel, const std::vector<std::string>& excludes);
 
     /// @brief Seal plaintext for upload to HQ (§7.10).
@@ -165,6 +181,9 @@ class BackupEngine
     /// @return Sealed token, or an error when no HQ key is configured.
     Result<std::string> seal_for_hq(const std::string& plaintext) const;
     /// @brief Open a seal_for_hq() token with HQ's private key.
+/// @param sealed Token produced by seal_for_hq().
+/// @param hq_private_key HQ's X25519 private key.
+/// @return The plaintext, or an error.
     static Result<std::string> open_from_hq(const std::string& sealed, const std::string& hq_private_key);
     /// @brief True when an HQ public key is configured (upload possible).
     bool hq_upload_available() const
@@ -174,10 +193,15 @@ class BackupEngine
 
   private:
     /// @brief Archive-encryption key: HKDF over identity serial+secret.
+/// @return The identity-derived archive key.
     std::string key_for_archive() const;
     /// @brief Decrypt a locally sealed archive.
+/// @param blob Sealed archive bytes.
+/// @return The decrypted archive, or an error.
     Result<tar::FileEntry> decrypt_archive(const std::string& blob) const;
     /// @brief Seal an archive with the local identity-derived key.
+/// @param tar_bytes Archive bytes to seal.
+/// @return The sealed archive bytes.
     std::string encrypt_archive(const std::string& tar_bytes) const;
 
     IFileSystem& fs_;        ///< Storage backend.

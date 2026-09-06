@@ -36,12 +36,16 @@
 
 namespace instr
 {
+/// @brief Backup daemon: encrypted archives, restore and reset (§7.10).
 namespace backup
 {
+/// @brief Pure domain logic for this daemon: no transport, no sockets, fully unit-testable.
 namespace domain
 {
 
 /// @brief Serialise a manifest to JSON.
+/// @param m Manifest to serialise.
+/// @return The manifest JSON text.
 static std::string manifest_json(const BackupManifest& m)
 {
     JValue j = JValue::object();
@@ -60,6 +64,8 @@ static std::string manifest_json(const BackupManifest& m)
 }
 
 /// @brief Parse and validate a manifest JSON document.
+/// @param json Manifest JSON text.
+/// @return The parsed manifest, or an error.
 static Result<BackupManifest> parse_manifest(const std::string& json)
 {
     auto j = json_parse(json);
@@ -78,6 +84,9 @@ static Result<BackupManifest> parse_manifest(const std::string& json)
 }
 
 /// @brief Decide whether a relative path is excluded (built-ins plus @p excludes).
+/// @param rel Relative path to test.
+/// @param excludes Configured exclusion patterns.
+/// @return True when excluded.
 bool BackupEngine::excluded_path(const std::string& rel, const std::vector<std::string>& excludes)
 {
     // Identity is not portable: factory/ and WireGuard keys never in backups.
@@ -90,6 +99,11 @@ bool BackupEngine::excluded_path(const std::string& rel, const std::vector<std::
 }
 
 /// @brief Recursively collect (rel path, contents) pairs under a root.
+/// @param fs Filesystem to walk.
+/// @param root Root to collect under.
+/// @param rel Current relative path.
+/// @param excludes Exclusion patterns.
+/// @param out Receives (rel path, contents) pairs.
 static void collect(IFileSystem& fs, const std::string& root, const std::string& rel, const std::vector<std::string>& excludes, std::vector<std::pair<std::string, std::string>>* out)
 {
     // rel is the path relative to root; out gets (relpath, content).
@@ -114,6 +128,7 @@ static void collect(IFileSystem& fs, const std::string& root, const std::string&
 }
 
 /// @brief Derive the local archive key: HKDF over identity serial+secret.
+/// @return The identity-derived archive key.
 std::string BackupEngine::key_for_archive() const
 {
     // Local archives: key derived from the factory-provisioned identity secret
@@ -126,12 +141,16 @@ std::string BackupEngine::key_for_archive() const
 }
 
 /// @brief Seal an archive with the local identity-derived key.
+/// @param tar_bytes Archive bytes to seal.
+/// @return The sealed bytes.
 std::string BackupEngine::encrypt_archive(const std::string& tar_bytes) const
 {
     return crypto::aead_seal(key_for_archive(), tar_bytes, [](uint8_t* out, size_t n) { (void)crypto::random_bytes(out, n); });
 }
 
 /// @brief Decrypt a locally sealed archive.
+/// @param blob Sealed archive bytes.
+/// @return The decrypted archive, or an error.
 Result<tar::FileEntry> BackupEngine::decrypt_archive(const std::string& blob) const
 {
     auto opened = crypto::aead_open(key_for_archive(), blob);
@@ -143,6 +162,11 @@ Result<tar::FileEntry> BackupEngine::decrypt_archive(const std::string& blob) co
 }
 
 /// @brief Tar, hash and store an archive with its manifest.
+/// @param paths Paths to archive.
+/// @param excludes Extra exclusions.
+/// @param archive_dir Directory to store the archive.
+/// @param now_unix_s Creation time.
+/// @return Archive summary, or an error.
 Result<ArchiveInfo> BackupEngine::create(const std::vector<std::string>& paths, const std::vector<std::string>& excludes, const std::string& archive_dir, int64_t now_unix_s)
 {
     std::vector<std::pair<std::string, std::string>> files;
@@ -189,6 +213,8 @@ Result<ArchiveInfo> BackupEngine::create(const std::vector<std::string>& paths, 
 }
 
 /// @brief List archives in a directory.
+/// @param archive_dir Directory to scan.
+/// @return Archives found in the directory.
 std::vector<ArchiveInfo> BackupEngine::list(const std::string& archive_dir) const
 {
     std::vector<ArchiveInfo> out;
@@ -212,6 +238,8 @@ std::vector<ArchiveInfo> BackupEngine::list(const std::string& archive_dir) cons
 }
 
 /// @brief Read and verify an archive's manifest.
+/// @param archive_path Archive to inspect.
+/// @return The embedded manifest, or an error.
 Result<BackupManifest> BackupEngine::read_manifest(const std::string& archive_path) const
 {
     auto blob = fs_.read(archive_path);
@@ -226,6 +254,9 @@ Result<BackupManifest> BackupEngine::read_manifest(const std::string& archive_pa
 }
 
 /// @brief Compute what a restore would change before committing.
+/// @param archive_path Archive to preview.
+/// @param restore_roots Roots restores may touch.
+/// @return The preview, or an error.
 Result<BackupEngine::RestorePreview> BackupEngine::restore_preview(const std::string& archive_path, const std::vector<std::string>& restore_roots)
 {
     auto blob = fs_.read(archive_path);
@@ -299,6 +330,9 @@ Result<BackupEngine::RestorePreview> BackupEngine::restore_preview(const std::st
 }
 
 /// @brief Transactional restore: stage, verify every hash, then commit.
+/// @param archive_path Archive to restore.
+/// @param commit istate-directed commit callback.
+/// @return Number of entries committed, or an error (prior state intact).
 Result<size_t> BackupEngine::restore_commit(const std::string& archive_path, const CommitFn& commit)
 {
     auto blob = fs_.read(archive_path);
@@ -339,8 +373,10 @@ Result<size_t> BackupEngine::restore_commit(const std::string& archive_path, con
 } // namespace instr
 namespace instr
 {
+/// @brief Backup daemon: encrypted archives, restore and reset (§7.10).
 namespace backup
 {
+/// @brief Pure domain logic for this daemon: no transport, no sockets, fully unit-testable.
 namespace domain
 {
 
@@ -349,6 +385,8 @@ namespace domain
 static constexpr char kHqSealMagic[4] = {'A', 'H', 'Q', '1'};
 
 /// @brief Seal plaintext to HQ's public key (ephemeral X25519 + AEAD).
+/// @param plaintext Bytes to seal.
+/// @return The sealed token, or an error when no HQ key is configured.
 Result<std::string> BackupEngine::seal_for_hq(const std::string& plaintext) const
 {
     if (opts_.hq_public_key.size() != 32)
@@ -372,6 +410,9 @@ Result<std::string> BackupEngine::seal_for_hq(const std::string& plaintext) cons
 }
 
 /// @brief Open an HQ-sealed token with HQ's private key.
+/// @param sealed Token produced by seal_for_hq().
+/// @param hq_private_key HQ's X25519 private key.
+/// @return The plaintext, or an error.
 Result<std::string> BackupEngine::open_from_hq(const std::string& sealed, const std::string& hq_private_key)
 {
     // Present so the format is testable end to end on the device side: HQ runs
