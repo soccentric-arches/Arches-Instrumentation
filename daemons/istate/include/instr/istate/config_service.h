@@ -48,111 +48,130 @@ namespace instr
 namespace istate
 {
 
+/// @brief One auditable action, appended to the tamper-evident log.
 struct AuditEntry
 {
-    uint64_t seq = 0;
-    int64_t wall_unix_s = 0;
-    std::string actor; // who (local operator / hq / app)
-    std::string source; // from where (configuration-ui / hq-tunnel / local-console)
-    std::string action; // config_set / update / remote_access / reset
-    std::string detail_json;
+    uint64_t seq = 0;             ///< Monotonic entry sequence.
+    int64_t wall_unix_s = 0;      ///< Wall time of the action.
+    std::string actor;            ///< Who (local operator / hq / app).
+    std::string source;           ///< From where (configuration-ui / hq-tunnel / local-console).
+    std::string action;           ///< config_set / update / remote_access / reset.
+    std::string detail_json;      ///< Action detail.
 };
 
+/// @brief Bounded, persisted audit log of configuration-changing actions.
 class AuditLog
 {
   public:
+    /// @brief Bind the log to storage, a path and a size bound.
     AuditLog(IFileSystem& fs, const std::string& path, size_t max_entries) : fs_(fs), path_(path), max_entries_(max_entries)
     {
     }
+    /// @brief Append one entry (stamped from @p ts).
     void append(const std::string& actor, const std::string& source, const std::string& action, const std::string& detail_json, TimeSource& ts);
+    /// @brief In-memory entries, oldest first.
     const std::deque<AuditEntry>& entries() const
     {
         return entries_;
     }
+    /// @brief Persist the log atomically.
     Error persist();
+    /// @brief Load the log (tolerates a missing file).
     Error load();
 
   private:
-    IFileSystem& fs_;
-    std::string path_;
-    size_t max_entries_;
-    std::deque<AuditEntry> entries_;
-    uint64_t next_seq_ = 1;
+    IFileSystem& fs_;                 ///< Storage backend.
+    std::string path_;                ///< Audit file path.
+    size_t max_entries_;              ///< Entry bound (oldest dropped).
+    std::deque<AuditEntry> entries_;   ///< Retained entries.
+    uint64_t next_seq_ = 1;           ///< Next entry sequence.
 };
 
+/// @brief Configuration service: get/set by origin rules, signed HQ pushes, drift reporting.
 class ConfigService
 {
   public:
+    /// @brief Bind the service to the /pst store and a filesystem.
     ConfigService(PstStore& pst, IFileSystem& fs) : pst_(pst), fs_(fs)
     {
     }
 
-    // Per-daemon JSON schema (validated at load; rejected with a clear
-    // file-and-line error).
+    /// @brief Register a per-daemon JSON schema (validated at load; rejected with a clear file-and-line error).
     void set_schema(const std::string& daemon, const JValue& schema)
     {
         schemas_[daemon] = schema;
     }
 
-    // Get effective config (drift report: actual effective config so HQ can
-    // compare against intent).
+    /// @brief Get the effective config of a daemon.
     Result<ConfigDocument> get(const std::string& daemon) const;
+    /// @brief Drift report: actual effective config so HQ can compare against intent.
     std::string drift_report_json(const std::string& daemon) const;
 
-    // Set: merges incoming values by origin rules. Returns rejected paths.
+    /// @brief Outcome of a config set.
     struct SetResult
     {
-        std::vector<std::string> rejected;
-        std::string error;
-        bool ok = false;
+        std::vector<std::string> rejected;   ///< Protected paths not overwritten.
+        std::string error;                  ///< Empty on success.
+        bool ok = false;                    ///< Overall success.
     };
+    /// @brief Set: merges incoming values by origin rules.
+    ///
+    /// @param daemon Target daemon.
+    /// @param yaml_text Incoming YAML.
+    /// @param origin Claimed origin of the values.
+    /// @param force Overwrite protected local keys when true.
+    /// @return Rejected paths and error text.
     SetResult set(const std::string& daemon, const std::string& yaml_text, Origin origin, bool force);
 
-    // ---- signing keys (§9) ----
-    // HQ's Ed25519 config-signing public keys, by key id. The device holds
-    // only public keys: opening one device yields nothing that can sign for
-    // the fleet, which is the property §9 is after and that an HMAC — where
-    // the verifier is also a signer — cannot provide.
-    //
-    // Several ids can be trusted at once so a key can be rotated without a
-    // flag day: publish the new key, switch signing, retire the old one.
+    /// @brief HQ's Ed25519 config-signing public keys, by key id (§9).
+    ///
+    /// The device holds only public keys: opening one device yields nothing
+    /// that can sign for the fleet, which is the property §9 is after and
+    /// that an HMAC — where the verifier is also a signer — cannot provide.
+    /// Several ids can be trusted at once so a key can be rotated without a
+    /// flag day: publish the new key, switch signing, retire the old one.
     void add_signing_key(const std::string& key_id, const std::string& public_key_raw32)
     {
         signing_keys_[key_id] = public_key_raw32;
     }
+    /// @brief Retire a signing key.
     void remove_signing_key(const std::string& key_id)
     {
         signing_keys_.erase(key_id);
     }
+    /// @brief Trusted signing keys (key id → raw public key).
     const std::map<std::string, std::string>& signing_keys() const
     {
         return signing_keys_;
     }
 
-    // Signed config push from HQ (§9): verified before applying, so tunnel
-    // compromise alone cannot reconfigure a fleet.
-    //
-    // `signature` is Ed25519 over "<daemon>|<yaml>" and is the required path.
-    // `hmac_hex` is the legacy shared-secret form: it is accepted only when no
-    // signing key is provisioned at all (a device enrolled before key
-    // distribution), and its use is reported by last_push_used_legacy_hmac().
+    /// @brief Signed config push from HQ (§9): verified before applying, so tunnel compromise alone cannot reconfigure a fleet.
+    ///
+    /// @p signature is Ed25519 over "<daemon>|<yaml>" and is the required path.
+    /// @p hmac_hex is the legacy shared-secret form: accepted only when no
+    /// signing key is provisioned at all, and reported by
+    /// last_push_used_legacy_hmac().
+    ///
+    /// @return Rejected paths, or an error when verification fails.
     Result<std::vector<std::string>> apply_signed(const std::string& daemon, const std::string& yaml_text, const std::string& key_id, const std::string& signature, const std::string& hmac_hex, const std::string& enrollment_secret);
+    /// @brief True when the last push fell back to the legacy HMAC path.
     bool last_push_used_legacy_hmac() const
     {
         return last_push_legacy_;
     }
 
+    /// @brief Registered schemas per daemon.
     const std::map<std::string, JValue>& schemas() const
     {
         return schemas_;
     }
 
   private:
-    PstStore& pst_;
-    IFileSystem& fs_;
-    std::map<std::string, JValue> schemas_;
-    std::map<std::string, std::string> signing_keys_;
-    bool last_push_legacy_ = false;
+    PstStore& pst_;                       ///< /pst store (not owned).
+    IFileSystem& fs_;                      ///< Storage backend.
+    std::map<std::string, JValue> schemas_;          ///< Per-daemon schemas.
+    std::map<std::string, std::string> signing_keys_;   ///< Trusted signing keys.
+    bool last_push_legacy_ = false;       ///< Latched when the legacy HMAC path is used.
 };
 
 } // namespace istate

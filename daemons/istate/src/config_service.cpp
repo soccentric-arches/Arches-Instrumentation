@@ -38,6 +38,7 @@ namespace istate
 
 // ---------------- AuditLog ----------------
 
+/// @brief Append a stamped audit entry (bounded).
 void AuditLog::append(const std::string& actor, const std::string& source, const std::string& action, const std::string& detail_json, TimeSource& ts)
 {
     AuditEntry e;
@@ -51,6 +52,7 @@ void AuditLog::append(const std::string& actor, const std::string& source, const
     while (entries_.size() > max_entries_) entries_.pop_front();
 }
 
+/// @brief Persist the audit log atomically.
 Error AuditLog::persist()
 {
     std::string text;
@@ -58,6 +60,7 @@ Error AuditLog::persist()
     return AtomicFile::write(fs_, path_, text);
 }
 
+/// @brief Load the audit log from disk.
 Error AuditLog::load()
 {
     auto txt = fs_.read(path_);
@@ -107,11 +110,13 @@ Error AuditLog::load()
 
 // ---------------- ConfigService ----------------
 
+/// @brief Load a daemon's effective config.
 Result<ConfigDocument> ConfigService::get(const std::string& daemon) const
 {
     return pst_.load_config(daemon);
 }
 
+/// @brief Render the drift report (effective vs delivered) as JSON.
 std::string ConfigService::drift_report_json(const std::string& daemon) const
 {
     auto doc = pst_.load_config(daemon);
@@ -146,6 +151,7 @@ std::string ConfigService::drift_report_json(const std::string& daemon) const
     return j.dump();
 }
 
+/// @brief Merge values by origin rules and persist.
 ConfigService::SetResult ConfigService::set(const std::string& daemon, const std::string& yaml_text, Origin origin, bool force)
 {
     SetResult res;
@@ -205,6 +211,7 @@ ConfigService::SetResult ConfigService::set(const std::string& daemon, const std
     return res;
 }
 
+/// @brief Verify then apply a signed config push.
 Result<std::vector<std::string>> ConfigService::apply_signed(const std::string& daemon, const std::string& yaml_text, const std::string& key_id, const std::string& signature, const std::string& hmac_hex, const std::string& enrollment_secret)
 {
     // Verification happens BEFORE any write (§9). Nothing below this point
