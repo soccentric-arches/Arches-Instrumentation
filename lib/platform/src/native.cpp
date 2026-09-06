@@ -1045,6 +1045,64 @@ Error NativePlatform::write_conf(const std::string& path, const std::string& tex
     return Error::none();
 }
 
+/// @brief Render the instrumentation nftables filter ruleset for a firewall plan.
+std::string render_firewall_ruleset(const JValue& firewall)
+{
+    const std::string t = kInstrTable;
+    // Declare-then-delete-then-build. Declaring the table empty first creates it
+    // when it is absent, so the delete cannot fail with ENOENT and abort the
+    // whole `nft -f` transaction. What we must NOT do is `flush ruleset`: that
+    // drops every table in the kernel including Configuration's `webconfig`
+    // table, and whichever daemon applied last would win (Task.md B-02).
+    std::string rules = "table inet " + t + " { }\n";
+    rules += "delete table inet " + t + "\n";
+    rules += "table inet " + t + " {\n";
+    rules += "  chain input {\n";
+    rules += "    type filter hook input priority 0; policy drop;\n";
+    rules += "    ct state established,related accept\n";
+    rules += "    iif lo accept\n";
+    // The tunnel is never firewalled off by a generated rule set: losing it
+    // is precisely what the tunnel-loss guard exists to prevent (§7.2).
+    rules += "    udp dport 51820 accept\n";
+    for (const auto& r : firewall.items())
+    {
+        const std::string action = r.find("action") ? r.find("action")->as_string() : "deny";
+        const std::string proto = r.find("proto") ? r.find("proto")->as_string() : "any";
+        const std::string src = r.find("src") ? r.find("src")->as_string() : "any";
+        const uint32_t port = r.find("dst_port") ? uint32_t(r.find("dst_port")->as_number()) : 0;
+        std::string line = "    ";
+        if (src != "any" && !src.empty()) line += "ip saddr " + src + " ";
+        if (proto != "any") line += proto + " ";
+        if (port) line += "dport " + std::to_string(port) + " ";
+        line += (action == "allow" ? "accept" : "drop");
+        rules += line + "\n";
+    }
+    rules += "  }\n}\n";
+    return rules;
+}
+
+/// @brief Render the instrumentation NAT ruleset for a port-forwarding plan.
+std::string render_nat_ruleset(const JValue& forwards)
+{
+    if (forwards.items().empty()) return "";
+    const std::string t = kInstrNatTable;
+    std::string nat = "table ip " + t + " { }\n";
+    nat += "delete table ip " + t + "\n";
+    nat += "table ip " + t + " {\n  chain prerouting {\n";
+    nat += "    type nat hook prerouting priority -100;\n";
+    for (const auto& f : forwards.items())
+    {
+        const std::string proto = f.find("proto") ? f.find("proto")->as_string() : "tcp";
+        const uint32_t lp = f.find("listen_port") ? uint32_t(f.find("listen_port")->as_number()) : 0;
+        const std::string dip = f.find("dest_ip") ? f.find("dest_ip")->as_string() : "";
+        const uint32_t dp = f.find("dest_port") ? uint32_t(f.find("dest_port")->as_number()) : 0;
+        if (!lp || dip.empty() || !dp) continue;
+        nat += "    " + proto + " dport " + std::to_string(lp) + " dnat to " + dip + ":" + std::to_string(dp) + "\n";
+    }
+    nat += "  }\n}\n";
+    return nat;
+}
+
 /// @brief Render/apply a network plan (interfaces, firewall, ssh windows, wg, time).
 ///
 /// The simulated platform records the plan; native shells out only when
@@ -1142,50 +1200,16 @@ Error NativePlatform::apply_network_plan(const std::string& plan_json)
     // ---- firewall (nftables) ----
     if (const JValue* fw = p.find("firewall"))
     {
-        std::string rules = "flush ruleset\n";
-        rules += "table inet filter {\n";
-        rules += "  chain input {\n";
-        rules += "    type filter hook input priority 0; policy drop;\n";
-        rules += "    ct state established,related accept\n";
-        rules += "    iif lo accept\n";
-        // The tunnel is never firewalled off by a generated rule set: losing it
-        // is precisely what the tunnel-loss guard exists to prevent (§7.2).
-        rules += "    udp dport 51820 accept\n";
-        for (const auto& r : fw->items())
-        {
-            const std::string action = r.find("action") ? r.find("action")->as_string() : "deny";
-            const std::string proto = r.find("proto") ? r.find("proto")->as_string() : "any";
-            const std::string src = r.find("src") ? r.find("src")->as_string() : "any";
-            const uint32_t port = r.find("dst_port") ? uint32_t(r.find("dst_port")->as_number()) : 0;
-            std::string line = "    ";
-            if (src != "any" && !src.empty()) line += "ip saddr " + src + " ";
-            if (proto != "any") line += proto + " ";
-            if (port) line += "dport " + std::to_string(port) + " ";
-            line += (action == "allow" ? "accept" : "drop");
-            rules += line + "\n";
-        }
-        rules += "  }\n}\n";
-        attempt(write_conf("/etc/nftables.conf", rules));
+        attempt(write_conf("/etc/nftables.conf", render_firewall_ruleset(*fw)));
         attempt(run_cmd("nft -f /etc/nftables.conf"));
     }
 
     // ---- port forwarding ----
     if (const JValue* pf = p.find("port_forwarding"))
     {
-        if (!pf->items().empty())
+        const std::string nat = render_nat_ruleset(*pf);
+        if (!nat.empty())
         {
-            std::string nat = "table ip nat {\n  chain prerouting {\n";
-            nat += "    type nat hook prerouting priority -100;\n";
-            for (const auto& f : pf->items())
-            {
-                const std::string proto = f.find("proto") ? f.find("proto")->as_string() : "tcp";
-                const uint32_t lp = f.find("listen_port") ? uint32_t(f.find("listen_port")->as_number()) : 0;
-                const std::string dip = f.find("dest_ip") ? f.find("dest_ip")->as_string() : "";
-                const uint32_t dp = f.find("dest_port") ? uint32_t(f.find("dest_port")->as_number()) : 0;
-                if (!lp || dip.empty() || !dp) continue;
-                nat += "    " + proto + " dport " + std::to_string(lp) + " dnat to " + dip + ":" + std::to_string(dp) + "\n";
-            }
-            nat += "  }\n}\n";
             attempt(write_conf("/etc/nftables-nat.conf", nat));
             attempt(run_cmd("nft -f /etc/nftables-nat.conf"));
         }

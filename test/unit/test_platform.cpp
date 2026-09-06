@@ -274,3 +274,105 @@ TEST(NativeNetworkApply, GeneratedFirewallAlwaysAdmitsTheTunnel)
     // The rules text is written before nft loads it; the write is recorded.
     EXPECT_NE(joined_commands(plat).find("write /etc/nftables.conf"), std::string::npos);
 }
+
+// ---------------------------------------------------------------------------
+// Ruleset scoping (Task.md B-02).
+//
+// Instrumentation and Arches-Configuration both program nftables on the same
+// device and neither knows the other exists. Configuration writes an
+// `inet webconfig` table and removes it with a scoped `delete table`.
+// Instrumentation used to open its script with `flush ruleset`, which drops
+// EVERY table in the kernel -- so whichever daemon applied last won, and on a
+// device where the firewall protects the management port, losing the peer's
+// table is a security failure rather than a cosmetic one.
+// ---------------------------------------------------------------------------
+
+/// @brief The rendered ruleset never contains a global flush.
+TEST(FirewallScoping, NeverFlushesTheWholeRuleset)
+{
+    auto plan = json_parse(R"([{"action":"allow","proto":"tcp","dst_port":443}])");
+    ASSERT_TRUE(plan.ok());
+    const std::string rules = platform::render_firewall_ruleset(*plan);
+    EXPECT_EQ(rules.find("flush ruleset"), std::string::npos) << rules;
+}
+
+/// @brief The ruleset only ever deletes the table Instrumentation owns.
+TEST(FirewallScoping, DeletesOnlyItsOwnTable)
+{
+    auto plan = json_parse(R"([{"action":"allow","proto":"tcp","dst_port":443}])");
+    ASSERT_TRUE(plan.ok());
+    const std::string rules = platform::render_firewall_ruleset(*plan);
+    EXPECT_NE(rules.find("delete table inet instr"), std::string::npos) << rules;
+    // Exactly one delete, and it names our table.
+    EXPECT_EQ(rules.find("delete table", rules.find("delete table") + 1), std::string::npos) << rules;
+    EXPECT_EQ(rules.find("webconfig"), std::string::npos) << rules;
+}
+
+/// @brief Declaring the table before deleting it keeps `nft -f` idempotent.
+///
+/// Without the empty declaration the delete fails with ENOENT on a fresh boot
+/// and nft aborts the whole transaction, so no rules load at all.
+TEST(FirewallScoping, DeclaresTableBeforeDeletingSoFirstApplySucceeds)
+{
+    auto plan = json_parse(R"([])");
+    ASSERT_TRUE(plan.ok());
+    const std::string rules = platform::render_firewall_ruleset(*plan);
+    const size_t declare = rules.find("table inet instr { }");
+    const size_t del = rules.find("delete table inet instr");
+    ASSERT_NE(declare, std::string::npos) << rules;
+    ASSERT_NE(del, std::string::npos) << rules;
+    EXPECT_LT(declare, del) << rules;
+}
+
+/// @brief Applying both daemons' rulesets in either order leaves both tables.
+///
+/// The peer ruleset is Configuration's, reproduced here in the shape its
+/// firewall applier emits (`crates/webconfig-engine/src/appliers/firewall.rs`).
+/// Simulating the kernel is out of scope for a unit test, so this asserts the
+/// property that makes coexistence possible: neither script contains an
+/// operation that reaches outside its own table, therefore order cannot matter.
+TEST(FirewallScoping, PeerTableSurvivesInEitherOrder)
+{
+    auto plan = json_parse(R"([{"action":"allow","proto":"tcp","dst_port":443}])");
+    ASSERT_TRUE(plan.ok());
+    const std::string ours = platform::render_firewall_ruleset(*plan);
+    const std::string peer = "table inet webconfig { }\ndelete table inet webconfig\n"
+                             "table inet webconfig {\n  chain input {\n"
+                             "    type filter hook input priority 0; policy drop;\n  }\n}\n";
+
+    // Neither script may name the other's table, and neither may flush globally.
+    EXPECT_EQ(ours.find("webconfig"), std::string::npos) << ours;
+    EXPECT_EQ(peer.find("instr"), std::string::npos) << peer;
+    EXPECT_EQ((ours + peer).find("flush ruleset"), std::string::npos);
+
+    // Applied in either concatenation order, each table is created exactly once
+    // after its own delete, and neither delete names the other table.
+    for (const std::string& combined : {ours + peer, peer + ours})
+    {
+        EXPECT_NE(combined.find("table inet instr {\n"), std::string::npos) << combined;
+        EXPECT_NE(combined.find("table inet webconfig {\n"), std::string::npos) << combined;
+    }
+}
+
+/// @brief The NAT ruleset is scoped the same way, so re-apply replaces rather
+///        than appending duplicate DNAT rules.
+TEST(FirewallScoping, NatRulesetIsScopedAndIdempotent)
+{
+    auto plan = json_parse(R"([{"proto":"tcp","listen_port":8080,"dest_ip":"10.0.0.5","dest_port":80}])");
+    ASSERT_TRUE(plan.ok());
+    const std::string nat = platform::render_nat_ruleset(*plan);
+    EXPECT_EQ(nat.find("flush ruleset"), std::string::npos) << nat;
+    EXPECT_NE(nat.find("delete table ip instr_nat"), std::string::npos) << nat;
+    EXPECT_NE(nat.find("dnat to 10.0.0.5:80"), std::string::npos) << nat;
+    // The old code used the generic `table ip nat`, which collides with anything
+    // else on the device that programs NAT.
+    EXPECT_EQ(nat.find("table ip nat {"), std::string::npos) << nat;
+}
+
+/// @brief An empty port-forwarding list renders nothing at all.
+TEST(FirewallScoping, EmptyNatPlanRendersNothing)
+{
+    auto plan = json_parse(R"([])");
+    ASSERT_TRUE(plan.ok());
+    EXPECT_TRUE(platform::render_nat_ruleset(*plan).empty());
+}

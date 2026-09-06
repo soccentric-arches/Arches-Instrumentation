@@ -34,6 +34,9 @@
 
 #pragma once
 #include <mutex>
+#include <string>
+
+#include "instr/common/json.h"
 #include "instr/platform/platform.h"
 
 namespace instr
@@ -41,6 +44,40 @@ namespace instr
 /// @brief Platform abstraction: board and hardware access behind IPlatform (REQ §5).
 namespace platform
 {
+
+/// @brief Name of the nftables table Instrumentation owns, and the only one it
+///        is ever permitted to create or destroy.
+///
+/// Instrumentation shares the kernel's ruleset with Arches-Configuration, which
+/// writes its own `webconfig` table. Neither daemon knows the other exists, so
+/// scoping is the entire safety property here: a global `flush ruleset` would
+/// drop the peer's table along with our own, and on a device where the firewall
+/// is what protects the management port that is a security failure, not merely
+/// a functional one. See Task.md B-02.
+inline constexpr const char* kInstrTable = "instr";
+/// @brief Name of the NAT table Instrumentation owns (port forwarding).
+inline constexpr const char* kInstrNatTable = "instr_nat";
+
+/// @brief Render the instrumentation nftables filter ruleset for a firewall plan.
+///
+/// The rendered text is idempotent and scoped: it declares the table empty
+/// (creating it when absent, so the delete below cannot fail with ENOENT),
+/// deletes exactly that table, then rebuilds it. No other table in the kernel
+/// is touched.
+///
+/// @param firewall The plan's `firewall` array.
+/// @return nftables script text suitable for `nft -f`.
+std::string render_firewall_ruleset(const JValue& firewall);
+
+/// @brief Render the instrumentation NAT ruleset for a port-forwarding plan.
+///
+/// Scoped and idempotent on the same terms as render_firewall_ruleset; without
+/// the delete, re-applying a plan appends duplicate DNAT rules rather than
+/// replacing them.
+///
+/// @param forwards The plan's `port_forwarding` array.
+/// @return nftables script text, or an empty string when there is nothing to do.
+std::string render_nat_ruleset(const JValue& forwards);
 
 /// @brief Native (real-board) platform implementation reading /proc, /sys, SMART and U-Boot env.
 class NativePlatform : public IPlatform
