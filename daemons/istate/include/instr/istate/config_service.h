@@ -96,13 +96,34 @@ class ConfigService {
   SetResult set(const std::string& daemon, const std::string& yaml_text, Origin origin,
                 bool force);
 
-  // Signed config push from HQ (§9): verified with the enrollment secret
-  // before applying — tunnel compromise alone cannot reconfigure a fleet.
+  // ---- signing keys (§9) ----
+  // HQ's Ed25519 config-signing public keys, by key id. The device holds
+  // only public keys: opening one device yields nothing that can sign for
+  // the fleet, which is the property §9 is after and that an HMAC — where
+  // the verifier is also a signer — cannot provide.
+  //
+  // Several ids can be trusted at once so a key can be rotated without a
+  // flag day: publish the new key, switch signing, retire the old one.
+  void add_signing_key(const std::string& key_id, const std::string& public_key_raw32) {
+    signing_keys_[key_id] = public_key_raw32;
+  }
+  void remove_signing_key(const std::string& key_id) { signing_keys_.erase(key_id); }
+  const std::map<std::string, std::string>& signing_keys() const { return signing_keys_; }
+
+  // Signed config push from HQ (§9): verified before applying, so tunnel
+  // compromise alone cannot reconfigure a fleet.
+  //
+  // `signature` is Ed25519 over "<daemon>|<yaml>" and is the required path.
+  // `hmac_hex` is the legacy shared-secret form: it is accepted only when no
+  // signing key is provisioned at all (a device enrolled before key
+  // distribution), and its use is reported by last_push_used_legacy_hmac().
   Result<std::vector<std::string>> apply_signed(const std::string& daemon,
                                                 const std::string& yaml_text,
                                                 const std::string& key_id,
+                                                const std::string& signature,
                                                 const std::string& hmac_hex,
                                                 const std::string& enrollment_secret);
+  bool last_push_used_legacy_hmac() const { return last_push_legacy_; }
 
   const std::map<std::string, JValue>& schemas() const { return schemas_; }
 
@@ -110,6 +131,8 @@ class ConfigService {
   PstStore& pst_;
   IFileSystem& fs_;
   std::map<std::string, JValue> schemas_;
+  std::map<std::string, std::string> signing_keys_;
+  bool last_push_legacy_ = false;
 };
 
 }  // namespace istate

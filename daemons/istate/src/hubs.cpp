@@ -944,12 +944,22 @@ bool HqClient::try_session() {
         // Signed config push verified on device (§9).
         auto r = core_.config_service().apply_signed(
             hf.config_push().daemon(), hf.config_push().yaml(), hf.config_push().key_id(),
-            crypto::hex_encode(hf.config_push().hmac()),
+            hf.config_push().signature(), crypto::hex_encode(hf.config_push().hmac()),
             core_.enrollment_secret());
-        if (r.ok())
+        if (r.ok()) {
           log_.info("istate", "signed config push applied for " + hf.config_push().daemon());
-        else
+          if (core_.config_service().last_push_used_legacy_hmac())
+            log_.warning("istate",
+                         "config push verified by shared secret, not signature: provision an "
+                         "HQ signing key on this device");
+          // The spoke runs on what /pst now holds (R4).
+          core_.deliver_config(hf.config_push().daemon());
+        } else {
           log_.error("istate", "signed config push REFUSED: " + r.error.message);
+          core_.push_event_to_spool(
+              "{\"kind\":\"config_push_refused\",\"daemon\":\"" +
+              hf.config_push().daemon() + "\"}");
+        }
       } else if (hf.has_ota_command() || hf.has_command()) {
         const common::Command& cmd = hf.has_ota_command() ? hf.ota_command() : hf.command();
         std::string daemon = hf.has_ota_command() ? "ota" : cmd.issued_by();

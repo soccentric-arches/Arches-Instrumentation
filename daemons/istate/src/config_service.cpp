@@ -27,6 +27,8 @@
 
 #include "instr/istate/config_service.h"
 
+#include "instr/common/signature.h"
+
 #include <cmath>
 
 namespace instr {
@@ -184,22 +186,58 @@ ConfigService::SetResult ConfigService::set(const std::string& daemon, const std
   return res;
 }
 
-Result<std::vector<std::string>> ConfigService::apply_signed(const std::string& daemon,
-                                                             const std::string& yaml_text,
-                                                             const std::string& key_id,
-                                                             const std::string& hmac_hex,
-                                                             const std::string& enrollment_secret) {
-  // Signature verification BEFORE any write (§9): config pushes from HQ are
-  // signed and verified on device.
-  (void)key_id;  // single device secret for now; key_id selects a rotated key
-  auto digest = crypto::hmac_sha256(enrollment_secret, daemon + "|" + yaml_text);
-  std::string expect = crypto::hex_encode(
-      std::string(reinterpret_cast<const char*>(digest.b.data()), 32));
-  if (hmac_hex != expect)
-    return Result<std::vector<std::string>>::fail(
-        Errc::SignatureInvalid, "signed config push failed HMAC verification — refused", "apply_signed");
+Result<std::vector<std::string>> ConfigService::apply_signed(
+    const std::string& daemon, const std::string& yaml_text, const std::string& key_id,
+    const std::string& signature, const std::string& hmac_hex,
+    const std::string& enrollment_secret) {
+  // Verification happens BEFORE any write (§9). Nothing below this point
+  // touches /pst until the push has proven it came from HQ.
+  const std::string signed_bytes = daemon + "|" + yaml_text;
+  last_push_legacy_ = false;
+
+  if (!signing_keys_.empty()) {
+    // Asymmetric path: the device holds public keys only.
+    auto it = signing_keys_.find(key_id);
+    if (it == signing_keys_.end())
+      return Result<std::vector<std::string>>::fail(
+          Errc::SignatureInvalid,
+          "signed config push names unknown key id '" + key_id + "' — refused", "apply_signed");
+    if (signature.empty())
+      return Result<std::vector<std::string>>::fail(
+          Errc::SignatureInvalid,
+          "signed config push carries no signature — refused (a device with signing keys "
+          "provisioned does not accept the legacy HMAC form)",
+          "apply_signed");
+    Error e = crypto::verify_ed25519(it->second, signed_bytes, signature);
+    if (!e.ok())
+      return Result<std::vector<std::string>>::fail(
+          Errc::SignatureInvalid,
+          "signed config push failed signature verification (" + e.message + ") — refused",
+          "apply_signed");
+  } else {
+    // No signing key provisioned: fall back to the shared-secret form so a
+    // device enrolled before key distribution can still be configured. This
+    // is weaker — whatever verifies can also forge — so it is reported and
+    // stops being accepted the moment a key is provisioned.
+    if (enrollment_secret.empty())
+      return Result<std::vector<std::string>>::fail(
+          Errc::SignatureInvalid,
+          "no signing key and no enrollment secret: cannot verify this push — refused",
+          "apply_signed");
+    auto digest = crypto::hmac_sha256(enrollment_secret, signed_bytes);
+    const std::string expect =
+        crypto::hex_encode(std::string(reinterpret_cast<const char*>(digest.b.data()), 32));
+    if (hmac_hex != expect)
+      return Result<std::vector<std::string>>::fail(
+          Errc::SignatureInvalid, "signed config push failed HMAC verification — refused",
+          "apply_signed");
+    last_push_legacy_ = true;
+  }
+
   auto r = set(daemon, yaml_text, Origin::Hq, false);
-  if (!r.ok) return Result<std::vector<std::string>>::fail(Error::make(Errc::InvalidArgument, r.error, "apply_signed"));
+  if (!r.ok)
+    return Result<std::vector<std::string>>::fail(
+        Error::make(Errc::InvalidArgument, r.error, "apply_signed"));
   return Result<std::vector<std::string>>::good(r.rejected);
 }
 

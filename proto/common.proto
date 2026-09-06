@@ -149,9 +149,19 @@ message ConfigAck {
 }
 
 // Signed configuration push (REQ §9): verified on device before apply.
+//
+// signature is Ed25519 over "<daemon>|<yaml>" under the key named by key_id.
+// The device holds only public keys, so opening one device does not yield
+// the ability to sign for the fleet — which is the property §9 is after and
+// the reason the hmac field below is legacy.
+//
+// hmac is the older shared-secret form, kept for devices enrolled before
+// signing keys were distributed. It is accepted only while no signing key is
+// provisioned, and its use is reported northbound.
 message SignedConfig {
   string daemon    = 1;
   string yaml      = 2;
   string key_id    = 3;
-  bytes  hmac      = 4;  // HMAC-SHA256(enrollment secret, daemon||yaml)
+  bytes  hmac      = 4;  // legacy: HMAC-SHA256(enrollment secret, daemon||yaml)
+  bytes  signature = 5;  // Ed25519 over daemon||"|"||yaml (64 bytes)
 }
