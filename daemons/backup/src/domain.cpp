@@ -41,6 +41,7 @@ namespace backup
 namespace domain
 {
 
+/// @brief Serialise a manifest to JSON.
 static std::string manifest_json(const BackupManifest& m)
 {
     JValue j = JValue::object();
@@ -58,6 +59,7 @@ static std::string manifest_json(const BackupManifest& m)
     return j.dump();
 }
 
+/// @brief Parse and validate a manifest JSON document.
 static Result<BackupManifest> parse_manifest(const std::string& json)
 {
     auto j = json_parse(json);
@@ -75,6 +77,7 @@ static Result<BackupManifest> parse_manifest(const std::string& json)
     return Result<BackupManifest>::good(m);
 }
 
+/// @brief Decide whether a relative path is excluded (built-ins plus @p excludes).
 bool BackupEngine::excluded_path(const std::string& rel, const std::vector<std::string>& excludes)
 {
     // Identity is not portable: factory/ and WireGuard keys never in backups.
@@ -86,6 +89,7 @@ bool BackupEngine::excluded_path(const std::string& rel, const std::vector<std::
     return false;
 }
 
+/// @brief Recursively collect (rel path, contents) pairs under a root.
 static void collect(IFileSystem& fs, const std::string& root, const std::string& rel, const std::vector<std::string>& excludes, std::vector<std::pair<std::string, std::string>>* out)
 {
     // rel is the path relative to root; out gets (relpath, content).
@@ -109,6 +113,7 @@ static void collect(IFileSystem& fs, const std::string& root, const std::string&
     }
 }
 
+/// @brief Derive the local archive key: HKDF over identity serial+secret.
 std::string BackupEngine::key_for_archive() const
 {
     // Local archives: key derived from the factory-provisioned identity secret
@@ -120,11 +125,13 @@ std::string BackupEngine::key_for_archive() const
     return crypto::hkdf_sha256(opts_.identity_secret, "arches-backup-v1", "local-archive-key", 32);
 }
 
+/// @brief Seal an archive with the local identity-derived key.
 std::string BackupEngine::encrypt_archive(const std::string& tar_bytes) const
 {
     return crypto::aead_seal(key_for_archive(), tar_bytes, [](uint8_t* out, size_t n) { (void)crypto::random_bytes(out, n); });
 }
 
+/// @brief Decrypt a locally sealed archive.
 Result<tar::FileEntry> BackupEngine::decrypt_archive(const std::string& blob) const
 {
     auto opened = crypto::aead_open(key_for_archive(), blob);
@@ -135,6 +142,7 @@ Result<tar::FileEntry> BackupEngine::decrypt_archive(const std::string& blob) co
     return Result<tar::FileEntry>::good(e);
 }
 
+/// @brief Tar, hash and store an archive with its manifest.
 Result<ArchiveInfo> BackupEngine::create(const std::vector<std::string>& paths, const std::vector<std::string>& excludes, const std::string& archive_dir, int64_t now_unix_s)
 {
     std::vector<std::pair<std::string, std::string>> files;
@@ -180,6 +188,7 @@ Result<ArchiveInfo> BackupEngine::create(const std::vector<std::string>& paths, 
     return Result<ArchiveInfo>::good(info);
 }
 
+/// @brief List archives in a directory.
 std::vector<ArchiveInfo> BackupEngine::list(const std::string& archive_dir) const
 {
     std::vector<ArchiveInfo> out;
@@ -202,6 +211,7 @@ std::vector<ArchiveInfo> BackupEngine::list(const std::string& archive_dir) cons
     return out;
 }
 
+/// @brief Read and verify an archive's manifest.
 Result<BackupManifest> BackupEngine::read_manifest(const std::string& archive_path) const
 {
     auto blob = fs_.read(archive_path);
@@ -215,6 +225,7 @@ Result<BackupManifest> BackupEngine::read_manifest(const std::string& archive_pa
     return Result<BackupManifest>::fail(Errc::Corrupt, "archive has no manifest", archive_path);
 }
 
+/// @brief Compute what a restore would change before committing.
 Result<BackupEngine::RestorePreview> BackupEngine::restore_preview(const std::string& archive_path, const std::vector<std::string>& restore_roots)
 {
     auto blob = fs_.read(archive_path);
@@ -287,6 +298,7 @@ Result<BackupEngine::RestorePreview> BackupEngine::restore_preview(const std::st
     return Result<RestorePreview>::good(std::move(out));
 }
 
+/// @brief Transactional restore: stage, verify every hash, then commit.
 Result<size_t> BackupEngine::restore_commit(const std::string& archive_path, const CommitFn& commit)
 {
     auto blob = fs_.read(archive_path);
@@ -336,6 +348,7 @@ namespace domain
 // why the ephemeral key matters.
 static constexpr char kHqSealMagic[4] = {'A', 'H', 'Q', '1'};
 
+/// @brief Seal plaintext to HQ's public key (ephemeral X25519 + AEAD).
 Result<std::string> BackupEngine::seal_for_hq(const std::string& plaintext) const
 {
     if (opts_.hq_public_key.size() != 32)
@@ -358,6 +371,7 @@ Result<std::string> BackupEngine::seal_for_hq(const std::string& plaintext) cons
     return Result<std::string>::good(std::move(out));
 }
 
+/// @brief Open an HQ-sealed token with HQ's private key.
 Result<std::string> BackupEngine::open_from_hq(const std::string& sealed, const std::string& hq_private_key)
 {
     // Present so the format is testable end to end on the device side: HQ runs

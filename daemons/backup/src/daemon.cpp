@@ -32,6 +32,7 @@ namespace instr
 namespace backup
 {
 
+/// @brief Render archive metadata as JSON.
 static JValue info_json(const ArchiveInfo& i)
 {
     JValue o = JValue::object();
@@ -45,6 +46,7 @@ static JValue info_json(const ArchiveInfo& i)
     return o;
 }
 
+/// @brief Build the backup ctrl command table.
 CommandTable build_backup_table(BackupCore* core)
 {
     CommandTable t;
@@ -144,6 +146,7 @@ CommandTable build_backup_table(BackupCore* core)
     return t;
 }
 
+/// @brief Wire the channel, config sink and handlers together.
 BackupSpoke::BackupSpoke(BackupCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version) : core_(core), log_(log), table_(table)
 {
     using ChannelT = SpokeChannel<backup::BackupHub, backup::BackupSpokeFrame, backup::BackupHubFrame>;
@@ -166,21 +169,25 @@ BackupSpoke::BackupSpoke(BackupCore* core, Logger* log, const CommandTable* tabl
     set_schema(JValue::object());
 }
 
+/// @brief Install the schema every config delivery must satisfy.
 void BackupSpoke::set_schema(JValue schema)
 {
     config_sink_ = std::make_unique<ConfigSink>("backup", std::move(schema), [this](const ConfigDocument& doc) { return core_->apply_config(doc); });
     channel_->set_config_handler([this](const common::ConfigDelivery& delivery) { return config_sink_->deliver(delivery.yaml(), delivery.revision()); });
 }
 
+/// @brief Start the transport channel.
 void BackupSpoke::start()
 {
     channel_->start();
 }
+/// @brief Stop the transport channel.
 void BackupSpoke::stop()
 {
     channel_->stop();
 }
 
+/// @brief Queue a backup event to istate.
 void BackupSpoke::send_event(const std::string& action, const std::string& archive, const std::string& meta, bool ok, const std::string& err)
 {
     channel_->enqueue([&](backup::BackupSpokeFrame& f) {
