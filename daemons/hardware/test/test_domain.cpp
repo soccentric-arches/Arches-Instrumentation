@@ -36,6 +36,7 @@ using namespace instr::hardware;
 using namespace instr::hardware::domain;
 
 /// @brief A small board descriptor exercising checks, controls and CAN.
+/// @return A small board descriptor exercising checks, controls and CAN.
 static platform::DeviceDescriptor test_descriptor()
 {
     platform::DeviceDescriptor d;

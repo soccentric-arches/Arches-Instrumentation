@@ -29,10 +29,12 @@
 
 namespace instr
 {
+/// @brief Hardware daemon: device controls and quick health checks (§7.4, R7).
 namespace hardware
 {
 
 /// @brief Render the board device inventory as JSON.
+/// @return The board's device inventory as JSON.
 std::string HardwareCore::descriptor_summary_json() const
 {
     JValue arr = JValue::array();
@@ -53,6 +55,8 @@ std::string HardwareCore::descriptor_summary_json() const
 }
 
 /// @brief Build the hardware ctrl command table.
+/// @param core Domain core the table reads from.
+/// @return The command table.
 CommandTable build_hardware_table(HardwareCore* core)
 {
     CommandTable t;
@@ -186,6 +190,11 @@ CommandTable build_hardware_table(HardwareCore* core)
 }
 
 /// @brief Wire the channel, config sink and handlers together.
+/// @param core Domain core.
+/// @param log Logger.
+/// @param table Command table.
+/// @param hub_target istate gRPC target.
+/// @param build_version Build version to advertise.
 HardwareSpoke::HardwareSpoke(HardwareCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version) : core_(core), log_(log), table_(table)
 {
     using ChannelT = SpokeChannel<hardware::HardwareHub, hardware::HardwareSpokeFrame, hardware::HardwareHubFrame>;
@@ -209,6 +218,7 @@ HardwareSpoke::HardwareSpoke(HardwareCore* core, Logger* log, const CommandTable
 }
 
 /// @brief Install the schema every config delivery must satisfy.
+/// @param schema Schema every config delivery must satisfy.
 void HardwareSpoke::set_schema(JValue schema)
 {
     config_sink_ = std::make_unique<ConfigSink>("hardware", std::move(schema), [this](const ConfigDocument& doc) { return core_->apply_config(doc); });
@@ -227,6 +237,7 @@ void HardwareSpoke::stop()
 }
 
 /// @brief Queue a check result to istate.
+/// @param r Check result to queue.
 void HardwareSpoke::send_result(const CheckResult& r)
 {
     channel_->enqueue([r](hardware::HardwareSpokeFrame& f) {

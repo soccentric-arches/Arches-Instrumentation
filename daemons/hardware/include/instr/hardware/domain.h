@@ -40,8 +40,10 @@
 
 namespace instr
 {
+/// @brief Hardware daemon: device controls and quick health checks (§7.4, R7).
 namespace hardware
 {
+/// @brief Pure domain logic for this daemon: no transport, no sockets, fully unit-testable.
 namespace domain
 {
 
@@ -56,6 +58,8 @@ enum class CheckState
 };
 
 /// @brief Canonical name of a check state ("pass", "fail", ...).
+/// @param s Check state to name.
+/// @return Canonical lowercase name.
 const char* check_state_name(CheckState);
 
 /// @brief One executed device check.
@@ -74,17 +78,22 @@ class DeviceManager
 {
   public:
     /// @brief Bind the manager to the platform, a clock and the board descriptor.
+/// @param plat Platform primitives.
+/// @param ts Clock.
+/// @param desc Board device inventory.
     DeviceManager(platform::IPlatform& plat, TimeSource& ts, const platform::DeviceDescriptor& desc) : plat_(plat), ts_(ts), desc_(desc)
     {
     }
 
     /// @brief Devices listed in the board descriptor.
+/// @return Devices listed in the board descriptor.
     const std::vector<platform::DeviceSpec>& devices() const
     {
         return desc_.devices;
     }
     /// @brief Look up a device spec by name.
     /// @return Pointer to the spec, or nullptr when unknown.
+/// @param name Device name to look up.
     const platform::DeviceSpec* find(const std::string& name) const;
 
     /// @brief Control operation: driving devices, not read-only.
@@ -96,6 +105,8 @@ class DeviceManager
     Error control(const std::string& device, const std::string& control_op, const std::map<std::string, std::string>& args);
 
     /// @brief Read a GPIO line via the platform (read side of the control op).
+/// @param device Device whose GPIO to read.
+/// @return The line state, or an error.
     Result<bool> gpio_read(const std::string& device);
 
     /// @brief Read side of the CAN control op.
@@ -106,6 +117,7 @@ class DeviceManager
     ///
     /// @param device Device name.
     /// @param max_frames Maximum frames returned.
+/// @return Buffered frames, or an error.
     Result<std::vector<platform::IPlatform::CanFrame>> can_receive(const std::string& device, size_t max_frames);
 
     /// @brief Run one quick health check (presence + cheap behavioural sanity; not full qualification — that is the IV&V path).
@@ -114,11 +126,15 @@ class DeviceManager
     /// @return The check outcome.
     CheckResult run_check(const platform::DeviceSpec& dev, const platform::DeviceCheck& chk);
     /// @brief Run every check for one device.
+/// @param name Device to check.
+/// @return Results for every check of the device.
     std::vector<CheckResult> check_device(const std::string& name);
     /// @brief Run every check for every device.
+/// @return Results for every check of every device.
     std::vector<CheckResult> check_all();
 
     /// @brief Override the periodic scheduling interval.
+/// @param s Periodic scheduling interval in seconds.
     void set_periodic_interval_s(double s)
     {
         periodic_interval_s_ = s;
@@ -130,6 +146,12 @@ class DeviceManager
 
   private:
     /// @brief Stamp and return a check result.
+/// @param dev Device name.
+/// @param chk Check name.
+/// @param st Outcome state.
+/// @param detail Human-readable detail.
+/// @param started Start time for duration accounting.
+/// @return The stamped check result.
     CheckResult make_result(const std::string& dev, const std::string& chk, CheckState st, const std::string& detail, uint64_t started);
     platform::IPlatform& plat_; ///< Platform primitives (not owned).
     TimeSource& ts_; ///< Clock (not owned).

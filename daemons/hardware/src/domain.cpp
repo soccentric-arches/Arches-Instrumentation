@@ -36,12 +36,16 @@
 
 namespace instr
 {
+/// @brief Hardware daemon: device controls and quick health checks (§7.4, R7).
 namespace hardware
 {
+/// @brief Pure domain logic for this daemon: no transport, no sockets, fully unit-testable.
 namespace domain
 {
 
 /// @brief Canonical name of a check state.
+/// @param s Check state to name.
+/// @return Canonical lowercase name.
 const char* check_state_name(CheckState s)
 {
     switch (s)
@@ -56,6 +60,8 @@ const char* check_state_name(CheckState s)
 }
 
 /// @brief Look up a device spec by name.
+/// @param name Device name to look up.
+/// @return Pointer to the spec, or nullptr.
 const platform::DeviceSpec* DeviceManager::find(const std::string& name) const
 {
     for (const auto& d : desc_.devices)
@@ -64,6 +70,12 @@ const platform::DeviceSpec* DeviceManager::find(const std::string& name) const
 }
 
 /// @brief Stamp and return a check result.
+/// @param dev Device name.
+/// @param chk Check name.
+/// @param st Outcome state.
+/// @param detail Human-readable detail.
+/// @param started Start time for duration accounting.
+/// @return The stamped check result.
 CheckResult DeviceManager::make_result(const std::string& dev, const std::string& chk, CheckState st, const std::string& detail, uint64_t started)
 {
     CheckResult r;
@@ -77,6 +89,10 @@ CheckResult DeviceManager::make_result(const std::string& dev, const std::string
 }
 
 /// @brief Dispatch a control op to the platform primitive for the device.
+/// @param device Device name.
+/// @param control_op Control op from the device's controls list.
+/// @param args Operation arguments.
+/// @return ok(), or an error for unknown device/op or platform refusal.
 Error DeviceManager::control(const std::string& device, const std::string& control_op, const std::map<std::string, std::string>& args)
 {
     const platform::DeviceSpec* dev = find(device);
@@ -170,6 +186,9 @@ Error DeviceManager::control(const std::string& device, const std::string& contr
 }
 
 /// @brief Drain buffered CAN frames for a device.
+/// @param device CAN device to drain.
+/// @param max_frames Maximum frames returned.
+/// @return Buffered frames, or an error.
 Result<std::vector<platform::IPlatform::CanFrame>> DeviceManager::can_receive(const std::string& device, size_t max_frames)
 {
     using Ret = Result<std::vector<platform::IPlatform::CanFrame>>;
@@ -185,6 +204,8 @@ Result<std::vector<platform::IPlatform::CanFrame>> DeviceManager::can_receive(co
 }
 
 /// @brief Read a GPIO line for a device.
+/// @param device Device whose GPIO to read.
+/// @return The line state, or an error.
 Result<bool> DeviceManager::gpio_read(const std::string& device)
 {
     const platform::DeviceSpec* dev = find(device);
@@ -195,6 +216,9 @@ Result<bool> DeviceManager::gpio_read(const std::string& device)
 }
 
 /// @brief Run one quick health check on the platform.
+/// @param dev Device to check.
+/// @param chk Check to run.
+/// @return The check outcome.
 CheckResult DeviceManager::run_check(const platform::DeviceSpec& dev, const platform::DeviceCheck& chk)
 {
     uint64_t started = ts_.mono_ns();
@@ -267,6 +291,8 @@ CheckResult DeviceManager::run_check(const platform::DeviceSpec& dev, const plat
 }
 
 /// @brief Run every check for one device.
+/// @param name Device to check.
+/// @return Results for every check of the device.
 std::vector<CheckResult> DeviceManager::check_device(const std::string& name)
 {
     std::vector<CheckResult> out;
@@ -278,6 +304,7 @@ std::vector<CheckResult> DeviceManager::check_device(const std::string& name)
 }
 
 /// @brief Run every check for every device.
+/// @return Results for every check of every device.
 std::vector<CheckResult> DeviceManager::check_all()
 {
     std::vector<CheckResult> out;
@@ -290,6 +317,8 @@ std::vector<CheckResult> DeviceManager::check_all()
 }
 
 /// @brief Run checks whose periodic schedule is due.
+/// @param now_mono_ns Current monotonic time.
+/// @return Results for due checks.
 std::vector<CheckResult> DeviceManager::due_checks(uint64_t now_mono_ns)
 {
     std::vector<CheckResult> out;
