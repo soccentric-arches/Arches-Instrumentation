@@ -219,8 +219,13 @@ TEST(AlarmsCatalogMerge, PreservesOperatorEdits) {
   auto shipped = load_catalog_entries(kCatalog);
   auto st = f.mgr.merge_catalog(*shipped);
   EXPECT_EQ(st.preserved_operator_edits, 1u);
-  for (const auto& c : f.mgr.catalog())
-    if (c.id == 0x30220002u) EXPECT_EQ(c.severity, common::SEV_CRITICAL);
+  for (const auto& c : f.mgr.catalog()) {
+    // Braces around the EXPECT too: the macro expands to an if/else, which
+    // otherwise dangles against the if above it.
+    if (c.id == 0x30220002u) {
+      EXPECT_EQ(c.severity, common::SEV_CRITICAL);
+    }
+  }
   // A new entry gets added.
   EXPECT_EQ(st.added, 0u);
   CatalogEntry fresh;

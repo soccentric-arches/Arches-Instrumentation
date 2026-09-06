@@ -72,7 +72,6 @@ CommandTable build_istate_table(IstateCore* core) {
            auto a = args_object(args);
            if (!a.ok()) return CommandResult::from_error(a.error);
            std::string daemon = (*a).get_string("daemon");
-           Origin origin = Origin::Local;
            auto o = origin_from_name((*a).get_string("origin", "local"));
            if (o.ok()) {
              // only caller-settable origins are local/app; hq requires signature

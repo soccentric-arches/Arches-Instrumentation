@@ -23,7 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl gnupg git python3 file \
       build-essential ninja-build pkg-config \
       protobuf-compiler protobuf-compiler-grpc libprotobuf-dev \
-      libgrpc++-dev libgrpc-dev \
+      libgrpc++-dev libgrpc-dev libssl-dev \
       libyaml-cpp-dev libgtest-dev \
     && rm -rf /var/lib/apt/lists/*
 

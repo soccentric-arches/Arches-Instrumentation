@@ -65,8 +65,8 @@ Result<std::vector<CatalogEntry>> load_catalog_entries(const std::string& yaml_t
       auto idr = [&]() -> Result<uint32_t> {
         std::string t = e["id"].as<std::string>("");
         std::string compact;
-        for (char c : t)
-          if (c != '_') compact += c;
+        for (char ch : t)
+          if (ch != '_') compact += ch;
         if (compact.rfind("0x", 0) == 0) compact = compact.substr(2);
         try {
           return Result<uint32_t>::good(uint32_t(std::stoul(compact, nullptr, 16)));

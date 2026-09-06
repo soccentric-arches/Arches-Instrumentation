@@ -87,6 +87,10 @@ TEST(LogStore, RetentionKeepsOnlyConfiguredRotations) {
   auto files = f.core.store().files_for("app");
   // active + 2 rotations max
   EXPECT_LE(files.size(), 3u);
+  // append() already caps the count as it rotates, so a sweep afterwards
+  // finds nothing left to do. That is the invariant worth stating: the
+  // budget is never exceeded between sweeps.
+  EXPECT_EQ(st.files_removed, 0u);
 }
 
 TEST(LogStore, RuntimeLevelControlFiltersCollection) {

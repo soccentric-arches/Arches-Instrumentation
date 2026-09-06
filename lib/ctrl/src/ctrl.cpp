@@ -46,7 +46,9 @@ bool StreamSink::send(const std::string& json_line) {
   std::string frame = frames::encode_frame(json_line);
   size_t off = 0;
   while (off < frame.size()) {
-    ssize_t n = ::write(fd_, frame.data() + off, frame.size() - off);
+    // MSG_NOSIGNAL: a _ctrl client that disconnects mid-stream (a tail cut
+    // short) must close the connection, not signal the daemon to death.
+    ssize_t n = ::send(fd_, frame.data() + off, frame.size() - off, MSG_NOSIGNAL);
     if (n <= 0) {
       closed_ = true;
       return false;
@@ -204,7 +206,7 @@ void CtrlClient::close() {
 bool CtrlClient::send_all(const std::string& data) {
   size_t off = 0;
   while (off < data.size()) {
-    ssize_t n = ::write(fd_, data.data() + off, data.size() - off);
+    ssize_t n = ::send(fd_, data.data() + off, data.size() - off, MSG_NOSIGNAL);
     if (n <= 0) return false;
     off += size_t(n);
   }
@@ -347,10 +349,14 @@ void BulkServer::serve_one(int fd) {
   while ((got = std::fread(chunk, 1, sizeof(chunk), f)) > 0) {
     size_t off = 0;
     while (off < got) {
-      ssize_t w = ::write(fd, chunk + off, got - off);
+      // MSG_NOSIGNAL, not write(): a caller that abandons the transfer —
+      // an operator hitting Ctrl-C, a tunnel dropping mid-bundle — closes
+      // its end, and a plain write() would then raise SIGPIPE and take the
+      // daemon down. A viewer disconnecting must never kill LogManager.
+      ssize_t w = ::send(fd, chunk + off, got - off, MSG_NOSIGNAL);
       if (w <= 0) {
         std::fclose(f);
-        return;
+        return;  // caller went away: stop, nothing to report
       }
       off += size_t(w);
     }
@@ -378,7 +384,7 @@ Result<uint64_t> bulk_fetch(const std::string& socket_path, const std::string& h
   const std::string req = frames::encode_frame(handle);
   size_t off = 0;
   while (off < req.size()) {
-    ssize_t w = ::write(fd, req.data() + off, req.size() - off);
+    ssize_t w = ::send(fd, req.data() + off, req.size() - off, MSG_NOSIGNAL);
     if (w <= 0) {
       ::close(fd);
       return Result<uint64_t>::fail(Errc::Io, "bulk request write failed", socket_path);

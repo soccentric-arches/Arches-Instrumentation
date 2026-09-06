@@ -28,6 +28,8 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
+#include <fstream>
+
 #include <gtest/gtest.h>
 
 #include "instr/common/filesystem.h"
@@ -125,7 +127,6 @@ TEST(CtrlLoopback, StreamHandler) {
   CommandTable t;
   std::string path2 = "/tmp/instr-test-ctrl-stream-" + std::to_string(::getpid()) + ".sock";
   ctrl::CtrlServer server(&t, path2);
-  int count = 0;
   server.set_stream_handler("tail", [](const std::string& args, ctrl::StreamSink& sink) {
     (void)args;
     for (int i = 0; i < 5; ++i)
@@ -139,4 +140,87 @@ TEST(CtrlLoopback, StreamHandler) {
   EXPECT_EQ(got.size(), 5u);
   client.close();
   server.stop();
+}
+// ---------------------------------------------------------------------------
+// §7.7: "Bulk transfer by handle — the control API carries a handle and
+// metadata; the payload never traverses istate's control path."
+//
+// bundle-fetch used to base64 the whole archive into its JSON response,
+// which inflates it by a third, buffers it at both ends, and pushes it
+// through the path that carries alarms and liveness. These pin the split.
+// ---------------------------------------------------------------------------
+
+TEST(BulkTransfer, PayloadStreamsOverTheBulkSocket) {
+  // A payload big enough that nobody would want it inside a JSON envelope.
+  const std::string path = "/tmp/instr-bulk-payload-" + std::to_string(::getpid()) + ".bin";
+  std::string payload;
+  payload.reserve(512 * 1024);
+  for (int i = 0; i < 512 * 1024; ++i) payload += char('A' + (i % 26));
+  {
+    std::ofstream out(path, std::ios::binary);
+    out.write(payload.data(), std::streamsize(payload.size()));
+  }
+
+  const std::string sock = "/tmp/instr-bulk-" + std::to_string(::getpid()) + ".sock";
+  ctrl::BulkServer server(sock, [&](const std::string& handle) {
+    if (handle != "bundle-abc")
+      return Result<std::string>::fail(Errc::NotFound, "no such bundle", handle);
+    return Result<std::string>::good(path);
+  });
+  ASSERT_TRUE(server.start().ok());
+
+  std::string received;
+  auto n = ctrl::bulk_fetch(sock, "bundle-abc", [&](const char* d, size_t len) {
+    received.append(d, len);
+    return true;
+  });
+  ASSERT_TRUE(n.ok()) << n.error.str();
+  EXPECT_EQ(*n, payload.size());
+  EXPECT_EQ(received, payload) << "payload did not survive the transfer intact";
+  EXPECT_EQ(server.served(), 1u);
+
+  server.stop();
+  ::unlink(path.c_str());
+}
+
+TEST(BulkTransfer, UnknownHandleYieldsNothing) {
+  const std::string sock = "/tmp/instr-bulk-unk-" + std::to_string(::getpid()) + ".sock";
+  ctrl::BulkServer server(sock, [](const std::string& h) {
+    return Result<std::string>::fail(Errc::NotFound, "no such bundle", h);
+  });
+  ASSERT_TRUE(server.start().ok());
+  std::string received;
+  auto n = ctrl::bulk_fetch(sock, "does-not-exist", [&](const char* d, size_t len) {
+    received.append(d, len);
+    return true;
+  });
+  ASSERT_TRUE(n.ok());
+  EXPECT_EQ(*n, 0u);
+  EXPECT_TRUE(received.empty());
+  server.stop();
+}
+
+TEST(BulkTransfer, ASinkMayStopEarlyWithoutHangingTheTransfer) {
+  // A caller streaming to HQ over a tunnel that drops must be able to
+  // abandon the transfer without the socket wedging.
+  const std::string path = "/tmp/instr-bulk-early-" + std::to_string(::getpid()) + ".bin";
+  {
+    std::ofstream out(path, std::ios::binary);
+    const std::string chunk(256 * 1024, 'x');
+    out.write(chunk.data(), std::streamsize(chunk.size()));
+  }
+  const std::string sock = "/tmp/instr-bulk-early-" + std::to_string(::getpid()) + ".sock";
+  ctrl::BulkServer server(sock, [&](const std::string&) {
+    return Result<std::string>::good(path);
+  });
+  ASSERT_TRUE(server.start().ok());
+  size_t seen = 0;
+  auto n = ctrl::bulk_fetch(sock, "h", [&](const char*, size_t len) {
+    seen += len;
+    return false;  // stop after the first chunk
+  });
+  EXPECT_TRUE(n.ok());
+  EXPECT_GT(seen, 0u);
+  server.stop();
+  ::unlink(path.c_str());
 }

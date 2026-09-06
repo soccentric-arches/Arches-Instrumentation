@@ -107,6 +107,10 @@ class Deduplicator {
 };
 
 // The full passive processor: scan lines → faults with dedup + suppression.
+// Parses a fault id in the catalog's "0x5_05_1_0001" form (§8: fault ids use
+// the same 32-bit scheme as alarms, under the fault domain).
+Result<uint32_t> parse_fault_id_text(const std::string& text);
+
 class FaultProcessor {
  public:
   // A suppressed streak must reach this before a summary is emitted.

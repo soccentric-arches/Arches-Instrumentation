@@ -332,6 +332,12 @@ class HubServiceBase : public Service {  // Service = <X>Hub::Service (generated
 
   void set_ingest(FrameIn f) { ingest_ = std::move(f); }
   void set_outbound(FrameOut f) { outbound_ = std::move(f); }
+  // Registration attempts, accepted or refused, are reported to istate so the
+  // orchestrator records what actually attached (build version, proto
+  // version, capabilities) and raises the alarm a mismatch requires (§3.1,
+  // §11). Without this the handshake result never leaves the transport.
+  using RegistrationFn = std::function<void(const common::RegistrationRequest&, bool accepted)>;
+  void set_registration_fn(RegistrationFn f) { on_register_ = std::move(f); }
   const std::string& daemon() const { return daemon_; }
 
   grpc::Status Register(grpc::ServerContext*, const common::RegistrationRequest* req,
@@ -339,6 +345,7 @@ class HubServiceBase : public Service {  // Service = <X>Hub::Service (generated
     if (req->daemon() != daemon_) {
       reply->set_accepted(false);
       reply->set_reason("daemon name mismatch: " + req->daemon() + " != " + daemon_);
+      if (on_register_) on_register_(*req, false);
       return grpc::Status::OK;
     }
     if (req->proto_schema_version() != kProtoSchemaVersion) {
@@ -349,9 +356,11 @@ class HubServiceBase : public Service {  // Service = <X>Hub::Service (generated
                         std::to_string(req->proto_schema_version()) + " vs istate " +
                         std::to_string(kProtoSchemaVersion));
       refused_ = true;
+      if (on_register_) on_register_(*req, false);
       return grpc::Status::OK;
     }
     registered_ = true;
+    if (on_register_) on_register_(*req, true);
     reply->set_accepted(true);
     reply->set_proto_schema_version(kProtoSchemaVersion);
     reply->set_istate_version(build_version_);
@@ -416,6 +425,7 @@ class HubServiceBase : public Service {  // Service = <X>Hub::Service (generated
   std::deque<GenericHubMsg> out_;
   std::atomic<bool> registered_{false};
   std::atomic<bool> refused_{false};
+  RegistrationFn on_register_;
 };
 
 // ---- istate ↔ HQ session client (HqPeer) ----

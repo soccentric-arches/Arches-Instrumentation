@@ -34,6 +34,7 @@ instrumentation/
   test/         unit, contract, integration harness, fault injection,
                 secret-leak
   yocto/        bitbake recipe (installs; carries no system files of its own)
+  docker/       arm64 (Jetson/aarch64) build container + its Makefile
   docs/         generated interface reference (docgen.py, cannot drift)
 ```
 
@@ -48,7 +49,21 @@ cmake --build --preset host-debug -j
 ctest --preset host-debug --output-on-failure
 ```
 
-Presets: `host-debug`, `host-release`, `asan`, `ubsan`, `tsan`, `coverage`,
+Or drive it with the top-level `Makefile` — host builds use the Ninja
+preset (fast incremental), and the Jetson/aarch64 targets build inside the
+arm64 container in `docker/` (Ubuntu 22.04 arm64, the JetPack 6 userland
+generation, so the binaries match the device glibc; on an x86_64 host the
+container runs under qemu via binfmt, installed automatically):
+
+```bash
+make build         # host Debug, Ninja (preset ninja-host-debug)
+make test          # build + ctest
+make aarch64       # aarch64 binaries for the fleet -> build-aarch64/
+make aarch64-test  # the test suite, inside the arm64 container
+```
+
+Presets: `host-debug`, `host-release`, `ninja-host-debug`,
+`ninja-host-release`, `asan`, `ubsan`, `tsan`, `coverage`,
 `jenkins` (CI), plus cross toolchains per target under `cmake/toolchains/`
 (`cross-jetson-orin-nano`, `cross-zynq-ultrascale`, …).
 

@@ -313,6 +313,53 @@ TEST(Topology, ProtoSchemaMismatchIsRefusedAtRegistration) {
   ch.stop();
 }
 
+TEST(Topology, RegistrationMetadataReachesTheOrchestrator) {
+  // §3.1: the handshake carries daemon name, build version, proto schema
+  // version and capabilities. The transport checked the version but nothing
+  // recorded the rest, so `istate_ctrl spokes` showed every attached spoke
+  // with an empty build and proto 0.
+  Topology t;
+  t.start_monitord();
+  ASSERT_TRUE(wait_for([&] { return t.mon->registered(); }));
+  ASSERT_TRUE(wait_for([&] {
+    auto s = t.core->orchestrator().spoke("monitord");
+    return s.ok() && !(*s)->build_version.empty();
+  }));
+  auto s = t.core->orchestrator().spoke("monitord");
+  ASSERT_TRUE(s.ok());
+  EXPECT_EQ((*s)->build_version, "1.0.0");
+  EXPECT_EQ((*s)->proto_version, transport::kProtoSchemaVersion);
+  EXPECT_FALSE((*s)->capabilities.empty()) << "the capability list was not recorded";
+}
+
+TEST(Topology, ProtoMismatchIsReportedNotOnlyRefused) {
+  // §11: "Proto version mismatch — refuse registration, raise an alarm, do
+  // not guess." The refusal happened inside the transport; the alarm lived
+  // in a function nothing called, so a partially updated fleet looked fine.
+  Topology t;
+  using ChannelT = transport::SpokeChannel<monitord::MonitorHub, monitord::MonitorSpokeFrame,
+                                           monitord::MonitorHubFrame>;
+  ChannelT::Options o;
+  o.target = t.target("monitord");
+  o.daemon = "monitord";
+  o.build_version = "9.9.9";
+  o.proto_version = transport::kProtoSchemaVersion + 1;
+  o.backoff_base_s = 0.05;
+  o.backoff_max_s = 0.1;
+  ChannelT ch(std::move(o), t.log);
+  ch.start();
+
+  // The refusal reaches istate's timeline, so it is visible northbound.
+  EXPECT_TRUE(wait_for([&] {
+    for (const auto& e : t.core->timeline().events())
+      if (e.kind == "registration" && e.detail_json.find("refused") != std::string::npos)
+        return true;
+    return false;
+  })) << "a refused registration left no trace in the event timeline";
+  EXPECT_FALSE(ch.registered());
+  ch.stop();
+}
+
 TEST(Topology, SpokeReconnectsAfterTheHubRestarts) {
   Topology t;
   t.start_monitord();

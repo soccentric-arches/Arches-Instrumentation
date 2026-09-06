@@ -378,6 +378,31 @@ void IstateCore::set_hq_backpressure(bool pause) {
   }
 }
 
+void IstateCore::on_spoke_registration(const common::RegistrationRequest& req, bool accepted) {
+  std::vector<std::string> caps(req.capabilities().begin(), req.capabilities().end());
+  if (!accepted) {
+    // The transport already refused it; record and alarm so the condition is
+    // visible rather than merely logged (§11 "proto version mismatch").
+    log_.critical("istate", "registration refused for " + req.daemon() + " (proto " +
+                                std::to_string(req.proto_schema_version()) + " vs " +
+                                std::to_string(transport::kProtoSchemaVersion) + ")");
+    timeline_.append("registration", req.daemon(),
+                     "{\"refused\":true,\"proto_version\":" +
+                         std::to_string(req.proto_schema_version()) + "}",
+                     ts_);
+    raise_alarm(INSTR_ALARM_ISTATE_PROTO_MISMATCH,
+                req.daemon() + " refused: proto schema " +
+                    std::to_string(req.proto_schema_version()) + " != " +
+                    std::to_string(transport::kProtoSchemaVersion));
+    return;
+  }
+  std::string reason;
+  orchestrator_.register_spoke(req.daemon(), req.build_version(), req.proto_schema_version(),
+                               caps, &reason);
+  timeline_.append("registration", req.daemon(),
+                   "{\"accepted\":true,\"build\":\"" + req.build_version() + "\"}", ts_);
+}
+
 void IstateCore::raise_alarm(uint32_t alarm_id, const std::string& text) {
   if (!relay_to_spoke_) return;  // alarms not attached yet; nothing to do
   JValue args = JValue::object();

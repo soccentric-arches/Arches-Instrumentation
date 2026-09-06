@@ -312,7 +312,13 @@ Error NativePlatform::watchdog_set_timeout_s(int seconds) {
     // the ioctl above and rely on the timeout= module parameter convention.
   }
   std::string t = std::to_string(seconds) + "\n";
-  (void)::write(fd, t.data(), t.size());
+  // A (void) cast does not silence warn_unused_result; check it properly.
+  // A failed timeout write is not fatal — the watchdog keeps its default —
+  // but it is worth not pretending we set it.
+  if (::write(fd, t.data(), t.size()) < 0) {
+    ::close(fd);
+    return Error::make(Errc::Io, "cannot set watchdog timeout", "watchdog");
+  }
   ::close(fd);
   watchdog_opened_ = true;
   return Error::none();
@@ -575,17 +581,84 @@ Result<bool> NativePlatform::can_loopback_test(const std::string& iface) {
 }
 
 Error NativePlatform::display_control(const std::string& cmd, const std::string& arg) {
-  (void)cmd;
-  (void)arg;
-  // Display control is display-technology specific (DSI/eDP); the descriptor
-  // declares which backend exists. Generic path: blank/unblank via sysfs.
-  if (cmd == "blank" || cmd == "unblank") {
-    FILE* f = std::fopen((sysroot_ + "/sys/class/graphics/fb0/blank").c_str(), "w");
-    if (!f) return Error::make(Errc::NotSupported, "no display backend for this board", cmd);
-    std::fprintf(f, "%s\n", cmd == "blank" ? "4" : "0");
-    std::fclose(f);
-    return Error::none();
+  // Which backend this board has is descriptor data, not a code branch
+  // (R9): devices.yaml names it in the display device's params, and the
+  // Hardware daemon passes it through in `arg` as "backend=<name>[,...]".
+  // Absent that, probe the standard sysfs paths in turn.
+  std::string backend;
+  const std::string kBackendKey = "backend=";
+  size_t bpos = arg.find(kBackendKey);
+  if (bpos != std::string::npos) {
+    size_t start = bpos + kBackendKey.size();
+    size_t end = arg.find(',', start);
+    backend = arg.substr(start, end == std::string::npos ? std::string::npos : end - start);
   }
+
+  // Candidate control files, most specific first.
+  struct Backend {
+    const char* name;
+    const char* blank_path;
+    const char* on_value;
+    const char* off_value;
+  };
+  static const Backend kBackends[] = {
+      // Framebuffer blanking: FB_BLANK_UNBLANK (0) / FB_BLANK_POWERDOWN (4).
+      {"fb", "/sys/class/graphics/fb0/blank", "0", "4"},
+      // DRM/KMS and DSI panels expose a backlight instead.
+      {"backlight", "/sys/class/backlight/backlight/bl_power", "0", "4"},
+      {"dsi", "/sys/class/backlight/dsi-backlight/bl_power", "0", "4"},
+      {"edp", "/sys/class/backlight/edp-backlight/bl_power", "0", "4"},
+  };
+
+  auto write_value = [this](const std::string& path, const char* value) -> bool {
+    FILE* f = std::fopen((sysroot_ + path).c_str(), "w");
+    if (!f) return false;
+    std::fprintf(f, "%s\n", value);
+    std::fclose(f);
+    return true;
+  };
+
+  if (cmd == "blank" || cmd == "unblank") {
+    const bool on = (cmd == "unblank");
+    for (const auto& b : kBackends) {
+      if (!backend.empty() && backend != b.name) continue;
+      if (!read_file(b.blank_path).ok()) continue;
+      if (write_value(b.blank_path, on ? b.on_value : b.off_value)) return Error::none();
+    }
+    return Error::make(Errc::NotSupported,
+                       backend.empty()
+                           ? "no display backend found on this board"
+                           : "display backend '" + backend + "' not present on this board",
+                       cmd);
+  }
+
+  if (cmd == "brightness") {
+    // arg carries "value=<0-100>" alongside any backend selector.
+    size_t vpos = arg.find("value=");
+    if (vpos == std::string::npos)
+      return Error::make(Errc::InvalidArgument, "brightness needs value=<0-100>", cmd);
+    int pct = 0;
+    try {
+      pct = std::stoi(arg.substr(vpos + 6));
+    } catch (...) {
+      return Error::make(Errc::InvalidArgument, "brightness value must be numeric", cmd);
+    }
+    if (pct < 0 || pct > 100)
+      return Error::make(Errc::InvalidArgument, "brightness must be 0..100", cmd);
+    for (const char* dir : {"/sys/class/backlight/backlight",
+                            "/sys/class/backlight/dsi-backlight",
+                            "/sys/class/backlight/edp-backlight"}) {
+      auto max = read_file(std::string(dir) + "/max_brightness");
+      if (!max.ok()) continue;
+      try {
+        const long scaled = std::stol(*max) * pct / 100;
+        if (write_value(std::string(dir) + "/brightness", std::to_string(scaled).c_str()))
+          return Error::none();
+      } catch (...) {}
+    }
+    return Error::make(Errc::NotSupported, "no backlight on this board", cmd);
+  }
+
   return Error::make(Errc::NotSupported, "display command not in descriptor", cmd);
 }
 

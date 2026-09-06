@@ -86,6 +86,13 @@ class TypedHub : public HubServiceBase<Service, SpokeFrame, HubFrame> {
   TypedHub(IstateCore& core, std::string daemon)
       : HubServiceBase<Service, SpokeFrame, HubFrame>(daemon, INSTR_VERSION), core_(core) {
     this->set_ingest([this, &core](const GenericSpokeMsg& m) { core.on_spoke_msg(m); });
+    // Record the handshake in the orchestrator: it owns spoke state, and a
+    // schema mismatch has to raise an alarm rather than being refused in
+    // silence (§3.1, §11).
+    this->set_registration_fn(
+        [&core](const common::RegistrationRequest& req, bool accepted) {
+          core.on_spoke_registration(req, accepted);
+        });
   }
   // Forward hub frames to this spoke's open channel.
   bool forward(const GenericHubMsg& m) { return open_ ? (this->push(m), true) : false; }
@@ -602,6 +609,9 @@ class ConfigurationApiImpl final : public istate::ConfigurationApi::Service {
       case common::ORIGIN_APP: return instr::Origin::App;
       case common::ORIGIN_LOCAL: return instr::Origin::Local;
       case common::ORIGIN_HQ: return instr::Origin::Hq;
+      // protobuf emits INT_MIN/INT_MAX sentinels into every enum; they are
+      // never valid values on the wire.
+      default: break;
     }
     return instr::Origin::Default;
   }
@@ -666,7 +676,7 @@ class ConfigurationApiImpl final : public istate::ConfigurationApi::Service {
     return grpc::Status::OK;
   }
 
-  grpc::Status StreamEvents(grpc::ServerContext* ctx, const istate::EventFilter* req,
+  grpc::Status StreamEvents(grpc::ServerContext* /*ctx*/, const istate::EventFilter* req,
                             grpc::ServerWriter<istate::TimelineEvent>* writer) override {
     // Ordered per-device event stream (§7.1).
     for (const auto& ev : core_.timeline().events()) {

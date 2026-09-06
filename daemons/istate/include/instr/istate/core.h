@@ -133,6 +133,12 @@ class IstateCore {
   // Drain the northbound spool toward HQ (called when connected).
   NorthboundSpool::DrainReport drain_northbound(size_t max_batch = 50);
 
+  // A spoke completed (or failed) the registration handshake (§3.1). The
+  // orchestrator records build version, proto version and capabilities, and
+  // a mismatch raises an alarm — refusing quietly would leave a partially
+  // updated fleet looking healthy.
+  void on_spoke_registration(const common::RegistrationRequest& req, bool accepted);
+
   // ---- alarms istate declares (R5, §6, §11) ----
   // R5: alarms are declared, never inferred — only an application sets one.
   // istate is the application that owns storage budgets, /pst integrity, the

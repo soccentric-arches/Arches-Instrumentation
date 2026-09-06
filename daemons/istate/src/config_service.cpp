@@ -111,7 +111,6 @@ std::string ConfigService::drift_report_json(const std::string& daemon) const {
   for (const auto& kv : (*doc).values()) {
     // Typed projection: numbers as numbers, booleans as booleans.
     try {
-      size_t pos;
       const std::string& v = kv.second;
       if (v == "true" || v == "false")
         vals.set(kv.first, JValue(v == "true"));

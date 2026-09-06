@@ -87,6 +87,19 @@ int main(int argc, char** argv) {
   instr::logmanager::LogSpoke spoke(&core, &log, &table, instr::transport::uds_target(hub),
                                     INSTR_VERSION);
   if (cfg_schema.ok()) spoke.set_schema(*cfg_schema);
+
+  // Bulk payload socket (§7.7): bundle-fetch hands back a handle and the
+  // metadata, and the bytes are streamed from here — never through the
+  // control path that also carries alarms and liveness.
+  const std::string bulk_path = run_dir + "/logmanager-bulk.sock";
+  core.set_bulk_socket_path(bulk_path);
+  instr::ctrl::BulkServer bulk(bulk_path, [&core](const std::string& handle) {
+    return core.bundles().payload_path(handle);
+  });
+  if (auto be = bulk.start(); !be.ok())
+    log.error("logmanager", "bulk socket unavailable: " + be.str() +
+                                " — bundles can be listed but not fetched");
+
   spoke.start();
 
   // Rotation, retention and the storage budget are enforced on a timer, not
@@ -106,6 +119,7 @@ int main(int argc, char** argv) {
   instr::sd_notify_ready();
   instr::run_until_stop(stop, {});
   prune.stop();
+  bulk.stop();
   spoke.stop();
   ctrl.stop();
   return 0;

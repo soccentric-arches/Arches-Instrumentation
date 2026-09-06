@@ -36,7 +36,7 @@ namespace faults {
 namespace domain {
 
 // Fault ids arrive as "0x5_05_1_0001"-style text.
-static Result<uint32_t> parse_fault_id_text(const std::string& text) {
+Result<uint32_t> parse_fault_id_text(const std::string& text) {
   if (text.rfind("0x", 0) != 0)
     return Result<uint32_t>::fail(Errc::InvalidArgument, "fault id must start with 0x", text);
   std::string compact;

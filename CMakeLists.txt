@@ -43,7 +43,12 @@ set(PROTO_GEN "${CMAKE_CURRENT_BINARY_DIR}/protos_gen")
 file(MAKE_DIRECTORY "${PROTO_GEN}")
 set(PROTO_SRCS)
 set(PROTO_HDRS)
-set(GRPC_PLUGIN "")
+# No `set(GRPC_PLUGIN "")` here: under CMP0126 OLD (cmake_minimum_required
+# 3.16) a pre-set normal variable shadows find_program()'s result, and the
+# plugin path ends up empty on platforms where gRPC ships no CMake config
+# (Ubuntu 22.04 / JetPack 6, Yocto) — protoc then fails with "program not
+# found". The host toolchains (newer gRPC, gRPC::grpc_cpp_plugin target)
+# never took the find_program branch, which is why this only showed up there.
 if(TARGET gRPC::grpc_cpp_plugin)
   get_target_property(GRPC_PLUGIN gRPC::grpc_cpp_plugin LOCATION)
 else()
