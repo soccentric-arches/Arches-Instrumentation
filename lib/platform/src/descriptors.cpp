@@ -91,6 +91,7 @@ static Error validate(const JValue& schema, const std::string& yaml_text, const 
     return Error::none();
 }
 
+/// @brief Load a device descriptor YAML, validated against @p schema.
 Result<DeviceDescriptor> load_device_descriptor(const std::string& yaml_text, const JValue& schema, const std::string& source)
 {
     JValue j;
@@ -128,6 +129,7 @@ Result<DeviceDescriptor> load_device_descriptor(const std::string& yaml_text, co
     return Result<DeviceDescriptor>::good(std::move(d));
 }
 
+/// @brief Load a resource profile YAML, validated against @p schema.
 Result<ResourceProfile> load_resource_profile(const std::string& yaml_text, const JValue& schema, const std::string& source)
 {
     JValue j;
@@ -154,6 +156,7 @@ Result<ResourceProfile> load_resource_profile(const std::string& yaml_text, cons
     return Result<ResourceProfile>::good(std::move(p));
 }
 
+/// @brief Load a capability manifest YAML, validated against @p schema.
 Result<CapabilityManifest> load_capability_manifest(const std::string& yaml_text, const JValue& schema, const std::string& source)
 {
     JValue j;

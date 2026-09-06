@@ -45,49 +45,54 @@ namespace instr
 namespace platform
 {
 
-// ---- device descriptor ----
+/// @brief One hardware self-check entry for a device.
 struct DeviceCheck
 {
-    std::string name; // e.g. "loopback"
-    std::string op; // e.g. "gpio_toggle_read"
-    std::map<std::string, std::string> params;
+    std::string name;                              ///< Check name, e.g. "loopback".
+    std::string op;                                ///< Operation, e.g. "gpio_toggle_read".
+    std::map<std::string, std::string> params;       ///< Check parameters.
 };
+
+/// @brief One physical device's spec from the board descriptor.
 struct DeviceSpec
 {
-    std::string name; // "status-led", "gpio-1", "can0", "usb1", "display"
-    std::string kind; // gpio / led / can / usb / display / sensor / watchdog
-    std::vector<std::string> controls; // control op names
-    std::vector<DeviceCheck> checks;
-    std::map<std::string, std::string> params; // e.g. line=1, port=1-2
+    std::string name;                             ///< "status-led", "gpio-1", "can0", "usb1", "display".
+    std::string kind;                             ///< gpio / led / can / usb / display / sensor / watchdog.
+    std::vector<std::string> controls;             ///< Control op names this device accepts.
+    std::vector<DeviceCheck> checks;               ///< Health checks for this device.
+    std::map<std::string, std::string> params;      ///< Device parameters, e.g. line=1, port=1-2.
 };
+
+/// @brief A board's device inventory: variant name plus every device spec.
 struct DeviceDescriptor
 {
-    std::string board; // board variant name
-    std::vector<DeviceSpec> devices;
+    std::string board;                        ///< Board variant name.
+    std::vector<DeviceSpec> devices;           ///< Devices on this board.
 };
 
-// ---- resource profile ----
+/// @brief Per-platform-class sampling and budget profile (§6 sizing).
 struct ResourceProfile
 {
-    std::string platform_class; // small / medium / large
-    double sample_interval_default_s = 5;
-    std::map<std::string, double> sample_intervals_per_class_s; // cpu/memory/storage/thermal/load
-    double highres_window_s = 60; // fine-grained local retention
-    double highres_interval_s = 1;
-    double telemetry_interval_s = 30;
-    uint64_t telemetry_batch_max_records = 200;
-    uint64_t spool_max_bytes = 64ull * 1024 * 1024;
-    uint64_t logs_max_bytes = 128ull * 1024 * 1024;
-    uint64_t ota_staging_bytes = 512ull * 1024 * 1024;
-    uint64_t backup_max_bytes = 256ull * 1024 * 1024;
-    uint64_t timeline_max_events = 5000;
+    std::string platform_class;    ///< small / medium / large.
+    double sample_interval_default_s = 5;     ///< Default telemetry sample interval.
+    std::map<std::string, double> sample_intervals_per_class_s;   ///< cpu/memory/storage/thermal/load intervals.
+    double highres_window_s = 60;             ///< Fine-grained local retention window.
+    double highres_interval_s = 1;            ///< Fine-grained sampling interval.
+    double telemetry_interval_s = 30;         ///< Northbound telemetry push interval.
+    uint64_t telemetry_batch_max_records = 200;    ///< Max records per northbound batch.
+    uint64_t spool_max_bytes = 64ull * 1024 * 1024;    ///< Spool budget.
+    uint64_t logs_max_bytes = 128ull * 1024 * 1024;    ///< Log-retention budget.
+    uint64_t ota_staging_bytes = 512ull * 1024 * 1024; ///< OTA staging budget.
+    uint64_t backup_max_bytes = 256ull * 1024 * 1024;  ///< Backup budget.
+    uint64_t timeline_max_events = 5000;               ///< Timeline retention cap.
 };
 
-// ---- capability manifest ----
+/// @brief A board's capability manifest (what this variant supports).
 struct CapabilityManifest
 {
-    std::string board;
-    std::vector<std::string> capabilities; // wifi, wifi_ap, can, display, gnss, ptp, watchdog, ...
+    std::string board;                       ///< Board variant name.
+    std::vector<std::string> capabilities;    ///< wifi, wifi_ap, can, display, gnss, ptp, watchdog, ...
+    /// @brief Test membership of the manifest.
     bool has(const std::string& c) const
     {
         for (const auto& x : capabilities)
@@ -96,9 +101,11 @@ struct CapabilityManifest
     }
 };
 
-// Loaders validate against the JSON Schemas in schemas/.
+/// @brief Load a device descriptor YAML, validated against @p schema.
 Result<DeviceDescriptor> load_device_descriptor(const std::string& yaml_text, const JValue& schema, const std::string& source);
+/// @brief Load a resource profile YAML, validated against @p schema.
 Result<ResourceProfile> load_resource_profile(const std::string& yaml_text, const JValue& schema, const std::string& source);
+/// @brief Load a capability manifest YAML, validated against @p schema.
 Result<CapabilityManifest> load_capability_manifest(const std::string& yaml_text, const JValue& schema, const std::string& source);
 
 } // namespace platform

@@ -43,13 +43,19 @@ namespace instr
 namespace platform
 {
 
+/// @brief Scripted in-memory platform: every board behaviour is test-controlled.
+///
+/// Backs the whole-suite simulated mode (REQ §5) and unit tests (§12 fault
+/// injection).
 class SimulatedPlatform : public IPlatform
 {
   public:
+    /// @brief Construct a fresh simulated board with sane defaults.
     SimulatedPlatform();
 
-    // ---- scripted reality ----
+    /// @brief Script the factory identity returned to the daemons.
     void set_factory_identity(const FactoryIdentity& id);
+    /// @brief Script entropy availability.
     void set_entropy_available(bool v)
     {
         entropy_ = v;
@@ -70,14 +76,17 @@ class SimulatedPlatform : public IPlatform
     {
         mem_ = m;
     }
+    /// @brief Script the CPU snapshot.
     void set_cpu(const CpuSnapshot& c)
     {
         cpu_ = c;
     }
+    /// @brief Script the load average.
     void set_load(double l)
     {
         load_ = l;
     }
+    /// @brief Script the process count.
     void set_processes(uint32_t n)
     {
         processes_ = n;
@@ -86,93 +95,113 @@ class SimulatedPlatform : public IPlatform
     {
         uptime_ = s;
     }
+    /// @brief Script the boot count.
     void set_boot_count(uint32_t n)
     {
         boot_count_ = n;
     }
+    /// @brief Script the last-shutdown-clean state.
     void set_last_shutdown_clean(bool v)
     {
         clean_shutdown_ = v;
     }
 
-    // Fault injection (REQ §12).
+    /// @brief Fault injection (REQ §12): watchdog failures.
     void fail_watchdog(bool v)
     {
         fail_watchdog_ = v;
     }
+    /// @brief Fault injection: GPIO failures.
     void fail_gpio(bool v)
     {
         fail_gpio_ = v;
     }
+    /// @brief Fault injection: USB reset failures.
     void fail_usb(bool v)
     {
         fail_usb_ = v;
     }
+    /// @brief Fault injection: CAN failures.
     void fail_can(bool v)
     {
         fail_can_ = v;
     }
+    /// @brief Fault injection: display failures.
     void fail_display(bool v)
     {
         fail_display_ = v;
     }
+    /// @brief Fault injection: unit start failures.
     void fail_unit_start(bool v)
     {
         fail_unit_start_ = v;
     }
+    /// @brief Fault injection: boot-slot operation failures.
     void fail_boot_slot_ops(bool v)
     {
         fail_boot_slots_ = v;
     }
+    /// @brief Replace the whole scripted kernel log.
     void set_kernel_log(const std::vector<std::string>& lines)
     {
         kernel_log_ = lines;
     }
+    /// @brief Append one kernel log line (emits it to followers too).
     void append_kernel_line(const std::string& line);
 
-    // ---- observation for tests ----
+    /// @brief Network plans applied (or recorded) so far — test observation.
     const std::vector<std::string>& applied_plans() const
     {
         return applied_plans_;
     }
+    /// @brief Watchdog pets counted so far.
     uint64_t watchdog_pets() const
     {
         return watchdog_pets_;
     }
+    /// @brief True between watchdog_set_timeout_s() and disarm.
     bool watchdog_running() const
     {
         return watchdog_running_;
     }
+    /// @brief Current LED states.
     const std::map<std::string, bool>& led_state() const
     {
         return leds_;
     }
+    /// @brief Current GPIO states.
     const std::map<int, bool>& gpio_state() const
     {
         return gpios_;
     }
+    /// @brief Units started so far.
     const std::vector<std::string>& started_units() const
     {
         return started_units_;
     }
+    /// @brief Current unit states.
     const std::map<std::string, bool>& unit_states() const
     {
         return units_;
     }
+    /// @brief USB ports reset so far.
     const std::vector<std::string>& usb_resets() const
     {
         return usb_resets_;
     }
+    /// @brief Display commands received so far.
     const std::vector<std::string>& display_commands() const
     {
         return display_cmds_;
     }
+    /// @brief Units restarted so far.
     const std::vector<std::string>& unit_restarts() const
     {
         return restarts_;
     }
 
-    // ---- IPlatform ----
+    /// @brief IPlatform implementation (per-method docs live on IPlatform).
+    /// @{
     Result<FactoryIdentity> read_factory_identity() override;
     bool entropy_available() override;
     std::vector<StorageDevice> storage_devices() override;
@@ -213,89 +242,101 @@ class SimulatedPlatform : public IPlatform
     Error apply_network_plan(const std::string& plan_json) override;
     bool hq_reachable() override;
     MeasuredBootState measured_boot() override;
+    /// @copydoc IPlatform::coredump_dir
     std::string coredump_dir() override
     {
         return "/var/lib/instrumentation/coredumps";
     }
+    /// @copydoc IPlatform::platform_name
     std::string platform_name() override
     {
         return "simulated";
     }
+    /// @}
 
+    /// @brief Script per-unit journal contents for LogManager tests.
     void set_journal(const std::map<std::string, std::vector<std::string>>& j)
     {
         journal_ = j;
     }
-    // ---- fault-injection / scenario knobs for the new surfaces ----
+    /// @brief Fault-injection / scenario knobs for the newer platform surfaces.
+    /// @{
+    /// @brief Script the partition topology.
     void set_partitions(std::vector<Partition> p)
     {
         partitions_ = std::move(p);
     }
+    /// @brief Script the time-source inventory.
     void set_time_sources(std::vector<TimeSourceInfo> t)
     {
         time_sources_ = std::move(t);
     }
+    /// @brief Script the measured-boot state.
     void set_measured_boot(MeasuredBootState m)
     {
         measured_boot_ = std::move(m);
     }
-    // Frames a can_recv on this interface will hand back (loopback by default:
-    // whatever was sent comes back, which is what a health check expects).
+    /// @brief Queue a frame a can_recv on this interface will hand back
+    /// (loopback by default: whatever was sent comes back, which is what a
+    /// health check expects).
     void push_can_frame(const std::string& iface, const CanFrame& f)
     {
         can_rx_[iface].push_back(f);
     }
+    /// @brief Frames sent on this interface so far (test observation).
     const std::vector<CanFrame>& can_sent(const std::string& iface)
     {
         return can_tx_[iface];
     }
+    /// @brief Script CAN controller presence for an interface.
     void set_can_present(const std::string& iface, bool present)
     {
         can_present_[iface] = present;
     }
+    /// @}
 
   private:
-    std::mutex mu_;
+    std::mutex mu_;                  ///< Serialises scripted state across threads.
     // Follow cursor: index of the first kernel line not yet handed out in
     // follow mode (see kernel_log_lines).
-    size_t follow_cursor_ = 0;
-    std::vector<Partition> partitions_;
-    std::vector<TimeSourceInfo> time_sources_;
-    MeasuredBootState measured_boot_;
-    std::map<std::string, std::vector<CanFrame>> can_rx_;
-    std::map<std::string, std::vector<CanFrame>> can_tx_;
-    std::map<std::string, bool> can_present_;
-    FactoryIdentity identity_;
-    bool entropy_ = true;
-    std::vector<StorageDevice> storage_;
-    std::vector<ThermalZone> thermals_;
-    std::vector<PowerSource> power_;
-    std::vector<IfaceInfo> ifaces_;
-    MemInfo mem_;
-    CpuSnapshot cpu_;
-    double load_ = 0.5;
-    uint32_t processes_ = 80;
-    uint64_t uptime_ = 0;
-    uint32_t boot_count_ = 1;
-    bool clean_shutdown_ = true;
-    bool time_locked_ = false;
-    bool hq_reachable_ = false;
-    bool fail_watchdog_ = false, fail_gpio_ = false, fail_usb_ = false;
-    bool fail_can_ = false, fail_display_ = false, fail_unit_start_ = false;
-    bool fail_boot_slots_ = false;
-    bool watchdog_running_ = false;
-    uint64_t watchdog_pets_ = 0;
-    std::map<std::string, bool> leds_;
-    std::map<int, bool> gpios_;
-    std::map<std::string, bool> units_;
-    std::vector<std::string> started_units_;
-    std::vector<std::string> usb_resets_;
-    std::vector<std::string> display_cmds_;
-    std::vector<std::string> restarts_;
-    std::vector<std::string> kernel_log_;
-    std::map<std::string, std::vector<std::string>> journal_;
-    std::vector<std::string> applied_plans_;
-    BootSlotState slots_;
+    size_t follow_cursor_ = 0;       ///< Kernel-log follow position.
+    std::vector<Partition> partitions_;              ///< Scripted partition topology.
+    std::vector<TimeSourceInfo> time_sources_;       ///< Scripted time sources.
+    MeasuredBootState measured_boot_;                ///< Scripted attestation state.
+    std::map<std::string, std::vector<CanFrame>> can_rx_;   ///< Queued receive frames per interface.
+    std::map<std::string, std::vector<CanFrame>> can_tx_;   ///< Recorded sent frames per interface.
+    std::map<std::string, bool> can_present_;         ///< CAN controller presence per interface.
+    FactoryIdentity identity_;      ///< Scripted factory identity.
+    bool entropy_ = true;          ///< Scripted entropy availability.
+    std::vector<StorageDevice> storage_;             ///< Scripted storage devices.
+    std::vector<ThermalZone> thermals_;              ///< Scripted thermal zones.
+    std::vector<PowerSource> power_;                 ///< Scripted power sources.
+    std::vector<IfaceInfo> ifaces_;                  ///< Scripted interfaces.
+    MemInfo mem_;                   ///< Scripted memory snapshot.
+    CpuSnapshot cpu_;               ///< Scripted CPU snapshot.
+    double load_ = 0.5;             ///< Scripted load average.
+    uint32_t processes_ = 80;       ///< Scripted process count.
+    uint64_t uptime_ = 0;           ///< Scripted uptime.
+    uint32_t boot_count_ = 1;       ///< Scripted boot count.
+    bool clean_shutdown_ = true;    ///< Scripted last-shutdown state.
+    bool time_locked_ = false;      ///< Scripted time-lock state.
+    bool hq_reachable_ = false;     ///< Scripted HQ reachability.
+    bool fail_watchdog_ = false, fail_gpio_ = false, fail_usb_ = false;   ///< Fault-injection flags.
+    bool fail_can_ = false, fail_display_ = false, fail_unit_start_ = false;   ///< Fault-injection flags.
+    bool fail_boot_slots_ = false;  ///< Fault-injection flag for boot-slot ops.
+    bool watchdog_running_ = false; ///< Simulated watchdog armed state.
+    uint64_t watchdog_pets_ = 0;    ///< Pets counted.
+    std::map<std::string, bool> leds_;          ///< LED states.
+    std::map<int, bool> gpios_;                 ///< GPIO states.
+    std::map<std::string, bool> units_;         ///< Unit states.
+    std::vector<std::string> started_units_;    ///< Units started so far.
+    std::vector<std::string> usb_resets_;       ///< USB resets so far.
+    std::vector<std::string> display_cmds_;     ///< Display commands so far.
+    std::vector<std::string> restarts_;         ///< Unit restarts so far.
+    std::vector<std::string> kernel_log_;       ///< Scripted kernel log.
+    std::map<std::string, std::vector<std::string>> journal_;   ///< Scripted per-unit journal.
+    std::vector<std::string> applied_plans_;    ///< Recorded network plans.
+    BootSlotState slots_;           ///< Simulated A/B slot state.
 };
 
 } // namespace platform

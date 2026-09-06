@@ -48,9 +48,16 @@ namespace instr
 namespace platform
 {
 
-// name: "native" (default) or "simulated". An unrecognised name falls back to
-// native and is reported by the caller — a typo must not silently put a real
-// device onto a simulated platform.
+/// @brief Construct the platform implementation selected by @p name.
+///
+/// @p name is "native" (default) or "simulated". An unrecognised name falls
+/// back to native and is reported via @p recognised — a typo must not
+/// silently put a real device onto a simulated platform.
+///
+/// @param name Platform selector ("native" or "simulated").
+/// @param sysroot Root used by the native implementation for file access.
+/// @param recognised Optional out-flag; false when @p name was unrecognised.
+/// @return The platform implementation.
 inline std::unique_ptr<IPlatform> make_platform(const std::string& name, const std::string& sysroot, bool* recognised = nullptr)
 {
     if (recognised) *recognised = true;

@@ -32,6 +32,7 @@ namespace instr
 namespace platform
 {
 
+/// @brief Construct a fresh simulated board with sane defaults.
 SimulatedPlatform::SimulatedPlatform()
 {
     identity_.serial = "SIM-0001";
@@ -47,16 +48,19 @@ SimulatedPlatform::SimulatedPlatform()
     units_["instr-istate.service"] = true;
 }
 
+/// @brief Script the factory identity returned to the daemons.
 void SimulatedPlatform::set_factory_identity(const FactoryIdentity& id)
 {
     std::lock_guard<std::mutex> lk(mu_);
     identity_ = id;
 }
+/// @brief Inject a storage device into the enumeration.
 void SimulatedPlatform::inject_storage_device(const StorageDevice& d)
 {
     std::lock_guard<std::mutex> lk(mu_);
     storage_.push_back(d);
 }
+/// @brief Script a thermal zone reading.
 void SimulatedPlatform::set_thermal(const std::string& id, const std::string& label, double c)
 {
     std::lock_guard<std::mutex> lk(mu_);
@@ -69,77 +73,93 @@ void SimulatedPlatform::set_thermal(const std::string& id, const std::string& la
         }
     thermals_.push_back(ThermalZone{id, label, c});
 }
+/// @brief Script a power source reading.
 void SimulatedPlatform::set_power(const std::string& id, const std::string& kind, double pct, bool charging)
 {
     std::lock_guard<std::mutex> lk(mu_);
     power_.push_back(PowerSource{id, kind, pct, charging});
 }
+/// @brief Inject a network interface into the enumeration.
 void SimulatedPlatform::inject_iface(const IfaceInfo& i)
 {
     std::lock_guard<std::mutex> lk(mu_);
     ifaces_.push_back(i);
 }
+/// @brief Append one kernel log line (emits it to followers too).
 void SimulatedPlatform::append_kernel_line(const std::string& line)
 {
     std::lock_guard<std::mutex> lk(mu_);
     kernel_log_.push_back(line);
 }
 
+/// @copydoc IPlatform::read_factory_identity
 Result<FactoryIdentity> SimulatedPlatform::read_factory_identity()
 {
     std::lock_guard<std::mutex> lk(mu_);
     if (!identity_.valid) return Result<FactoryIdentity>::fail(Errc::NotFound, "factory identity not provisioned", "simulated");
     return Result<FactoryIdentity>::good(identity_);
 }
+/// @copydoc IPlatform::entropy_available
 bool SimulatedPlatform::entropy_available()
 {
     return entropy_;
 }
+/// @copydoc IPlatform::storage_devices
 std::vector<StorageDevice> SimulatedPlatform::storage_devices()
 {
     std::lock_guard<std::mutex> lk(mu_);
     return storage_;
 }
+/// @copydoc IPlatform::memory_info
 MemInfo SimulatedPlatform::memory_info()
 {
     std::lock_guard<std::mutex> lk(mu_);
     return mem_;
 }
+/// @copydoc IPlatform::cpu_snapshot
 CpuSnapshot SimulatedPlatform::cpu_snapshot()
 {
     std::lock_guard<std::mutex> lk(mu_);
     return cpu_;
 }
+/// @copydoc IPlatform::load_average_1m
 double SimulatedPlatform::load_average_1m()
 {
     return load_;
 }
+/// @copydoc IPlatform::process_count
 uint32_t SimulatedPlatform::process_count()
 {
     return processes_;
 }
+/// @copydoc IPlatform::uptime_s
 uint64_t SimulatedPlatform::uptime_s()
 {
     return uptime_;
 }
+/// @copydoc IPlatform::boot_count
 uint32_t SimulatedPlatform::boot_count()
 {
     return boot_count_;
 }
+/// @copydoc IPlatform::last_shutdown_clean
 bool SimulatedPlatform::last_shutdown_clean()
 {
     return clean_shutdown_;
 }
+/// @copydoc IPlatform::thermal_zones
 std::vector<ThermalZone> SimulatedPlatform::thermal_zones()
 {
     std::lock_guard<std::mutex> lk(mu_);
     return thermals_;
 }
+/// @copydoc IPlatform::power_sources
 std::vector<PowerSource> SimulatedPlatform::power_sources()
 {
     std::lock_guard<std::mutex> lk(mu_);
     return power_;
 }
+/// @copydoc IPlatform::watchdog_set_timeout_s
 Error SimulatedPlatform::watchdog_set_timeout_s(int seconds)
 {
     (void)seconds;
@@ -147,27 +167,32 @@ Error SimulatedPlatform::watchdog_set_timeout_s(int seconds)
     watchdog_running_ = true;
     return Error::none();
 }
+/// @copydoc IPlatform::watchdog_pet
 Error SimulatedPlatform::watchdog_pet()
 {
     if (fail_watchdog_) return Error::make(Errc::Io, "simulated watchdog pet failure", "watchdog");
     ++watchdog_pets_;
     return Error::none();
 }
+/// @copydoc IPlatform::time_locked
 bool SimulatedPlatform::time_locked()
 {
     return time_locked_;
 }
+/// @copydoc IPlatform::interfaces
 std::vector<IfaceInfo> SimulatedPlatform::interfaces()
 {
     std::lock_guard<std::mutex> lk(mu_);
     return ifaces_;
 }
+/// @copydoc IPlatform::boot_slots
 Result<BootSlotState> SimulatedPlatform::boot_slots()
 {
     if (fail_boot_slots_) return Result<BootSlotState>::fail(Errc::Io, "simulated bootctl failure", "boot");
     std::lock_guard<std::mutex> lk(mu_);
     return Result<BootSlotState>::good(slots_);
 }
+/// @copydoc IPlatform::set_boot_slot
 Error SimulatedPlatform::set_boot_slot(const std::string& slot, bool trial)
 {
     if (fail_boot_slots_) return Error::make(Errc::Io, "simulated set-slot failure", "boot");
@@ -176,6 +201,7 @@ Error SimulatedPlatform::set_boot_slot(const std::string& slot, bool trial)
     if (trial) slots_.pending = slot;
     return Error::none();
 }
+/// @copydoc IPlatform::confirm_boot_slot
 Error SimulatedPlatform::confirm_boot_slot()
 {
     if (fail_boot_slots_) return Error::make(Errc::Io, "simulated confirm failure", "boot");
@@ -188,6 +214,7 @@ Error SimulatedPlatform::confirm_boot_slot()
     }
     return Error::none();
 }
+/// @copydoc IPlatform::gpio_set
 Error SimulatedPlatform::gpio_set(int line, bool value)
 {
     if (fail_gpio_) return Error::make(Errc::Io, "simulated gpio failure", "gpio");
@@ -195,6 +222,7 @@ Error SimulatedPlatform::gpio_set(int line, bool value)
     gpios_[line] = value;
     return Error::none();
 }
+/// @copydoc IPlatform::gpio_get
 Result<bool> SimulatedPlatform::gpio_get(int line)
 {
     std::lock_guard<std::mutex> lk(mu_);
@@ -202,12 +230,14 @@ Result<bool> SimulatedPlatform::gpio_get(int line)
     if (it == gpios_.end()) return Result<bool>::fail(Errc::NotFound, "gpio not configured", "gpio");
     return Result<bool>::good(it->second);
 }
+/// @copydoc IPlatform::led_set
 Error SimulatedPlatform::led_set(const std::string& name, bool on)
 {
     std::lock_guard<std::mutex> lk(mu_);
     leds_[name] = on;
     return Error::none();
 }
+/// @copydoc IPlatform::led_blink
 Error SimulatedPlatform::led_blink(const std::string& name, int on_ms, int off_ms, int repeats)
 {
     std::lock_guard<std::mutex> lk(mu_);
@@ -217,6 +247,7 @@ Error SimulatedPlatform::led_blink(const std::string& name, int on_ms, int off_m
     leds_[name + ":blink-ack"] = repeats > 0;
     return Error::none();
 }
+/// @copydoc IPlatform::usb_reset
 Error SimulatedPlatform::usb_reset(const std::string& port)
 {
     if (fail_usb_) return Error::make(Errc::Io, "simulated usb reset failure", port);
@@ -224,12 +255,14 @@ Error SimulatedPlatform::usb_reset(const std::string& port)
     usb_resets_.push_back(port);
     return Error::none();
 }
+/// @copydoc IPlatform::can_loopback_test
 Result<bool> SimulatedPlatform::can_loopback_test(const std::string& iface)
 {
     if (fail_can_) return Result<bool>::good(false);
     (void)iface;
     return Result<bool>::good(true);
 }
+/// @copydoc IPlatform::display_control
 Error SimulatedPlatform::display_control(const std::string& cmd, const std::string& arg)
 {
     if (fail_display_) return Error::make(Errc::Io, "simulated display failure", cmd);
@@ -237,11 +270,13 @@ Error SimulatedPlatform::display_control(const std::string& cmd, const std::stri
     display_cmds_.push_back(cmd + ":" + arg);
     return Error::none();
 }
+/// @copydoc IPlatform::display_probe
 Result<std::string> SimulatedPlatform::display_probe()
 {
     if (fail_display_) return Result<std::string>::fail(Errc::Io, "simulated display probe failure", "display");
     return Result<std::string>::good("ok 1280x800");
 }
+/// @copydoc IPlatform::unit_start
 Error SimulatedPlatform::unit_start(const std::string& unit)
 {
     if (fail_unit_start_) return Error::make(Errc::Unavailable, "simulated systemctl failure", unit);
@@ -250,12 +285,14 @@ Error SimulatedPlatform::unit_start(const std::string& unit)
     started_units_.push_back(unit);
     return Error::none();
 }
+/// @copydoc IPlatform::unit_stop
 Error SimulatedPlatform::unit_stop(const std::string& unit)
 {
     std::lock_guard<std::mutex> lk(mu_);
     units_[unit] = false;
     return Error::none();
 }
+/// @copydoc IPlatform::unit_restart
 Error SimulatedPlatform::unit_restart(const std::string& unit)
 {
     std::lock_guard<std::mutex> lk(mu_);
@@ -263,12 +300,14 @@ Error SimulatedPlatform::unit_restart(const std::string& unit)
     restarts_.push_back(unit);
     return Error::none();
 }
+/// @copydoc IPlatform::unit_active
 Result<bool> SimulatedPlatform::unit_active(const std::string& unit)
 {
     std::lock_guard<std::mutex> lk(mu_);
     auto it = units_.find(unit);
     return Result<bool>::good(it != units_.end() && it->second);
 }
+/// @copydoc IPlatform::kernel_log_lines
 Result<std::vector<std::string>> SimulatedPlatform::kernel_log_lines(bool from_start)
 {
     std::lock_guard<std::mutex> lk(mu_);
@@ -284,6 +323,7 @@ Result<std::vector<std::string>> SimulatedPlatform::kernel_log_lines(bool from_s
     follow_cursor_ = kernel_log_.size();
     return Result<std::vector<std::string>>::good(std::move(fresh));
 }
+/// @copydoc IPlatform::journal_lines
 Result<std::vector<std::string>> SimulatedPlatform::journal_lines(const std::string& unit, size_t max_lines)
 {
     std::lock_guard<std::mutex> lk(mu_);
@@ -293,12 +333,14 @@ Result<std::vector<std::string>> SimulatedPlatform::journal_lines(const std::str
     if (out.size() > max_lines) out.erase(out.begin(), out.end() - long(max_lines));
     return Result<std::vector<std::string>>::good(std::move(out));
 }
+/// @copydoc IPlatform::apply_network_plan
 Error SimulatedPlatform::apply_network_plan(const std::string& plan_json)
 {
     std::lock_guard<std::mutex> lk(mu_);
     applied_plans_.push_back(plan_json);
     return Error::none();
 }
+/// @copydoc IPlatform::hq_reachable
 bool SimulatedPlatform::hq_reachable()
 {
     return hq_reachable_;
@@ -316,6 +358,7 @@ namespace instr
 namespace platform
 {
 
+/// @copydoc IPlatform::partitions
 std::vector<Partition> SimulatedPlatform::partitions()
 {
     std::lock_guard<std::mutex> lk(mu_);
@@ -343,6 +386,7 @@ std::vector<Partition> SimulatedPlatform::partitions()
     return out;
 }
 
+/// @copydoc IPlatform::time_sources
 std::vector<TimeSourceInfo> SimulatedPlatform::time_sources()
 {
     std::lock_guard<std::mutex> lk(mu_);
@@ -366,6 +410,7 @@ std::vector<TimeSourceInfo> SimulatedPlatform::time_sources()
     return out;
 }
 
+/// @copydoc IPlatform::can_send
 Error SimulatedPlatform::can_send(const std::string& iface, const CanFrame& frame)
 {
     std::lock_guard<std::mutex> lk(mu_);
@@ -378,6 +423,7 @@ Error SimulatedPlatform::can_send(const std::string& iface, const CanFrame& fram
     return Error::none();
 }
 
+/// @copydoc IPlatform::can_recv
 Result<std::vector<SimulatedPlatform::CanFrame>> SimulatedPlatform::can_recv(const std::string& iface, size_t max_frames)
 {
     std::lock_guard<std::mutex> lk(mu_);
@@ -393,6 +439,7 @@ Result<std::vector<SimulatedPlatform::CanFrame>> SimulatedPlatform::can_recv(con
     return Result<std::vector<CanFrame>>::good(std::move(out));
 }
 
+/// @copydoc IPlatform::measured_boot
 MeasuredBootState SimulatedPlatform::measured_boot()
 {
     std::lock_guard<std::mutex> lk(mu_);
