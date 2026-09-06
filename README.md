@@ -116,6 +116,30 @@ All `_ctrl` changes are runtime-only and never persist to `/pst`; only
 istate writes persistent configuration, every key carrying its origin
 (default / app / local / hq).
 
+## Colocated applications
+
+The `_ctrl` sockets above are 0600 root-only (§3.2), so they are not the
+surface an application uses. Applications get their own face on istate —
+architecturally identical to the Configuration peer of §3.3 — at
+`/run/instrumentation/application.sock`, mode 0660, owned
+`instr-istate:instr-apps`. Add your application's user to the `instr-apps`
+group and it can call `ApplicationApi` (see `proto/istate.proto`):
+
+| RPC | Why |
+|---|---|
+| `RaiseAlarm` / `ClearAlarm` | R5: an alarm is declared by an application and by nothing else. `owner` is required and is recorded as the alarm's owner. A CRITICAL alarm comes back with `needs_snapshot` set (§7.6). |
+| `RegisterMetric` / `ReportMetrics` | §7.8 application metric registration and reporting. |
+| `GetConfig` / `SetAppConfig` | §6.2: applications override values as they see fit, with origin recorded. Writes always land with origin `app` and never overwrite an operator's `local` edit. |
+| `GetSystemInfo` | serial, hardware revision, firmware and schema versions for the app's own records. |
+
+R1/R2/R4 are unaffected: an application talks to istate and to nothing else,
+istate relays to the alarms and telemetry spokes, and every `/pst` write is
+still istate's alone.
+
+For logs, append to `/var/log/instrumentation/app.log` (group `instr-apps`,
+setgid). LogManager collects it alongside the journal, subject to the same
+rotation, retention, level control and storage budget as every other source.
+
 ## Failure behaviour (contract, §11)
 
 Tunnel down → spool northbound, device fully operational, drain on
@@ -137,3 +161,7 @@ ctest --preset host-debug                 # unit + contract + integration + faul
 The integration harness runs the hub, all nine spokes and the simulated
 platform — the complete topology on a laptop, no hardware. Coverage gate,
 sanitizers and the secret-leak test are enforced in CI (Jenkinsfile).
+
+`integration_application` covers the colocated-application path end to end:
+a real gRPC client on a real socket against a live hub with the alarms and
+telemetry spokes attached.

@@ -1,5 +1,10 @@
 # Gap report — Arches Instrumentation vs REQ.md
 
+**Status: all findings closed.** Build clean (no warnings), 310/310 tests
+passing (was 278), clean under ASan and UBSan, and clean under TSan in our
+own code — the residual TSan reports are all inside the uninstrumented
+system libgrpc/libabsl and none point at a file in this repo.
+
 Audit date: 2026-09-05. Baseline: clean build, 278/278 tests passing.
 Method: requirement-by-requirement sweep of REQ.md §§1–15 against the tree,
 plus a search for code that is implemented but has no production caller —
@@ -83,3 +88,40 @@ lifetime of the daemon. On a device polled periodically by a `_ctrl` tool
 this is an unbounded leak in all ten daemons.
 
 **Fix:** track completion explicitly and join finished threads on accept.
+
+
+---
+
+# Closure
+
+| # | Gap | Fix | Tests added |
+|---|-----|-----|-------------|
+| G1 | LogManager never collects | `LogCollector` polling journal + file/app sinks, wired into `main.cpp`; app sink in the shipped defaults | 10 (`LogCollect.*`) |
+| G2 | Applications have no interface | `ApplicationApi` on istate at `application.sock` (0660, `instr-istate:instr-apps`); `instr-apps` group | 15 (`Application.*`) |
+| G3 | CAN cannot be driven | `can` branch in `DeviceManager::control()`, `can_receive()`, `can-send`/`can-recv` ctrl ops, `controls:` in 6 descriptors | 6 (`HardwareCan.*`) |
+| G4 | Crash forensics never triggers | istate relays `crash-report` on an abnormal spoke transition; logmanager resolves the coredump via `coredump_dir()` and folds in the stored tail | covered via the ctrl surface |
+| G5 | CtrlServer thread accumulation | done-flag reaping in `serve_accept()` | 1 (`FinishedConnectionsAreReaped…`) |
+
+## G6 — data race on `listen_fd_` (found while verifying G5 under TSan)
+
+`CtrlServer::listen_fd_` and `BulkServer::listen_fd_` were plain `int`s
+written by `stop()` while the accept thread read them. TSan flagged both.
+Beyond the tool's objection this matters on the fleet: half these targets are
+aarch64, where the accept loop can miss the close and spin on a stale
+descriptor. Both are now `std::atomic<int>`.
+
+## Verification
+
+The G5 regression test was checked against the original code, not just the
+fixed code: with the old `joinable()` prune restored it reports 60 threads
+tracked after 60 closed connections and fails; with the fix it reports 0.
+A test that passes either way would not have been worth adding.
+
+## Note for whoever picks this up next
+
+`.clang-format` now says `BasedOnStyle: Microsoft` with `ColumnLimit: 300`,
+while its own header comment still describes "Google style with a 100-column
+limit" and explains house conventions in those terms. The gate passes because
+the config and the code were reformatted together, so this is cosmetic — but
+the file contradicts itself and the comment should be brought in line with
+whichever style is actually intended.

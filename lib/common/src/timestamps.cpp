@@ -32,18 +32,21 @@
 namespace instr
 {
 
+/// @copydoc TimeSource::mono_ns
 uint64_t SystemTimeSource::mono_ns()
 {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return static_cast<uint64_t>(ts.tv_sec) * 1'000'000'000ull + static_cast<uint64_t>(ts.tv_nsec);
 }
+/// @copydoc TimeSource::wall_ns
 int64_t SystemTimeSource::wall_ns()
 {
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
     return static_cast<int64_t>(ts.tv_sec) * 1'000'000'000ll + ts.tv_nsec;
 }
+/// @copydoc TimeSource::boot_id
 std::string SystemTimeSource::boot_id()
 {
     FILE* f = std::fopen("/proc/sys/kernel/random/boot_id", "r");
@@ -55,12 +58,14 @@ std::string SystemTimeSource::boot_id()
     while (!s.empty() && (s.back() == '\n' || s.back() == '\r' || s.back() == ' ')) s.pop_back();
     return s;
 }
+/// @copydoc TimeSource::next_seq
 uint64_t SystemTimeSource::next_seq()
 {
     static uint64_t counter = 0;
     return ++counter;
 }
 
+/// @brief Build a Stamp from any TimeSource (seq assigned by the source).
 Stamp make_stamp(TimeSource& ts)
 {
     Stamp s;
@@ -72,11 +77,13 @@ Stamp make_stamp(TimeSource& ts)
     return s;
 }
 
+/// @brief Record a monotonic-only observation awaiting wall-clock stamping.
 void TimeReconciler::record_pending(uint64_t mono_ns)
 {
     pending_.push_back(Pending{ts_.next_seq(), mono_ns});
 }
 
+/// @brief Re-stamp all pending records in seq order with non-decreasing wall time.
 size_t TimeReconciler::reconcile(int64_t offset_ns, const std::string& source)
 {
     // Establish the mapping monotonic → wall with the correction applied.
@@ -107,6 +114,7 @@ size_t TimeReconciler::reconcile(int64_t offset_ns, const std::string& source)
     return n;
 }
 
+/// @brief Remove and return the stamps produced by reconcile(), ordered by seq.
 std::vector<Stamp> TimeReconciler::take_stamped()
 {
     std::vector<Stamp> out;
@@ -114,6 +122,7 @@ std::vector<Stamp> TimeReconciler::take_stamped()
     return out;
 }
 
+/// @brief Stamp an observation made *now*.
 Stamp TimeReconciler::stamp_now()
 {
     Stamp s;
@@ -125,6 +134,7 @@ Stamp TimeReconciler::stamp_now()
     return s;
 }
 
+/// @brief Project a historical monotonic sample onto the locked wall timeline.
 int64_t project_wall_ns(const TimeReconciler& rec, uint64_t mono_ns)
 {
     // Re-stamping spooled data: wall(mono) = base_wall + (mono - base_mono)
