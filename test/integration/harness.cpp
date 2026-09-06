@@ -195,11 +195,12 @@ TEST(IntegrationConfig, SignedPushFromHqAppliesAfterVerification) {
   auto digest = crypto::hmac_sha256("enroll-secret", "monitord|" + yaml);
   std::string hmac = crypto::hex_encode(std::string(reinterpret_cast<const char*>(digest.b.data()), 32));
   // Unsigned/tampered push refused.
-  auto bad = h.core->config_service().apply_signed("monitord", yaml, "k1", "ff" + hmac.substr(2),
-                                                   "enroll-secret");
+  auto bad = h.core->config_service().apply_signed("monitord", yaml, "k1", "",
+                                                   "ff" + hmac.substr(2), "enroll-secret");
   EXPECT_FALSE(bad.ok());
   // Valid push applied.
-  auto ok = h.core->config_service().apply_signed("monitord", yaml, "k1", hmac, "enroll-secret");
+  auto ok = h.core->config_service().apply_signed("monitord", yaml, "k1", "", hmac,
+                                                 "enroll-secret");
   EXPECT_TRUE(ok.ok());
   auto doc = h.core->config_service().get("monitord");
   ASSERT_TRUE(doc.ok());

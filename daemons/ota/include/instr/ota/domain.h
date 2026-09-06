@@ -55,7 +55,14 @@ namespace domain {
 struct ArtifactManifest {
   std::string version;
   std::string sha256;      // artifact integrity
-  std::string hmac;        // signature over (version || sha256) with the enrollment secret
+  // Release signature: Ed25519 over "<version>|<sha256>" under the release
+  // signing key, which the image carries as a public key only. This is the
+  // §7.9 "signature verification before staging" path.
+  std::string signature;   // 64 raw bytes
+  std::string key_id;
+  // Legacy shared-secret form, accepted only where no release key is
+  // provisioned (see OtaEngine::verify).
+  std::string hmac;
   uint64_t size_bytes = 0;
   bool preserve_home = true;   // /home and /pst preserved unless requested otherwise
   bool preserve_pst = true;
@@ -123,6 +130,15 @@ class OtaEngine {
                                               const ArtifactManifest& m)>;
   void set_install_fn(InstallFn f) { install_fn_ = std::move(f); }
 
+  // Release signing keys (§7.9), by key id. Public keys only: a device can
+  // verify a release but nothing on it can sign one. Several are held at
+  // once so a signing key can be rotated across a fleet gradually.
+  void add_release_key(const std::string& key_id, const std::string& public_key_raw32) {
+    release_keys_[key_id] = public_key_raw32;
+  }
+  void remove_release_key(const std::string& key_id) { release_keys_.erase(key_id); }
+  const std::map<std::string, std::string>& release_keys() const { return release_keys_; }
+
   const UpdateState& state() const { return state_; }
   const std::vector<HistoryEntry>& history() const { return history_; }
 
@@ -184,6 +200,7 @@ class OtaEngine {
   std::vector<HistoryEntry> history_;
   std::function<void(const OtaProgressEvent&)> event_sink_;
   std::function<std::string()> secret_provider_;
+  std::map<std::string, std::string> release_keys_;
   std::string swupdate_binary_ = "/usr/bin/swupdate";
   InstallFn install_fn_;
   TokenBucket bandwidth_{0, 0};

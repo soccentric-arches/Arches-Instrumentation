@@ -32,6 +32,9 @@
 #include <gtest/gtest.h>
 
 #include "instr/common/filesystem.h"
+#include <openssl/evp.h>
+
+#include "instr/common/signature.h"
 #include "instr/istate/config_service.h"
 
 using namespace instr;
@@ -85,6 +88,8 @@ TEST(ConfigService, HqPushCannotOverwriteLocalWithoutForce) {
   EXPECT_EQ((*doc).get_int("interval"), 9);
 }
 
+// The legacy shared-secret path, kept for devices enrolled before signing
+// keys were distributed (see ConfigService::apply_signed).
 TEST(ConfigService, SignedPushVerifiedBeforeApply) {
   CfgFixture f;
   std::string secret = "device-enrollment-secret";
@@ -92,13 +97,13 @@ TEST(ConfigService, SignedPushVerifiedBeforeApply) {
   auto digest = crypto::hmac_sha256(secret, "networkd|" + yaml);
   std::string hmac = crypto::hex_encode(std::string(reinterpret_cast<const char*>(digest.b.data()), 32));
   // Tampered signature → refused, nothing written.
-  auto bad = f.svc.apply_signed("networkd", yaml, "key-1", "00" + hmac.substr(2), secret);
+  auto bad = f.svc.apply_signed("networkd", yaml, "key-1", "", "00" + hmac.substr(2), secret);
   EXPECT_FALSE(bad.ok());
   EXPECT_EQ(bad.error.code, Errc::SignatureInvalid);
   auto doc = f.svc.get("networkd");
   EXPECT_EQ((*doc).get_int("interval"), 5);  // untouched
   // Correct signature → applied.
-  auto good = f.svc.apply_signed("networkd", yaml, "key-1", hmac, secret);
+  auto good = f.svc.apply_signed("networkd", yaml, "key-1", "", hmac, secret);
   ASSERT_TRUE(good.ok());
   doc = f.svc.get("networkd");
   EXPECT_EQ((*doc).get_int("interval"), 3);
@@ -138,4 +143,130 @@ TEST(AuditLog, BoundedRing) {
     audit.append("actor", "src", "action", "{\"i\":" + std::to_string(i) + "}", ts);
   EXPECT_EQ(audit.entries().size(), 10u);
   EXPECT_EQ(audit.entries().back().detail_json, "{\"i\":99}");
+}
+
+// ---------------------------------------------------------------------------
+// §9: "config pushes from HQ are signed and verified on device, so tunnel
+// compromise alone does not let an attacker reconfigure a fleet." That
+// property needs an asymmetric signature — with a shared secret the device
+// holds a fleet-signing key, and opening one device is enough.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+// A signing keypair standing in for HQ's. Only the public half is given to
+// the device, which is the entire point.
+struct HqSigner {
+  std::string public_key;   // 32 raw bytes
+  EVP_PKEY* key = nullptr;
+
+  HqSigner() {
+    EVP_PKEY_CTX* ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_ED25519, nullptr);
+    EVP_PKEY_keygen_init(ctx);
+    EVP_PKEY_keygen(ctx, &key);
+    EVP_PKEY_CTX_free(ctx);
+    size_t len = 32;
+    unsigned char raw[32];
+    EVP_PKEY_get_raw_public_key(key, raw, &len);
+    public_key.assign(reinterpret_cast<char*>(raw), len);
+  }
+  ~HqSigner() { EVP_PKEY_free(key); }
+
+  std::string sign(const std::string& message) const {
+    EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+    EVP_DigestSignInit(ctx, nullptr, nullptr, nullptr, key);
+    size_t siglen = 0;
+    EVP_DigestSign(ctx, nullptr, &siglen,
+                   reinterpret_cast<const unsigned char*>(message.data()), message.size());
+    std::string sig(siglen, '\0');
+    EVP_DigestSign(ctx, reinterpret_cast<unsigned char*>(&sig[0]), &siglen,
+                   reinterpret_cast<const unsigned char*>(message.data()), message.size());
+    sig.resize(siglen);
+    EVP_MD_CTX_free(ctx);
+    return sig;
+  }
+};
+
+}  // namespace
+
+TEST(ConfigServiceSigning, Ed25519SignedPushIsAppliedAndTamperingIsRefused) {
+  CfgFixture f;
+  HqSigner hq;
+  f.svc.add_signing_key("hq-2026", hq.public_key);
+
+  const std::string yaml = "mode: static\ninterval: 11\n";
+  const std::string sig = hq.sign("networkd|" + yaml);
+
+  // A good signature applies, and the keys are recorded as HQ-origin.
+  auto ok = f.svc.apply_signed("networkd", yaml, "hq-2026", sig, "", "");
+  ASSERT_TRUE(ok.ok()) << ok.error.str();
+  auto doc = f.svc.get("networkd");
+  EXPECT_EQ((*doc).get_int("interval"), 11);
+  EXPECT_EQ((*doc).origin_of("interval"), Origin::Hq);
+  EXPECT_FALSE(f.svc.last_push_used_legacy_hmac());
+
+  // One flipped byte in the payload invalidates the signature.
+  std::string tampered = yaml;
+  tampered.back() = '\n';
+  tampered = "mode: static\ninterval: 99\n";
+  auto bad = f.svc.apply_signed("networkd", tampered, "hq-2026", sig, "", "");
+  EXPECT_FALSE(bad.ok());
+  EXPECT_EQ(bad.error.code, Errc::SignatureInvalid);
+  EXPECT_EQ((*f.svc.get("networkd")).get_int("interval"), 11) << "a refused push must not write";
+}
+
+TEST(ConfigServiceSigning, ADeviceWithKeysRefusesTheLegacyHmacForm) {
+  // Once a signing key is provisioned, the shared-secret path is closed —
+  // otherwise an attacker holding the enrollment secret could simply choose
+  // the weaker form and the asymmetric key would be decoration.
+  CfgFixture f;
+  HqSigner hq;
+  f.svc.add_signing_key("hq-2026", hq.public_key);
+
+  const std::string secret = "device-enrollment-secret";
+  const std::string yaml = "interval: 7\n";
+  auto digest = crypto::hmac_sha256(secret, "networkd|" + yaml);
+  const std::string hmac =
+      crypto::hex_encode(std::string(reinterpret_cast<const char*>(digest.b.data()), 32));
+
+  auto r = f.svc.apply_signed("networkd", yaml, "hq-2026", "", hmac, secret);
+  EXPECT_FALSE(r.ok());
+  EXPECT_EQ(r.error.code, Errc::SignatureInvalid);
+}
+
+TEST(ConfigServiceSigning, AnUnknownKeyIdIsRefused) {
+  CfgFixture f;
+  HqSigner hq;
+  f.svc.add_signing_key("hq-2026", hq.public_key);
+  const std::string yaml = "interval: 7\n";
+  auto r = f.svc.apply_signed("networkd", yaml, "hq-2019", hq.sign("networkd|" + yaml), "", "");
+  EXPECT_FALSE(r.ok());
+  EXPECT_NE(r.error.message.find("unknown key id"), std::string::npos);
+}
+
+TEST(ConfigServiceSigning, TwoKeysAreTrustedAtOnceSoRotationNeedsNoFlagDay) {
+  // §6.2/§9: rotating the signing key must not require every device to be
+  // updated in the same instant as HQ switches over.
+  CfgFixture f;
+  HqSigner old_key, new_key;
+  f.svc.add_signing_key("hq-2025", old_key.public_key);
+  f.svc.add_signing_key("hq-2026", new_key.public_key);
+
+  const std::string a = "interval: 3\n";
+  EXPECT_TRUE(f.svc.apply_signed("networkd", a, "hq-2025", old_key.sign("networkd|" + a), "", "").ok());
+  const std::string b = "interval: 4\n";
+  EXPECT_TRUE(f.svc.apply_signed("networkd", b, "hq-2026", new_key.sign("networkd|" + b), "", "").ok());
+
+  // Retiring the old key stops accepting anything signed with it.
+  f.svc.remove_signing_key("hq-2025");
+  const std::string c = "interval: 5\n";
+  EXPECT_FALSE(f.svc.apply_signed("networkd", c, "hq-2025", old_key.sign("networkd|" + c), "", "").ok());
+}
+
+TEST(SignatureBackend, VerificationIsAvailableAndFailsClosedOnBadInput) {
+  EXPECT_TRUE(crypto::signature_verification_available())
+      << "built without a signature backend: signed content would be refused";
+  // Wrong-sized inputs are refused rather than passed to the backend.
+  EXPECT_FALSE(crypto::verify_ed25519("short", "msg", std::string(64, 'x')).ok());
+  EXPECT_FALSE(crypto::verify_ed25519(std::string(32, 'k'), "msg", "short").ok());
 }

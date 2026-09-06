@@ -27,6 +27,8 @@
 
 #include "instr/ota/domain.h"
 
+#include "instr/common/signature.h"
+
 #include <cstdio>
 
 #include "instr/common/json.h"
@@ -128,12 +130,35 @@ Error OtaEngine::verify(const ArtifactManifest& m, const std::string& enrollment
   if (crypto::sha256(*artifact).hex() != m.sha256)
     return Error::make(Errc::Corrupt, "artifact integrity verification failed (sha256 mismatch)",
                        "verify");
-  // Signature: HMAC over (version || sha256) with the enrollment secret —
-  // verified before staging (§7.9).
-  if (!enrollment_secret.empty()) {
-    std::string expect = crypto::hmac_sha256(enrollment_secret, m.version + m.sha256).hex();
+  // Signature verification before staging (§7.9). This runs unconditionally:
+  // an artifact whose origin cannot be established is refused. Skipping the
+  // check when no secret happened to be configured — as this once did —
+  // means an unsigned artifact installs on any device that has not been
+  // enrolled yet, which is exactly the device most worth attacking.
+  if (!release_keys_.empty()) {
+    // Asymmetric path: the device holds public keys only.
+    auto it = release_keys_.find(m.key_id);
+    if (it == release_keys_.end())
+      return Error::make(Errc::SignatureInvalid,
+                         "artifact names unknown release key id '" + m.key_id + "'", "verify");
+    if (m.signature.empty())
+      return Error::make(Errc::SignatureInvalid,
+                         "artifact carries no release signature — refused", "verify");
+    Error e = crypto::verify_ed25519(it->second, m.version + "|" + m.sha256, m.signature);
+    if (!e.ok())
+      return Error::make(Errc::SignatureInvalid,
+                         "artifact signature invalid (" + e.message + ")", "verify");
+  } else if (!enrollment_secret.empty()) {
+    // Legacy shared-secret form for devices provisioned before release keys
+    // were distributed.
+    const std::string expect = crypto::hmac_sha256(enrollment_secret, m.version + m.sha256).hex();
     if (m.hmac.empty() || m.hmac != expect)
       return Error::make(Errc::SignatureInvalid, "artifact signature invalid", "verify");
+  } else {
+    return Error::make(Errc::SignatureInvalid,
+                       "no release key and no enrollment secret: cannot establish the origin "
+                       "of this artifact — refused",
+                       "verify");
   }
   // Anti-rollback: refuse downgrade below the configured minimum version.
   auto vs_min = compare_versions(m.version, cfg_.min_version);
