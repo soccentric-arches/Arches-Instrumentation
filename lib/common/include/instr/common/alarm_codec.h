@@ -40,54 +40,95 @@
 namespace instr
 {
 
+/// @brief Top-level alarm/fault domain (identity bits [31:28]).
 enum class AlarmDomain : uint8_t
 {
-    Hardware = 1,
-    Software = 2,
-    Network = 3,
-    Application = 4,
-    Fault = 5,
+    Hardware = 1,     ///< Physical equipment faults.
+    Software = 2,     ///< Daemon/software faults.
+    Network = 3,      ///< Network faults.
+    Application = 4,  ///< Colocated-application alarms (R5).
+    Fault = 5,        ///< Faults daemon internal.
 };
 
+/// @brief X.733 event type (identity bits [19:16]).
 enum class X733Type : uint8_t
 {
-    Equipment = 1,
-    Communications = 2,
-    ProcessingError = 3,
-    QualityOfService = 4,
-    Environmental = 5,
+    Equipment = 1,        ///< Physical/equipment-related.
+    Communications = 2,   ///< Transmission/link problems.
+    ProcessingError = 3,  ///< Software/processing problem.
+    QualityOfService = 4, ///< Performance/QoS degradation.
+    Environmental = 5,    ///< Environmental conditions.
 };
 
+/// @brief Canonical lowercase name of an alarm domain ("hardware", ...).
+/// @param d Domain to name.
+/// @return Static string for the domain.
 const char* alarm_domain_name(AlarmDomain);
+
+/// @brief Canonical lowercase name of an X.733 type.
+/// @param t Type to name.
+/// @return Static string for the type.
 const char* x733_type_name(X733Type);
-AlarmDomain alarm_domain_from_name(const std::string&); // "hardware" etc.
+
+/// @brief Parse an alarm domain name ("hardware" etc.).
+/// @param s Name to parse.
+/// @return The parsed domain; Hardware when unknown (matching the default value).
+/// @brief Parse an X.733 type name.
+/// @param s Name to parse.
+/// @return The parsed type; Equipment when unknown.
+AlarmDomain alarm_domain_from_name(const std::string&);
 X733Type x733_type_from_name(const std::string&);
 
-// Module numbering: 0x01..0x0A are the ten daemons, 0x10.. are application
-// modules; HQ renders via the shared catalog without hardcoding.
+/// @brief Module numbering: 0x01..0x0A are the ten daemons, 0x10.. are application modules.
+///
+/// HQ renders via the shared catalog without hardcoding.
+///
+/// @return Shared module-number → display-name map.
 const std::map<uint8_t, std::string>& module_names();
+
+/// @brief Parse a module name to its number.
+/// @param s Module name as listed by module_names().
+/// @return Module number; 0 when the name is unknown.
 uint8_t module_from_name(const std::string&);
 
+/// @brief A structured alarm identity (the four 32-bit ID fields unpacked).
 struct AlarmId
 {
-    AlarmDomain domain;
-    uint8_t module;
-    X733Type type;
-    uint16_t index;
+    AlarmDomain domain;   ///< Identity bits [31:28].
+    uint8_t module;       ///< Identity bits [27:20] (daemon or application module).
+    X733Type type;        ///< Identity bits [19:16] (X.733 event type).
+    uint16_t index;       ///< Identity bits [15:0] (alarm number within module).
+    /// @brief Structural equality for map/set keys and tests.
     bool operator==(const AlarmId& o) const
     {
         return domain == o.domain && module == o.module && type == o.type && index == o.index;
     }
 };
 
+/// @brief Pack the four identity fields into the 32-bit alarm ID.
+///
+/// Layout: [31:28] domain | [27:20] module | [19:16] X.733 type | [15:0] index.
+/// An ID is decodable without the catalog:
+/// 0x1_04_1_0007 = hardware / Hardware daemon / equipment / alarm 7.
+///
+/// @param d Domain nibble.
+/// @param module Module byte.
+/// @param t X.733 type nibble.
+/// @param index Alarm index within the module.
+/// @return The packed 32-bit identity.
 constexpr uint32_t encode_alarm_id(AlarmDomain d, uint8_t module, X733Type t, uint16_t index)
 {
     return (static_cast<uint32_t>(d) << 28) | (static_cast<uint32_t>(module) << 20) | (static_cast<uint32_t>(t) << 16) | index;
 }
 
+/// @brief Unpack a 32-bit alarm ID.
+/// @param id Packed identity.
+/// @return The unpacked AlarmId, or an InvalidArgument error for reserved domain values.
 Result<AlarmId> decode_alarm_id(uint32_t id);
 
-// Canonical text form: 0x<domain>_<module>_<type>_<index:04x>
+/// @brief Canonical text form of a packed ID: 0x<domain>_<module>_<type>_<index:04x>.
+/// @param id Packed identity.
+/// @return Text such as "0x1_4_1_0007".
 std::string alarm_id_string(uint32_t id);
 
 } // namespace instr

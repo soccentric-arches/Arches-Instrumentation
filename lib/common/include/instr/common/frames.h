@@ -40,11 +40,17 @@ namespace instr
 namespace frames
 {
 
+/// @brief Write a 4-byte little-endian unsigned integer onto a string buffer.
+/// @param s Buffer to append to.
+/// @param v Value to serialise.
 inline void put_u32(std::string& s, uint32_t v)
 {
     for (int i = 0; i < 4; ++i) s += char((v >> (8 * i)) & 0xFF);
 }
 
+/// @brief Encode one length-prefixed frame: 4-byte LE length + payload.
+/// @param payload UTF-8 JSON payload bytes.
+/// @return The framed byte string.
 inline std::string encode_frame(const std::string& payload)
 {
     std::string out;
@@ -55,11 +61,18 @@ inline std::string encode_frame(const std::string& payload)
 
 constexpr size_t kMaxFrame = 16 * 1024 * 1024; // 16 MiB safety cap
 
-// Streaming decoder: feed bytes, extract complete frames.
+/// @brief Streaming frame decoder: feed bytes, extract complete frames.
 class FrameDecoder
 {
   public:
-    // Returns true when a frame was extracted; *out filled.
+    /// @brief Feed bytes and extract one complete frame if available.
+    ///
+    /// A length exceeding kMaxFrame clears the buffer and latches bad_length().
+    ///
+    /// @param data Byte chunk to append.
+    /// @param len Length of @p data.
+    /// @param out Receives the extracted frame payload when a frame completed.
+    /// @return True when a frame was extracted and @p out is filled.
     bool feed(const char* data, size_t len, std::string* out)
     {
         buf_.append(data, len);
@@ -76,14 +89,15 @@ class FrameDecoder
         buf_.erase(0, 4 + n);
         return true;
     }
+    /// @brief True when an oversized frame length was seen since construction.
     bool bad_length() const
     {
         return bad_length_;
     }
 
   private:
-    std::string buf_;
-    bool bad_length_ = false;
+    std::string buf_;          ///< Partially received bytes, awaiting a full frame.
+    bool bad_length_ = false;  ///< Latched on an oversized declared length.
 };
 
 } // namespace frames

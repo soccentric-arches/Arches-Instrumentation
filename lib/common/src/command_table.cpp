@@ -32,6 +32,7 @@
 namespace instr
 {
 
+/// @brief Render the wire envelope: {"ok":true,...} / {"ok":false,...}.
 std::string CommandResult::envelope() const
 {
     if (ok)
@@ -53,6 +54,7 @@ std::string CommandResult::envelope() const
     return v.dump();
 }
 
+/// @brief Parse command arguments into a JValue object (empty string → "{}").
 Result<JValue> args_object(const std::string& json_args)
 {
     if (json_args.empty()) return Result<JValue>::good(JValue::object());
@@ -62,6 +64,7 @@ Result<JValue> args_object(const std::string& json_args)
     return v;
 }
 
+/// @brief --help output listing every command.
 std::string CommandTable::help_text(const std::string& prog) const
 {
     std::ostringstream o;
@@ -82,6 +85,7 @@ std::string CommandTable::help_text(const std::string& prog) const
     return o.str();
 }
 
+/// @brief Help for a single command.
 std::string CommandTable::help_for(const std::string& op) const
 {
     const CommandSpec* s = find(op);
@@ -92,6 +96,7 @@ std::string CommandTable::help_for(const std::string& op) const
     return o.str();
 }
 
+/// @brief Generate a bash completion script for @p prog.
 std::string CommandTable::completion_bash(const std::string& prog) const
 {
     std::ostringstream o;
@@ -147,6 +152,7 @@ std::string CommandTable::completion_bash(const std::string& prog) const
     return o.str();
 }
 
+/// @brief Generate a zsh completion script for @p prog.
 std::string CommandTable::completion_zsh(const std::string& prog) const
 {
     std::ostringstream o;

@@ -33,6 +33,7 @@
 namespace instr
 {
 
+/// @brief Canonical lowercase name of an alarm domain.
 const char* alarm_domain_name(AlarmDomain d)
 {
     switch (d)
@@ -46,6 +47,7 @@ const char* alarm_domain_name(AlarmDomain d)
     return "unknown";
 }
 
+/// @brief Canonical lowercase name of an X.733 type.
 const char* x733_type_name(X733Type t)
 {
     switch (t)
@@ -59,6 +61,7 @@ const char* x733_type_name(X733Type t)
     return "unknown";
 }
 
+/// @brief Parse an alarm domain name; unknown names map to Hardware.
 AlarmDomain alarm_domain_from_name(const std::string& n)
 {
     if (n == "hardware") return AlarmDomain::Hardware;
@@ -69,6 +72,7 @@ AlarmDomain alarm_domain_from_name(const std::string& n)
     return AlarmDomain::Software; // caller validates via catalog schema
 }
 
+/// @brief Parse an X.733 type name; unknown names map to Equipment.
 X733Type x733_type_from_name(const std::string& n)
 {
     if (n == "equipment") return X733Type::Equipment;
@@ -79,6 +83,7 @@ X733Type x733_type_from_name(const std::string& n)
     return X733Type::ProcessingError;
 }
 
+/// @brief Shared module-number → display-name map (daemons then application modules).
 const std::map<uint8_t, std::string>& module_names()
 {
     static const std::map<uint8_t, std::string> m = {
@@ -87,6 +92,7 @@ const std::map<uint8_t, std::string>& module_names()
     return m;
 }
 
+/// @brief Parse a module name to its number; 0 when unknown.
 uint8_t module_from_name(const std::string& name)
 {
     for (const auto& kv : module_names())
@@ -94,6 +100,7 @@ uint8_t module_from_name(const std::string& name)
     return 0;
 }
 
+/// @brief Unpack a 32-bit alarm ID into its four fields.
 Result<AlarmId> decode_alarm_id(uint32_t id)
 {
     AlarmId a;
@@ -105,6 +112,7 @@ Result<AlarmId> decode_alarm_id(uint32_t id)
     return Result<AlarmId>::good(a);
 }
 
+/// @brief Canonical text form of a packed ID: 0x<d>_<mod>_<t>_<idx>.
 std::string alarm_id_string(uint32_t id)
 {
     char buf[32];
