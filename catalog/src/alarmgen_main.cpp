@@ -20,6 +20,34 @@
 /**
  * @file catalog/src/alarmgen_main.cpp
  * @brief builds the shared alarm ID header from catalog/alarms.yaml
+ *
+ * @details
+ * Thin IO shell for the pure code-generation domain
+ * (instr/catalog/codegen.h). At build time this tool is executed by the
+ * CMake build system with two positional arguments — the path of the YAML
+ * catalog and the path of the generated header — and does the following:
+ *
+ * 1. Reads the entire catalog file into memory.
+ * 2. Calls instr::catalog::parse_catalog to parse and validate the catalog
+ *    (duplicates, unknown severities, and malformed ids are rejected with a
+ *    diagnosable message).
+ * 3. Calls instr::catalog::render_header to render the shared C++ header
+ *    (INSTR_ALARM_* constants + entry table), stamping the repository-wide
+ *    INSTR_VERSION.
+ * 4. Writes the rendered text to the output path.
+ *
+ * Separation of concerns: all domain logic lives in the pure
+ * instr::catalog namespace unit, which the unit tests exercise
+ * directly (no filesystem access whatsoever); this translation unit only
+ * handles file IO, argument checking, and exit codes.
+ *
+ * @par Exit codes
+ * | Code | Meaning |
+ * |------|---------|
+ * | 0    | The header was generated successfully. |
+ * | 1    | Domain failure: the catalog was rejected, or header rendering failed. |
+ * | 2    | Usage/IO failure: incorrect number of arguments, or input/output file could not be opened. |
+ *
  * @author Sandesh Ghimire (sandesh@soccentric)
  * @date 2026
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
@@ -31,7 +59,20 @@
 #include "instr/catalog/codegen.h"
 #include "instr/common/version_gen.h"
 
-/// @brief alarmgen tool entry: parse the catalog YAML and emit the C++ header.
+/**
+ * @brief alarmgen tool entry: parse the catalog YAML and emit the C++ header.
+ *
+ * @param[in] argc Number of program arguments.
+ * @param[in] argv Program arguments; expects two positionals:
+ *           argv[1] = path to the input catalog YAML (must exist and be readable),
+ *           argv[2] = path to the output C++ header (must be writable).
+ * @return 0 on success; 1 on catalog/render failure; 2 on usage/IO failure
+ *         (see the file description for the exit-code contract).
+ *
+ * All failure modes print a single-line message to stderr naming the
+ * offending file or domain error, so failures surface with a clear reason in
+ * CMake build logs.
+ */
 int main(int argc, char** argv)
 {
     if (argc != 3)
