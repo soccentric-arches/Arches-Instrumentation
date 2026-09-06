@@ -29,9 +29,14 @@
 
 #include "instr/common/version_gen.h"
 
+#include <grp.h>
+#include <pwd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+
+#include <cerrno>
+#include <cstring>
 
 namespace instr {
 namespace istate {
@@ -40,12 +45,37 @@ using transport::GenericHubMsg;
 using transport::GenericSpokeMsg;
 using transport::HubServiceBase;
 
-static void own_socket(const std::string& path) {
-  // Mode 0660, owned instr:<daemon> (§3.1). When running unprivileged (tests,
-  // host harness) chown is skipped silently; on target the istate user owns
-  // the sockets.
-  ::chmod(path.c_str(), 0660);
-  ::chown(path.c_str(), -1, -1);
+// Socket permissions are how the call graph is enforced (§3.1, §10): each
+// spoke's registration socket is mode 0660 owned instr:instr-<daemon>, so
+// only that daemon's own user can dial it. A single shared group would let
+// any spoke call any other's hub service, which is the N x N mesh R1 exists
+// to prevent — expressed in filesystem permissions rather than in code.
+//
+// Running unprivileged (tests, the host harness, a container without
+// CAP_CHOWN) the chown cannot succeed. That is reported once, loudly, rather
+// than passed over: on a device it means the enforcement is not in place.
+static bool own_socket(const std::string& path, const std::string& daemon, Logger* log) {
+  if (::chmod(path.c_str(), 0660) != 0) {
+    if (log) log->warning("istate", "cannot chmod " + path + ": " + std::strerror(errno));
+    return false;
+  }
+  // "configuration" is the local UI peer (§3.3), which runs as its own user.
+  const std::string user = daemon == "configuration" ? "instr-configuration" : "instr-" + daemon;
+  struct passwd* pw = ::getpwnam(user.c_str());
+  struct group* gr = ::getgrnam("instr");
+  if (!pw || !gr) {
+    if (log)
+      log->warning("istate", "socket ownership not applied for " + path + ": no such user '" +
+                                 user + "' or group 'instr'");
+    return false;
+  }
+  if (::chown(path.c_str(), pw->pw_uid, gr->gr_gid) != 0) {
+    if (log)
+      log->warning("istate", "cannot chown " + path + " to " + user + ":instr: " +
+                                 std::strerror(errno) + " — the socket call graph is NOT enforced");
+    return false;
+  }
+  return true;
 }
 
 // ---- typed per-spoke hub services ----
@@ -773,10 +803,14 @@ class ConfigurationApiImpl final : public istate::ConfigurationApi::Service {
 std::unique_ptr<grpc::Server> build_hub_server(IstateCore& core, const std::string& run_dir,
                                                std::vector<std::unique_ptr<grpc::Service>>* services) {
   grpc::ServerBuilder builder;
+  // Ownership can only be applied once the socket file exists, which is
+  // after BuildAndStart — applying it here (as this once did) chmod'd a
+  // path that was not there yet and silently achieved nothing.
+  std::vector<std::string> socket_names;
   auto own = [&](const std::string& name) {
     std::string path = run_dir + "/" + name + ".sock";
     builder.AddListeningPort("unix:" + path, grpc::InsecureServerCredentials());
-    own_socket(path);
+    socket_names.push_back(name);
     return path;
   };
   auto monitor = std::make_unique<MonitorHubImpl>(core, "monitord");
@@ -814,7 +848,18 @@ std::unique_ptr<grpc::Server> build_hub_server(IstateCore& core, const std::stri
     services->push_back(std::move(backup));
     services->push_back(std::move(config));
   }
-  return builder.BuildAndStart();
+  auto server = builder.BuildAndStart();
+  if (server) {
+    size_t owned = 0;
+    for (const auto& name : socket_names)
+      if (own_socket(run_dir + "/" + name + ".sock", name, &core.log())) ++owned;
+    if (owned != socket_names.size())
+      core.log().warning("istate",
+                         "socket ownership applied to " + std::to_string(owned) + " of " +
+                             std::to_string(socket_names.size()) +
+                             " sockets; per-daemon access control is degraded");
+  }
+  return server;
 }
 
 // ---- HQ session client ----

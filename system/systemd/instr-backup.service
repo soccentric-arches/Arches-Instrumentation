@@ -6,8 +6,6 @@ Wants=instr-networkd.service
 # istate owns orchestration; systemd owns restart policy and sandboxing (§7.1).
 
 [Service]
-
-[Service]
 Type=notify
 ExecStart=/usr/bin/instr-backup
 Restart=on-failure

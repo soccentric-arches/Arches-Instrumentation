@@ -17,7 +17,19 @@ PrivateTmp=yes
 NoNewPrivileges=yes
 ProtectHome=yes
 RestrictSUIDSGID=yes
-CapabilityBoundingSet=
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+SystemCallArchitectures=native
+# CAP_CHOWN: istate hands each spoke's registration socket to that spoke's
+# own user, which is how the call graph is enforced (§3.1, §10). Without it
+# every socket stays root-owned and any member of the instr group can call
+# any hub service. CAP_SYS_ADMIN is NOT granted: istate requests unit
+# start/stop through systemd rather than performing it (§7.1).
+AmbientCapabilities=CAP_CHOWN
+CapabilityBoundingSet=CAP_CHOWN
 LimitNOFILE=4096
 
 [Install]
