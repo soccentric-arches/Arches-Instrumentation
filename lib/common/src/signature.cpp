@@ -38,6 +38,7 @@ namespace instr
 namespace crypto
 {
 
+/// @brief True when a signature backend is compiled in.
 bool signature_verification_available()
 {
 #ifdef INSTR_HAVE_OPENSSL
@@ -47,6 +48,7 @@ bool signature_verification_available()
 #endif
 }
 
+/// @brief Verify an Ed25519 signature; fails closed on every abnormal outcome.
 Error verify_ed25519(const std::string& public_key, const std::string& message, const std::string& signature)
 {
     if (public_key.size() != 32) return Error::make(Errc::InvalidArgument, "Ed25519 public key must be 32 bytes, got " + std::to_string(public_key.size()), "signature");
@@ -79,6 +81,7 @@ Error verify_ed25519(const std::string& public_key, const std::string& message, 
 #endif
 }
 
+/// @brief Base64 convenience overload of verify_ed25519().
 Error verify_ed25519_b64(const std::string& public_key_b64, const std::string& message, const std::string& signature_b64)
 {
     auto key = base64_decode(public_key_b64);

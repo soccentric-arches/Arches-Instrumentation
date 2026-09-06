@@ -39,6 +39,7 @@ namespace instr
 namespace crypto
 {
 
+/// @brief Render the digest as 64 lowercase hex characters.
 std::string Digest32::hex() const
 {
     static const char* d = "0123456789abcdef";
@@ -69,11 +70,13 @@ const uint32_t K[64] = {0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c2
                         0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3,
                         0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2};
 
+/// @brief Rotate right helper for SHA-256.
 inline uint32_t rotr(uint32_t x, int n)
 {
     return (x >> n) | (x << (32 - n));
 }
 
+/// @brief Initialise a SHA-256 context with the FIPS 180-4 IV.
 void sha_init(Sha256Ctx& c)
 {
     c.h[0] = 0x6a09e667;
@@ -88,6 +91,7 @@ void sha_init(Sha256Ctx& c)
     c.buflen = 0;
 }
 
+/// @brief Absorb one 64-byte SHA-256 block into the context.
 void sha_block(Sha256Ctx& c, const uint8_t* p)
 {
     uint32_t w[64];
@@ -128,6 +132,7 @@ void sha_block(Sha256Ctx& c, const uint8_t* p)
     (void)0;
 }
 
+/// @brief Absorb an arbitrary-length byte string into the SHA-256 context.
 void sha_update(Sha256Ctx& c, const uint8_t* p, size_t n)
 {
     c.total += n;
@@ -153,6 +158,7 @@ void sha_update(Sha256Ctx& c, const uint8_t* p, size_t n)
     }
 }
 
+/// @brief Finalise the SHA-256 context and emit the 32-byte digest.
 void sha_final(Sha256Ctx& c, uint8_t out[32])
 {
     uint64_t bits = c.total * 8;
@@ -176,6 +182,7 @@ void sha_final(Sha256Ctx& c, uint8_t out[32])
 
 } // namespace
 
+/// @brief One-shot SHA-256 over raw bytes.
 Digest32 sha256(const uint8_t* data, size_t len)
 {
     Sha256Ctx c;
@@ -186,6 +193,7 @@ Digest32 sha256(const uint8_t* data, size_t len)
     return d;
 }
 
+/// @brief HMAC-SHA256 (RFC 2104).
 Digest32 hmac_sha256(const std::string& key, const std::string& msg)
 {
     std::string k = key;
@@ -213,25 +221,30 @@ typedef uint64_t fe[5]; // radix 2^51
 
 constexpr uint64_t MASK51 = (1ull << 51) - 1;
 
+/// @brief Field-arithmetic helpers for X25519 over GF(2^255 - 19). Zero a field element.
 static void fe_zero(fe h)
 {
     h[0] = h[1] = h[2] = h[3] = h[4] = 0;
 }
+/// @brief Set a field element to one.
 static void fe_one(fe h)
 {
     h[0] = 1;
     h[1] = h[2] = h[3] = h[4] = 0;
 }
+/// @brief Copy a field element.
 static void fe_copy(fe out, const fe in)
 {
     for (int i = 0; i < 5; ++i) out[i] = in[i];
 }
 
+/// @brief Field addition (mod p).
 static void fe_add(fe h, const fe f, const fe g)
 {
     for (int i = 0; i < 5; ++i) h[i] = f[i] + g[i];
 }
 
+/// @brief Field subtraction (mod p).
 static void fe_sub(fe h, const fe f, const fe g)
 {
     // h = f - g + 2p, limb-wise, keeping values positive.
@@ -239,6 +252,7 @@ static void fe_sub(fe h, const fe f, const fe g)
     for (int i = 0; i < 5; ++i) h[i] = f[i] + two_p[i] - g[i];
 }
 
+/// @brief Normalise limb overflow after arithmetic.
 static void fe_carry(fe h)
 {
     uint64_t c;
@@ -262,6 +276,7 @@ static void fe_carry(fe h)
     h[1] += c;
 }
 
+/// @brief Field multiplication (mod p).
 static void fe_mul(fe h, const fe f, const fe g)
 {
     unsigned __int128 t0, t1, t2, t3, t4;
@@ -306,6 +321,7 @@ static void fe_mul(fe h, const fe f, const fe g)
     h[4] += c;
 }
 
+/// @brief Multiply a field element by a small constant.
 static void fe_mul_small(fe h, const fe f, uint64_t n)
 {
     unsigned __int128 t[5];
@@ -335,11 +351,13 @@ static void fe_mul_small(fe h, const fe f, uint64_t n)
     h[4] += c;
 }
 
+/// @brief Field squaring.
 static void fe_sq(fe h, const fe f)
 {
     fe_mul(h, f, f);
 }
 
+/// @brief Decode 32 little-endian bytes into a field element (masking the high bit).
 static void fe_frombytes(fe h, const uint8_t in[32])
 {
     uint64_t w0 = uint64_t(in[0]) | (uint64_t(in[1]) << 8) | (uint64_t(in[2]) << 16) | (uint64_t(in[3]) << 24) | (uint64_t(in[4]) << 32) | (uint64_t(in[5]) << 40) | (uint64_t(in[6]) << 48) | (uint64_t(in[7]) << 56);
@@ -353,6 +371,7 @@ static void fe_frombytes(fe h, const uint8_t in[32])
     h[4] = (w3 >> 12) & MASK51;
 }
 
+/// @brief Encode a field element as 32 little-endian bytes.
 static void fe_tobytes(uint8_t out[32], const fe f)
 {
     fe t;
@@ -402,6 +421,7 @@ static void fe_tobytes(uint8_t out[32], const fe f)
     std::memcpy(out + 24, &w3, 8);
 }
 
+/// @brief Field inversion via Fermat (z^(p-2)).
 static void fe_invert(fe out, const fe z)
 {
     // Exponentiation by squaring with exponent e = p-2 = 2^255 - 21.
@@ -427,6 +447,7 @@ static void fe_invert(fe out, const fe z)
     fe_copy(out, acc);
 }
 
+/// @brief Constant-time conditional swap of two field elements (ladder step helper).
 static void cswap(uint64_t swap, fe a, fe b)
 {
     uint64_t mask = 0 - swap; // all-ones if swap == 1
@@ -440,6 +461,7 @@ static void cswap(uint64_t swap, fe a, fe b)
 
 } // namespace
 
+/// @brief X25519 scalar multiplication (RFC 7748) via the Montgomery ladder.
 std::array<uint8_t, 32> x25519(const uint8_t priv_in[32], const uint8_t pub_in[32])
 {
     uint8_t k[32], u[32];
@@ -497,6 +519,7 @@ std::array<uint8_t, 32> x25519(const uint8_t priv_in[32], const uint8_t pub_in[3
     return out;
 }
 
+/// @brief Generate an X25519 keypair with the clamped private scalar.
 X25519Key x25519_generate(const Rng32& rng)
 {
     X25519Key k;
@@ -515,11 +538,13 @@ X25519Key x25519_generate(const Rng32& rng)
 namespace
 {
 
+/// @brief Rotate left helper for ChaCha20.
 inline uint32_t rotl32(uint32_t v, int c)
 {
     return (v << c) | (v >> (32 - c));
 }
 
+/// @brief ChaCha20 quarter-round mixing function.
 void quarter(uint32_t& a, uint32_t& b, uint32_t& c, uint32_t& d)
 {
     a += b;
@@ -536,6 +561,7 @@ void quarter(uint32_t& a, uint32_t& b, uint32_t& c, uint32_t& d)
     b = rotl32(b, 7);
 }
 
+/// @brief Produce one 64-byte ChaCha20 keystream block.
 void chacha_block(const uint8_t key[32], const uint8_t nonce[12], uint32_t counter, uint8_t out[64])
 {
     static const uint8_t sigma[] = "expand 32-byte k";
@@ -570,6 +596,7 @@ void chacha_block(const uint8_t key[32], const uint8_t nonce[12], uint32_t count
 
 } // namespace
 
+/// @brief Apply the ChaCha20 stream cipher (RFC 8439).
 void chacha20(const uint8_t key[32], const uint8_t nonce[12], uint32_t counter, const uint8_t* in, uint8_t* out, size_t len)
 {
     uint8_t block[64];
@@ -583,6 +610,7 @@ void chacha20(const uint8_t key[32], const uint8_t nonce[12], uint32_t counter, 
     }
 }
 
+/// @brief Encrypt-then-MAC: nonce(12) || ciphertext || tag(32).
 std::string aead_seal(const std::string& key32, const std::string& plaintext, const Rng32& rng)
 {
     uint8_t nonce[12];
@@ -594,6 +622,7 @@ std::string aead_seal(const std::string& key32, const std::string& plaintext, co
     return nonce_s + ct + std::string(reinterpret_cast<const char*>(tag.b.data()), 32);
 }
 
+/// @brief Verify the tag then decrypt; tampering is rejected.
 Result<std::string> aead_open(const std::string& key32, const std::string& sealed)
 {
     if (sealed.size() < 12 + 32) return Result<std::string>::fail(Errc::SignatureInvalid, "sealed blob too short", "aead_open");
@@ -609,6 +638,7 @@ Result<std::string> aead_open(const std::string& key32, const std::string& seale
 
 // ---------------- HKDF-SHA256 (RFC 5869) ----------------
 
+/// @brief HKDF-SHA256 extract-and-expand (RFC 5869).
 std::string hkdf_sha256(const std::string& ikm, const std::string& salt, const std::string& info, size_t len)
 {
     std::string actual_salt = salt.empty() ? std::string(32, '\0') : salt;
@@ -634,6 +664,7 @@ std::string hkdf_sha256(const std::string& ikm, const std::string& salt, const s
 
 static const char* B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
+/// @brief Standard base64 encode (with padding).
 std::string base64_encode(const std::string& raw)
 {
     std::string out;
@@ -665,6 +696,7 @@ std::string base64_encode(const std::string& raw)
     return out;
 }
 
+/// @brief Standard base64 decode; malformed input is rejected.
 Result<std::string> base64_decode(const std::string& b64in)
 {
     static int8_t rev[256];
@@ -696,6 +728,7 @@ Result<std::string> base64_decode(const std::string& b64in)
     return Result<std::string>::good(out);
 }
 
+/// @brief Lowercase hex encode.
 std::string hex_encode(const std::string& raw)
 {
     static const char* d = "0123456789abcdef";
@@ -709,6 +742,7 @@ std::string hex_encode(const std::string& raw)
     return out;
 }
 
+/// @brief Hex decode (upper or lower case); malformed input is rejected.
 Result<std::string> hex_decode(const std::string& hexin)
 {
     auto val = [](char c) -> int {
@@ -731,6 +765,7 @@ Result<std::string> hex_decode(const std::string& hexin)
 
 // ---------------- randomness ----------------
 
+/// @brief Fill @p n bytes from the OS CSPRNG; fails loudly on error.
 Error random_bytes(uint8_t* out, size_t n)
 {
     size_t off = 0;

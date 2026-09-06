@@ -53,21 +53,23 @@ namespace instr
 namespace crypto
 {
 
-// Verifies an Ed25519 signature.
-//   public_key: 32 raw bytes (the HQ/release signing key, provisioned in the
-//               image or at enrollment — never a device secret).
-//   message:    the exact bytes that were signed.
-//   signature:  64 raw bytes.
-// Returns ok() only on a good signature. Every other outcome — malformed key,
-// wrong length, unavailable backend — is an error, never a pass.
+/// @brief Verify an Ed25519 signature over @p message.
+///
+/// @p public_key is 32 raw bytes (the HQ/release signing key, provisioned in
+/// the image or at enrollment — never a device secret); @p signature is 64
+/// raw bytes. Returns ok() only on a good signature: every other outcome —
+/// malformed key, wrong length, unavailable backend — is an error, never a
+/// pass.
 Error verify_ed25519(const std::string& public_key, const std::string& message, const std::string& signature);
 
-// True when a signature backend is compiled in. Used to report the device's
-// security posture northbound, not to decide whether to enforce: with no
-// backend, verification fails and signed content is refused.
+/// @brief True when a signature backend is compiled in.
+///
+/// Used to report the device's security posture northbound, not to decide
+/// whether to enforce: with no backend, verification fails and signed content
+/// is refused.
 bool signature_verification_available();
 
-// Convenience: accepts a base64 key and signature (the wire form).
+/// @brief Convenience overload accepting a base64 key and signature (the wire form).
 Error verify_ed25519_b64(const std::string& public_key_b64, const std::string& message, const std::string& signature_b64);
 
 } // namespace crypto
