@@ -48,11 +48,11 @@ namespace domain
 /// @brief Outcome state of a device health check.
 enum class CheckState
 {
-    Pass,        ///< Check succeeded.
-    Fail,        ///< Check failed.
-    Degraded,    ///< Check passed but below expectations.
-    NotPresent,  ///< Device missing from the platform.
-    Unknown      ///< Check could not run.
+    Pass, ///< Check succeeded.
+    Fail, ///< Check failed.
+    Degraded, ///< Check passed but below expectations.
+    NotPresent, ///< Device missing from the platform.
+    Unknown ///< Check could not run.
 };
 
 /// @brief Canonical name of a check state ("pass", "fail", ...).
@@ -61,12 +61,12 @@ const char* check_state_name(CheckState);
 /// @brief One executed device check.
 struct CheckResult
 {
-    std::string device;         ///< Device name from the descriptor.
-    std::string check;          ///< Check name.
-    CheckState state = CheckState::Unknown;   ///< Outcome.
-    std::string detail;         ///< Human-readable detail (failure reason).
-    uint64_t duration_ms = 0;   ///< How long the check took.
-    uint64_t mono_ns = 0;       ///< When it ran.
+    std::string device; ///< Device name from the descriptor.
+    std::string check; ///< Check name.
+    CheckState state = CheckState::Unknown; ///< Outcome.
+    std::string detail; ///< Human-readable detail (failure reason).
+    uint64_t duration_ms = 0; ///< How long the check took.
+    uint64_t mono_ns = 0; ///< When it ran.
 };
 
 /// @brief Device controls and quick health checks over the platform primitives.
@@ -131,11 +131,11 @@ class DeviceManager
   private:
     /// @brief Stamp and return a check result.
     CheckResult make_result(const std::string& dev, const std::string& chk, CheckState st, const std::string& detail, uint64_t started);
-    platform::IPlatform& plat_;                    ///< Platform primitives (not owned).
-    TimeSource& ts_;                                ///< Clock (not owned).
-    platform::DeviceDescriptor desc_;               ///< Board device inventory.
-    std::map<std::string, uint64_t> last_check_mono_;   ///< Last periodic check per device.
-    double periodic_interval_s_ = 300;              ///< Periodic scheduling interval.
+    platform::IPlatform& plat_; ///< Platform primitives (not owned).
+    TimeSource& ts_; ///< Clock (not owned).
+    platform::DeviceDescriptor desc_; ///< Board device inventory.
+    std::map<std::string, uint64_t> last_check_mono_; ///< Last periodic check per device.
+    double periodic_interval_s_ = 300; ///< Periodic scheduling interval.
 };
 
 } // namespace domain

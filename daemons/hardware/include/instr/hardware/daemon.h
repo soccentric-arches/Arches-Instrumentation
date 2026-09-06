@@ -56,9 +56,9 @@ class HardwareCore
     /// @brief Configuration delivered by istate (§7.4, §9).
     struct Config
     {
-        bool enabled = true;                       ///< Master switch.
-        double periodic_check_interval_s = 300.0;  ///< 0 disables scheduled checks.
-        double check_timeout_s = 5.0;              ///< Per-check timeout.
+        bool enabled = true; ///< Master switch.
+        double periodic_check_interval_s = 300.0; ///< 0 disables scheduled checks.
+        double check_timeout_s = 5.0; ///< Per-check timeout.
     };
     /// @brief Current configuration (thread-safe).
     Config config() const
@@ -111,11 +111,11 @@ class HardwareCore
     std::string descriptor_summary_json() const;
 
   private:
-    DeviceManager mgr_;                        ///< Device controls and checks.
-    std::function<void(const CheckResult&)> sink_;   ///< Check-result sink (guarded by mu_).
-    mutable std::mutex mu_;                    ///< Guards cfg_, on_config_ and sink_.
-    Config cfg_;                               ///< Current configuration.
-    std::function<void(const Config&)> on_config_;   ///< Config-accepted listener.
+    DeviceManager mgr_; ///< Device controls and checks.
+    std::function<void(const CheckResult&)> sink_; ///< Check-result sink (guarded by mu_).
+    mutable std::mutex mu_; ///< Guards cfg_, on_config_ and sink_.
+    Config cfg_; ///< Current configuration.
+    std::function<void(const Config&)> on_config_; ///< Config-accepted listener.
 };
 
 /// @brief Build the hardware ctrl command table (devices, control, checks).
@@ -147,11 +147,11 @@ class HardwareSpoke
     void send_result(const CheckResult& r);
 
   private:
-    HardwareCore* core_;                      ///< Domain core (not owned).
-    Logger* log_;                             ///< Logger (not owned).
-    const CommandTable* table_;               ///< Command table (not owned).
-    std::unique_ptr<ConfigSink> config_sink_;      ///< Validates and applies config deliveries.
-    std::unique_ptr<SpokeChannel<hardware::HardwareHub, hardware::HardwareSpokeFrame, hardware::HardwareHubFrame>> channel_;   ///< gRPC channel to istate.
+    HardwareCore* core_; ///< Domain core (not owned).
+    Logger* log_; ///< Logger (not owned).
+    const CommandTable* table_; ///< Command table (not owned).
+    std::unique_ptr<ConfigSink> config_sink_; ///< Validates and applies config deliveries.
+    std::unique_ptr<SpokeChannel<hardware::HardwareHub, hardware::HardwareSpokeFrame, hardware::HardwareHubFrame>> channel_; ///< gRPC channel to istate.
 };
 
 } // namespace hardware
