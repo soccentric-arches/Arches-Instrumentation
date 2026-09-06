@@ -48,8 +48,10 @@
 
 #include "instr/common/error.h"
 
-namespace instr {
-namespace crypto {
+namespace instr
+{
+namespace crypto
+{
 
 // Verifies an Ed25519 signature.
 //   public_key: 32 raw bytes (the HQ/release signing key, provisioned in the
@@ -58,8 +60,7 @@ namespace crypto {
 //   signature:  64 raw bytes.
 // Returns ok() only on a good signature. Every other outcome — malformed key,
 // wrong length, unavailable backend — is an error, never a pass.
-Error verify_ed25519(const std::string& public_key, const std::string& message,
-                     const std::string& signature);
+Error verify_ed25519(const std::string& public_key, const std::string& message, const std::string& signature);
 
 // True when a signature backend is compiled in. Used to report the device's
 // security posture northbound, not to decide whether to enforce: with no
@@ -67,8 +68,7 @@ Error verify_ed25519(const std::string& public_key, const std::string& message,
 bool signature_verification_available();
 
 // Convenience: accepts a base64 key and signature (the wire form).
-Error verify_ed25519_b64(const std::string& public_key_b64, const std::string& message,
-                         const std::string& signature_b64);
+Error verify_ed25519_b64(const std::string& public_key_b64, const std::string& message, const std::string& signature_b64);
 
-}  // namespace crypto
-}  // namespace instr
+} // namespace crypto
+} // namespace instr

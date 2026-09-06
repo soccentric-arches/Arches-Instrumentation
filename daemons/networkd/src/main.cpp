@@ -37,77 +37,72 @@
 #include "instr/networkd/daemon.h"
 #include "instr/platform/factory.h"
 
-int main(int argc, char** argv) {
-  auto args = instr::parse_daemon_args(argc, argv, "networkd");
-  if (args.help) {
-    std::printf(
-        "networkd — network/firewall/tunnel/time daemon (Arches Instrumentation)\n"
-        "usage: networkd [--socket PATH] [--hub PATH] [--root PATH]\n"
-        "       [--platform native|simulated] [--help]\n");
+int main(int argc, char** argv)
+{
+    auto args = instr::parse_daemon_args(argc, argv, "networkd");
+    if (args.help)
+    {
+        std::printf("networkd — network/firewall/tunnel/time daemon (Arches Instrumentation)\n"
+                    "usage: networkd [--socket PATH] [--hub PATH] [--root PATH]\n"
+                    "       [--platform native|simulated] [--help]\n");
+        return 0;
+    }
+    std::atomic<bool> stop{false};
+    instr::install_signal_handlers(stop);
+    instr::StderrSink sink;
+    instr::SystemTimeSource ts;
+    instr::Logger log(sink, ts);
+
+    std::string root = args.root.empty() ? "/" : args.root;
+    // §5: the same binary runs against the simulated platform on a build host.
+    bool platform_known = true;
+    auto plat_owned = instr::platform::make_platform(args.platform, root, &platform_known);
+    if (!platform_known) log.warning(args.name, "unknown --platform '" + args.platform + "', using native");
+    instr::platform::IPlatform& plat = *plat_owned;
+    instr::networkd::NetworkdCore core(plat, ts);
+
+    instr::NativeFileSystem fs;
+    auto cfg_schema = instr::load_daemon_schema(fs, root, "networkd");
+    if (!cfg_schema.ok()) log.warning("networkd", "no JSON Schema installed: " + cfg_schema.error.str() + " — deliveries will be applied unvalidated");
+
+    auto table = instr::networkd::build_networkd_table(&core);
+
+    std::string run_dir = root + "/run/instrumentation";
+    std::string ctrl_path = args.socket_override.empty() ? run_dir + "/networkd-ctrl.sock" : args.socket_override;
+    instr::ctrl::CtrlServer ctrl(&table, ctrl_path);
+    auto e = ctrl.start();
+    if (!e.ok())
+    {
+        std::fprintf(stderr, "networkd: ctrl server failed: %s\n", e.str().c_str());
+        return 1;
+    }
+    std::string hub = args.hub_socket.empty() ? run_dir + "/networkd.sock" : args.hub_socket;
+    instr::networkd::NetworkdSpoke spoke(&core, &log, &table, instr::transport::uds_target(hub), INSTR_VERSION);
+    if (cfg_schema.ok()) spoke.set_schema(*cfg_schema);
+    core.set_event_sink([&](const std::string& kind, const std::string& detail) {
+        instr::networkd::NetworkEvent ev;
+        ev.set_kind(kind);
+        ev.set_detail_json(detail);
+        spoke.send_event(ev);
+    });
+    spoke.start();
+
+    // A time-boxed SSH window only actually expires if something sweeps it
+    // (§7.2, §10), and failover only re-ranks if reachability is probed.
+    instr::PeriodicWorker ssh_sweep("networkd-ssh-sweep", core.config().ssh_sweep_interval_s, [&] { core.sweep_remote_access(); });
+    instr::PeriodicWorker probe("networkd-probe", core.config().connectivity_probe_interval_s, [&] { core.probe_connectivity(); });
+    core.set_config_listener([&](const instr::networkd::NetworkdCore::Config& c) {
+        ssh_sweep.set_interval_s(c.enabled ? c.ssh_sweep_interval_s : 0.0);
+        probe.set_interval_s(c.enabled ? c.connectivity_probe_interval_s : 0.0);
+    });
+    ssh_sweep.start();
+    probe.start();
+
+    instr::sd_notify_ready();
+    instr::run_until_stop(stop, {});
+    probe.stop();
+    ssh_sweep.stop();
+    spoke.stop();
+    ctrl.stop();
     return 0;
-  }
-  std::atomic<bool> stop{false};
-  instr::install_signal_handlers(stop);
-  instr::StderrSink sink;
-  instr::SystemTimeSource ts;
-  instr::Logger log(sink, ts);
-
-  std::string root = args.root.empty() ? "/" : args.root;
-  // §5: the same binary runs against the simulated platform on a build host.
-  bool platform_known = true;
-  auto plat_owned = instr::platform::make_platform(args.platform, root, &platform_known);
-  if (!platform_known)
-    log.warning(args.name, "unknown --platform '" + args.platform + "', using native");
-  instr::platform::IPlatform& plat = *plat_owned;
-  instr::networkd::NetworkdCore core(plat, ts);
-
-  instr::NativeFileSystem fs;
-  auto cfg_schema = instr::load_daemon_schema(fs, root, "networkd");
-  if (!cfg_schema.ok())
-    log.warning("networkd", "no JSON Schema installed: " + cfg_schema.error.str() +
-                                " — deliveries will be applied unvalidated");
-
-  auto table = instr::networkd::build_networkd_table(&core);
-
-  std::string run_dir = root + "/run/instrumentation";
-  std::string ctrl_path =
-      args.socket_override.empty() ? run_dir + "/networkd-ctrl.sock" : args.socket_override;
-  instr::ctrl::CtrlServer ctrl(&table, ctrl_path);
-  auto e = ctrl.start();
-  if (!e.ok()) {
-    std::fprintf(stderr, "networkd: ctrl server failed: %s\n", e.str().c_str());
-    return 1;
-  }
-  std::string hub = args.hub_socket.empty() ? run_dir + "/networkd.sock" : args.hub_socket;
-  instr::networkd::NetworkdSpoke spoke(&core, &log, &table, instr::transport::uds_target(hub),
-                                       INSTR_VERSION);
-  if (cfg_schema.ok()) spoke.set_schema(*cfg_schema);
-  core.set_event_sink([&](const std::string& kind, const std::string& detail) {
-    instr::networkd::NetworkEvent ev;
-    ev.set_kind(kind);
-    ev.set_detail_json(detail);
-    spoke.send_event(ev);
-  });
-  spoke.start();
-
-  // A time-boxed SSH window only actually expires if something sweeps it
-  // (§7.2, §10), and failover only re-ranks if reachability is probed.
-  instr::PeriodicWorker ssh_sweep("networkd-ssh-sweep", core.config().ssh_sweep_interval_s,
-                                  [&] { core.sweep_remote_access(); });
-  instr::PeriodicWorker probe("networkd-probe", core.config().connectivity_probe_interval_s,
-                              [&] { core.probe_connectivity(); });
-  core.set_config_listener([&](const instr::networkd::NetworkdCore::Config& c) {
-    ssh_sweep.set_interval_s(c.enabled ? c.ssh_sweep_interval_s : 0.0);
-    probe.set_interval_s(c.enabled ? c.connectivity_probe_interval_s : 0.0);
-  });
-  ssh_sweep.start();
-  probe.start();
-
-  instr::sd_notify_ready();
-  instr::run_until_stop(stop, {});
-  probe.stop();
-  ssh_sweep.stop();
-  spoke.stop();
-  ctrl.stop();
-  return 0;
 }

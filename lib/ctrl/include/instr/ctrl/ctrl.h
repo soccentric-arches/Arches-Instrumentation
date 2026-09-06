@@ -43,83 +43,106 @@
 #include "instr/common/command_table.h"
 #include "instr/common/frames.h"
 
-namespace instr {
-namespace ctrl {
+namespace instr
+{
+namespace ctrl
+{
 
-class StreamSink {
- public:
-  explicit StreamSink(int fd) : fd_(fd) {}
-  bool send(const std::string& json_line);
-  bool closed() const { return closed_; }
+class StreamSink
+{
+  public:
+    explicit StreamSink(int fd) : fd_(fd)
+    {
+    }
+    bool send(const std::string& json_line);
+    bool closed() const
+    {
+        return closed_;
+    }
 
- private:
-  int fd_;
-  std::atomic<bool> closed_{false};
+  private:
+    int fd_;
+    std::atomic<bool> closed_{false};
 };
 
-class CtrlServer {
- public:
-  CtrlServer(const CommandTable* table, std::string socket_path);
-  ~CtrlServer();
+class CtrlServer
+{
+  public:
+    CtrlServer(const CommandTable* table, std::string socket_path);
+    ~CtrlServer();
 
-  // Binds and listens; returns false with a diagnosable error on failure.
-  Error start();
-  void stop();
-  bool running() const { return running_; }
+    // Binds and listens; returns false with a diagnosable error on failure.
+    Error start();
+    void stop();
+    bool running() const
+    {
+        return running_;
+    }
 
-  // Stream handlers: op → handler(args_json, sink). Registered separately
-  // from the table (payload ops stay table-driven).
-  void set_stream_handler(const std::string& op,
-                          std::function<void(const std::string& args, StreamSink&)> h) {
-    streams_[op] = std::move(h);
-  }
+    // Stream handlers: op → handler(args_json, sink). Registered separately
+    // from the table (payload ops stay table-driven).
+    void set_stream_handler(const std::string& op, std::function<void(const std::string& args, StreamSink&)> h)
+    {
+        streams_[op] = std::move(h);
+    }
 
- private:
-  void serve_accept();
-  void serve_conn(int fd);
+    // How many connection threads are currently tracked. Exposed so the
+    // reaping in serve_accept() is testable: this grew without bound for the
+    // life of the daemon before the done-flag reap replaced a joinable()
+    // check that could never fire.
+    size_t tracked_connections() const
+    {
+        std::lock_guard<std::mutex> lk(mu_);
+        return conn_threads_.size();
+    }
 
-  const CommandTable* table_;
-  std::string path_;
-  int listen_fd_ = -1;
-  std::atomic<bool> running_{false};
-  std::thread accept_thread_;
-  // Each connection thread flags itself done on exit; serve_accept() joins
-  // the flagged ones before spawning more. A plain vector<thread> pruned by
-  // joinable() never shrinks — a thread stays joinable after its function
-  // returns — so that leaked one handle and one unjoined OS thread per
-  // connection, for the life of the daemon.
-  struct Conn {
-    std::thread thread;
-    std::shared_ptr<std::atomic<bool>> done;
-  };
-  std::vector<Conn> conn_threads_;
-  std::map<std::string, std::function<void(const std::string&, StreamSink&)>> streams_;
-  std::mutex mu_;
+  private:
+    void serve_accept();
+    void serve_conn(int fd);
+
+    const CommandTable* table_;
+    std::string path_;
+    int listen_fd_ = -1;
+    std::atomic<bool> running_{false};
+    std::thread accept_thread_;
+    // Each connection thread flags itself done on exit; serve_accept() joins
+    // the flagged ones before spawning more. A plain vector<thread> pruned by
+    // joinable() never shrinks — a thread stays joinable after its function
+    // returns — so that leaked one handle and one unjoined OS thread per
+    // connection, for the life of the daemon.
+    struct Conn
+    {
+        std::thread thread;
+        std::shared_ptr<std::atomic<bool>> done;
+    };
+    std::vector<Conn> conn_threads_;
+    std::map<std::string, std::function<void(const std::string&, StreamSink&)>> streams_;
+    mutable std::mutex mu_;
 };
 
-class CtrlClient {
- public:
-  explicit CtrlClient(std::string socket_path);
-  ~CtrlClient();
+class CtrlClient
+{
+  public:
+    explicit CtrlClient(std::string socket_path);
+    ~CtrlClient();
 
-  Error connect();
-  void close();
+    Error connect();
+    void close();
 
-  // Single request/response.
-  CommandResult call(const std::string& op, const std::string& json_args);
-  // Streaming: callback per streamed frame until end or error.
-  Error call_stream(const std::string& op, const std::string& json_args,
-                    const std::function<void(const std::string& json)>& on_frame);
+    // Single request/response.
+    CommandResult call(const std::string& op, const std::string& json_args);
+    // Streaming: callback per streamed frame until end or error.
+    Error call_stream(const std::string& op, const std::string& json_args, const std::function<void(const std::string& json)>& on_frame);
 
- private:
-  bool send_all(const std::string& data);
-  bool recv_frame(std::string* out);
+  private:
+    bool send_all(const std::string& data);
+    bool recv_frame(std::string* out);
 
-  std::string path_;
-  int fd_ = -1;
-  // One decoder per connection: a single read() often carries several frames
-  // (a stream burst), and a fresh decoder per call would discard the tail.
-  frames::FrameDecoder dec_;
+    std::string path_;
+    int fd_ = -1;
+    // One decoder per connection: a single read() often carries several frames
+    // (a stream burst), and a fresh decoder per call would discard the tail.
+    frames::FrameDecoder dec_;
 };
 
 // ---- bulk data transfer (REQ §7.7) ----
@@ -135,42 +158,48 @@ class CtrlClient {
 // So the payload gets its own socket: the control response names a handle,
 // the caller connects to the bulk socket, sends the handle, and the server
 // streams raw bytes until close. Nothing is framed and nothing is encoded.
-class BulkServer {
- public:
-  // resolve: handle → absolute file path, or an error for an unknown handle.
-  using Resolver = std::function<Result<std::string>(const std::string& handle)>;
+class BulkServer
+{
+  public:
+    // resolve: handle → absolute file path, or an error for an unknown handle.
+    using Resolver = std::function<Result<std::string>(const std::string& handle)>;
 
-  BulkServer(std::string socket_path, Resolver resolve)
-      : path_(std::move(socket_path)), resolve_(std::move(resolve)) {}
-  ~BulkServer();
+    BulkServer(std::string socket_path, Resolver resolve) : path_(std::move(socket_path)), resolve_(std::move(resolve))
+    {
+    }
+    ~BulkServer();
 
-  Error start();
-  void stop();
-  const std::string& path() const { return path_; }
-  uint64_t served() const { return served_.load(); }
+    Error start();
+    void stop();
+    const std::string& path() const
+    {
+        return path_;
+    }
+    uint64_t served() const
+    {
+        return served_.load();
+    }
 
- private:
-  void serve_accept();
-  void serve_one(int fd);
+  private:
+    void serve_accept();
+    void serve_one(int fd);
 
-  std::string path_;
-  Resolver resolve_;
-  int listen_fd_ = -1;
-  std::atomic<bool> running_{false};
-  std::atomic<uint64_t> served_{0};
-  std::thread accept_thread_;
+    std::string path_;
+    Resolver resolve_;
+    int listen_fd_ = -1;
+    std::atomic<bool> running_{false};
+    std::atomic<uint64_t> served_{0};
+    std::thread accept_thread_;
 };
 
 // Reads a payload by handle from a bulk socket. `sink` is called with each
 // chunk as it arrives, so a caller can stream to disk or onward to HQ
 // without holding the whole bundle in memory.
-Result<uint64_t> bulk_fetch(const std::string& socket_path, const std::string& handle,
-                            const std::function<bool(const char* data, size_t len)>& sink);
+Result<uint64_t> bulk_fetch(const std::string& socket_path, const std::string& handle, const std::function<bool(const char* data, size_t len)>& sink);
 
 // Shared _ctrl main: --help, --help <op>, --json, --socket PATH, completion.
 // Returns process exit code.
-int tool_main(int argc, char** argv, const CommandTable& table, const std::string& prog_name,
-              const std::string& default_socket);
+int tool_main(int argc, char** argv, const CommandTable& table, const std::string& prog_name, const std::string& default_socket);
 
-}  // namespace ctrl
-}  // namespace instr
+} // namespace ctrl
+} // namespace instr

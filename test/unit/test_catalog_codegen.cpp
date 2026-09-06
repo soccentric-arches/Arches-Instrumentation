@@ -54,32 +54,34 @@ entries:
     hq_reportable: true
 )yaml";
 
-TEST(CatalogCodegen, ParsesFixture) {
-  auto cat = parse_catalog(kFixture);
-  ASSERT_TRUE(cat.ok());
-  EXPECT_EQ(cat->version, 3u);
-  ASSERT_EQ(cat->entries.size(), 2u);
-  EXPECT_EQ(cat->entries[0].id, 0x10410007u);
-  EXPECT_EQ(cat->entries[0].severity, Severity::Critical);
-  EXPECT_TRUE(cat->entries[0].hq_reportable);
-  EXPECT_EQ(cat->entries[1].id, 0x50530008u);  // module 05, type 3, index 0008
+TEST(CatalogCodegen, ParsesFixture)
+{
+    auto cat = parse_catalog(kFixture);
+    ASSERT_TRUE(cat.ok());
+    EXPECT_EQ(cat->version, 3u);
+    ASSERT_EQ(cat->entries.size(), 2u);
+    EXPECT_EQ(cat->entries[0].id, 0x10410007u);
+    EXPECT_EQ(cat->entries[0].severity, Severity::Critical);
+    EXPECT_TRUE(cat->entries[0].hq_reportable);
+    EXPECT_EQ(cat->entries[1].id, 0x50530008u); // module 05, type 3, index 0008
 }
 
-TEST(CatalogCodegen, RendersHeaderWithConstants) {
-  auto cat = parse_catalog(kFixture);
-  ASSERT_TRUE(cat.ok());
-  auto hdr = render_header(*cat, "9.9.9");
-  ASSERT_TRUE(hdr.ok());
-  EXPECT_NE(hdr->find("constexpr uint32_t INSTR_ALARM_HW_DEVICE_FAIL = 0x10410007u;"),
-            std::string::npos);
-  EXPECT_NE(hdr->find("INSTR_ALARM_CATALOG_SIZE"), std::string::npos);
-  EXPECT_NE(hdr->find("AlarmSeverity::CRITICAL"), std::string::npos);
-  EXPECT_NE(hdr->find("Generated from catalog/alarms.yaml"), std::string::npos);
-  EXPECT_NE(hdr->find("9.9.9"), std::string::npos);
+TEST(CatalogCodegen, RendersHeaderWithConstants)
+{
+    auto cat = parse_catalog(kFixture);
+    ASSERT_TRUE(cat.ok());
+    auto hdr = render_header(*cat, "9.9.9");
+    ASSERT_TRUE(hdr.ok());
+    EXPECT_NE(hdr->find("constexpr uint32_t INSTR_ALARM_HW_DEVICE_FAIL = 0x10410007u;"), std::string::npos);
+    EXPECT_NE(hdr->find("INSTR_ALARM_CATALOG_SIZE"), std::string::npos);
+    EXPECT_NE(hdr->find("AlarmSeverity::CRITICAL"), std::string::npos);
+    EXPECT_NE(hdr->find("Generated from catalog/alarms.yaml"), std::string::npos);
+    EXPECT_NE(hdr->find("9.9.9"), std::string::npos);
 }
 
-TEST(CatalogCodegen, DuplicateIdRejected) {
-  const char* dup = R"yaml(
+TEST(CatalogCodegen, DuplicateIdRejected)
+{
+    const char* dup = R"yaml(
 entries:
   - id: 0x1_04_1_0001
     name: a
@@ -88,15 +90,16 @@ entries:
     name: b
     severity: INFO
 )yaml";
-  auto r = parse_catalog(dup);
-  EXPECT_FALSE(r.ok());
-  EXPECT_NE(r.error.message.find("duplicate alarm id"), std::string::npos);
+    auto r = parse_catalog(dup);
+    EXPECT_FALSE(r.ok());
+    EXPECT_NE(r.error.message.find("duplicate alarm id"), std::string::npos);
 }
 
-TEST(CatalogCodegen, MalformedIdRejected) {
-  auto r = parse_alarm_id_text("0x12_345");
-  EXPECT_FALSE(r.ok());
-  auto ok = parse_alarm_id_text("0x1_04_1_0007");
-  ASSERT_TRUE(ok.ok());
-  EXPECT_EQ(*ok, 0x10410007u);
+TEST(CatalogCodegen, MalformedIdRejected)
+{
+    auto r = parse_alarm_id_text("0x12_345");
+    EXPECT_FALSE(r.ok());
+    auto ok = parse_alarm_id_text("0x1_04_1_0007");
+    ASSERT_TRUE(ok.ok());
+    EXPECT_EQ(*ok, 0x10410007u);
 }

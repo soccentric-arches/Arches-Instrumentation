@@ -89,6 +89,13 @@ target_link_libraries(integration_topology PRIVATE
   instr_ota_lib instr_backup_lib)
 gtest_discover_tests(integration_topology)
 
+# ---- colocated applications (R5, §7.6, §7.8, §6.2): the app-facing surface
+# driven over a real socket against a live hub with alarms + telemetry ----
+add_executable(integration_application integration/application.cpp)
+target_link_libraries(integration_application PRIVATE
+  instr_istate_lib instr_alarms_lib instr_telemetry_lib)
+gtest_discover_tests(integration_application)
+
 # ---- fault injection (§12): storage errors, link loss, hangs, corrupt
 # /pst, full disk, clock jumps, proto mismatch ----
 add_executable(fault_injection fault-injection/fault_tests.cpp)

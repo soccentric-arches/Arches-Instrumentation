@@ -40,52 +40,58 @@
 #include "instr/monitord/transport.h"
 #include "monitord.grpc.pb.h"
 
-namespace instr {
-namespace monitord {
+namespace instr
+{
+namespace monitord
+{
 using namespace domain;
 using namespace instr::transport;
-namespace domain {
+namespace domain
+{
 
-class MonitorSpoke {
- public:
-  MonitorSpoke(MonitorCore* core, Logger* log, const CommandTable* table,
-               const std::string& hub_target, const std::string& build_version);
+class MonitorSpoke
+{
+  public:
+    MonitorSpoke(MonitorCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version);
 
-  void start();
-  void stop();
-  bool registered() const { return channel_->registered(); }
-  // Configuration is delivered by istate over the channel (R4, §9).
-  void set_schema(JValue schema);
-  uint64_t config_revision() const { return channel_->config_revision(); }
+    void start();
+    void stop();
+    bool registered() const
+    {
+        return channel_->registered();
+    }
+    // Configuration is delivered by istate over the channel (R4, §9).
+    void set_schema(JValue schema);
+    uint64_t config_revision() const
+    {
+        return channel_->config_revision();
+    }
 
-  // Number of frames handed to the transport (for tests).
-  uint64_t frames_enqueued() const { return frames_.load(); }
+    // Number of frames handed to the transport (for tests).
+    uint64_t frames_enqueued() const
+    {
+        return frames_.load();
+    }
 
- private:
-  void sample_loop();
+  private:
+    void sample_loop();
 
-  MonitorCore* core_;
-  Logger* log_;
-  const CommandTable* table_;
-  std::unique_ptr<ConfigSink> config_sink_;
-  std::unique_ptr<
-      SpokeChannel<monitord::MonitorHub, monitord::MonitorSpokeFrame, monitord::MonitorHubFrame>>
-      channel_;
-  std::atomic<bool> running_{false};
-  std::thread sampler_thread_;
-  std::mutex sample_mu_;
-  std::condition_variable sample_cv_;
-  std::atomic<uint64_t> frames_{0};
+    MonitorCore* core_;
+    Logger* log_;
+    const CommandTable* table_;
+    std::unique_ptr<ConfigSink> config_sink_;
+    std::unique_ptr<SpokeChannel<monitord::MonitorHub, monitord::MonitorSpokeFrame, monitord::MonitorHubFrame>> channel_;
+    std::atomic<bool> running_{false};
+    std::thread sampler_thread_;
+    std::mutex sample_mu_;
+    std::condition_variable sample_cv_;
+    std::atomic<uint64_t> frames_{0};
 };
 
 // Build the spoke channel with hub-frame dispatch wired to the command table.
-std::unique_ptr<
-    SpokeChannel<monitord::MonitorHub, monitord::MonitorSpokeFrame, monitord::MonitorHubFrame>>
-make_monitor_channel(MonitorCore* core, const CommandTable* table, Logger* log,
-                     const std::string& hub_target, const std::string& build_version,
-                     SpokeChannel<monitord::MonitorHub, monitord::MonitorSpokeFrame,
-                                  monitord::MonitorHubFrame>::Options opts);
+std::unique_ptr<SpokeChannel<monitord::MonitorHub, monitord::MonitorSpokeFrame, monitord::MonitorHubFrame>> make_monitor_channel(MonitorCore* core, const CommandTable* table, Logger* log, const std::string& hub_target, const std::string& build_version,
+                                                                                                                                 SpokeChannel<monitord::MonitorHub, monitord::MonitorSpokeFrame, monitord::MonitorHubFrame>::Options opts);
 
-}  // namespace domain
-}  // namespace monitord
-}  // namespace instr
+} // namespace domain
+} // namespace monitord
+} // namespace instr

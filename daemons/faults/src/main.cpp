@@ -39,73 +39,71 @@
 #include "instr/platform/factory.h"
 #include "instr/common/filesystem.h"
 
-int main(int argc, char** argv) {
-  auto args = instr::parse_daemon_args(argc, argv, "faults");
-  if (args.help) {
-    std::printf(
-        "faults — passive kernel-log fault detection (Arches Instrumentation)\n"
-        "usage: faults [--socket PATH] [--hub PATH] [--root PATH]\n"
-        "       [--platform native|simulated] [--help]\n");
+int main(int argc, char** argv)
+{
+    auto args = instr::parse_daemon_args(argc, argv, "faults");
+    if (args.help)
+    {
+        std::printf("faults — passive kernel-log fault detection (Arches Instrumentation)\n"
+                    "usage: faults [--socket PATH] [--hub PATH] [--root PATH]\n"
+                    "       [--platform native|simulated] [--help]\n");
+        return 0;
+    }
+    std::atomic<bool> stop{false};
+    instr::install_signal_handlers(stop);
+    instr::StderrSink sink;
+    instr::SystemTimeSource ts;
+    instr::Logger log(sink, ts);
+
+    std::string root = args.root.empty() ? "/" : args.root;
+    // §5: the same binary runs against the simulated platform on a build host.
+    bool platform_known = true;
+    auto plat_owned = instr::platform::make_platform(args.platform, root, &platform_known);
+    if (!platform_known) log.warning(args.name, "unknown --platform '" + args.platform + "', using native");
+    instr::platform::IPlatform& plat = *plat_owned;
+    instr::faults::FaultsCore core;
+
+    // Rules are data: default set ships with the image; HQ may push new
+    // signatures as configuration (written by istate).
+    instr::NativeFileSystem fs;
+    auto rules_txt = fs.read(root + "/etc/instrumentation/fault-rules.yaml");
+    if (rules_txt.ok())
+    {
+        instr::Error e = core.load_rules(*rules_txt);
+        if (!e.ok()) std::fprintf(stderr, "faults: %s\n", e.str().c_str());
+    }
+
+    // The daemon's JSON Schema ships in the image; configuration itself comes
+    // from istate over the channel (R4), never from a file read here.
+    auto schema = instr::load_daemon_schema(fs, root, "faults");
+    if (!schema.ok()) log.warning("faults", "no JSON Schema installed: " + schema.error.str() + " — deliveries will be applied unvalidated");
+
+    auto table = instr::faults::build_faults_table(&core);
+    std::string run_dir = root + "/run/instrumentation";
+    std::string ctrl_path = args.socket_override.empty() ? run_dir + "/faults-ctrl.sock" : args.socket_override;
+    instr::ctrl::CtrlServer ctrl(&table, ctrl_path);
+    auto e = ctrl.start();
+    if (!e.ok())
+    {
+        std::fprintf(stderr, "faults: ctrl server failed: %s\n", e.str().c_str());
+        return 1;
+    }
+    std::string hub = args.hub_socket.empty() ? run_dir + "/faults.sock" : args.hub_socket;
+    instr::faults::FaultsSpoke spoke(&core, &log, &table, instr::transport::uds_target(hub), INSTR_VERSION);
+    if (schema.ok()) spoke.set_schema(*schema);
+    spoke.start();
+
+    // Backfill first: the kernel boot log is the most diagnostic window there
+    // is, and faults starts after userspace. Then follow it continuously —
+    // §7.5 is real-time monitoring, not a single read at startup.
+    instr::faults::FaultFollower follower(&core, &plat, &ts, &log);
+    follower.backfill();
+    follower.start();
+
+    instr::sd_notify_ready();
+    instr::run_until_stop(stop, {});
+    follower.stop();
+    spoke.stop();
+    ctrl.stop();
     return 0;
-  }
-  std::atomic<bool> stop{false};
-  instr::install_signal_handlers(stop);
-  instr::StderrSink sink;
-  instr::SystemTimeSource ts;
-  instr::Logger log(sink, ts);
-
-  std::string root = args.root.empty() ? "/" : args.root;
-  // §5: the same binary runs against the simulated platform on a build host.
-  bool platform_known = true;
-  auto plat_owned = instr::platform::make_platform(args.platform, root, &platform_known);
-  if (!platform_known)
-    log.warning(args.name, "unknown --platform '" + args.platform + "', using native");
-  instr::platform::IPlatform& plat = *plat_owned;
-  instr::faults::FaultsCore core;
-
-  // Rules are data: default set ships with the image; HQ may push new
-  // signatures as configuration (written by istate).
-  instr::NativeFileSystem fs;
-  auto rules_txt = fs.read(root + "/etc/instrumentation/fault-rules.yaml");
-  if (rules_txt.ok()) {
-    instr::Error e = core.load_rules(*rules_txt);
-    if (!e.ok()) std::fprintf(stderr, "faults: %s\n", e.str().c_str());
-  }
-
-  // The daemon's JSON Schema ships in the image; configuration itself comes
-  // from istate over the channel (R4), never from a file read here.
-  auto schema = instr::load_daemon_schema(fs, root, "faults");
-  if (!schema.ok())
-    log.warning("faults", "no JSON Schema installed: " + schema.error.str() +
-                              " — deliveries will be applied unvalidated");
-
-  auto table = instr::faults::build_faults_table(&core);
-  std::string run_dir = root + "/run/instrumentation";
-  std::string ctrl_path =
-      args.socket_override.empty() ? run_dir + "/faults-ctrl.sock" : args.socket_override;
-  instr::ctrl::CtrlServer ctrl(&table, ctrl_path);
-  auto e = ctrl.start();
-  if (!e.ok()) {
-    std::fprintf(stderr, "faults: ctrl server failed: %s\n", e.str().c_str());
-    return 1;
-  }
-  std::string hub = args.hub_socket.empty() ? run_dir + "/faults.sock" : args.hub_socket;
-  instr::faults::FaultsSpoke spoke(&core, &log, &table, instr::transport::uds_target(hub),
-                                   INSTR_VERSION);
-  if (schema.ok()) spoke.set_schema(*schema);
-  spoke.start();
-
-  // Backfill first: the kernel boot log is the most diagnostic window there
-  // is, and faults starts after userspace. Then follow it continuously —
-  // §7.5 is real-time monitoring, not a single read at startup.
-  instr::faults::FaultFollower follower(&core, &plat, &ts, &log);
-  follower.backfill();
-  follower.start();
-
-  instr::sd_notify_ready();
-  instr::run_until_stop(stop, {});
-  follower.stop();
-  spoke.stop();
-  ctrl.stop();
-  return 0;
 }

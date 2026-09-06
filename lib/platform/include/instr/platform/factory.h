@@ -43,19 +43,21 @@
 #include "instr/platform/platform.h"
 #include "instr/platform/simulated.h"
 
-namespace instr {
-namespace platform {
+namespace instr
+{
+namespace platform
+{
 
 // name: "native" (default) or "simulated". An unrecognised name falls back to
 // native and is reported by the caller — a typo must not silently put a real
 // device onto a simulated platform.
-inline std::unique_ptr<IPlatform> make_platform(const std::string& name, const std::string& sysroot,
-                                                bool* recognised = nullptr) {
-  if (recognised) *recognised = true;
-  if (name == "simulated") return std::make_unique<SimulatedPlatform>();
-  if (name != "native" && recognised) *recognised = false;
-  return std::make_unique<NativePlatform>(sysroot);
+inline std::unique_ptr<IPlatform> make_platform(const std::string& name, const std::string& sysroot, bool* recognised = nullptr)
+{
+    if (recognised) *recognised = true;
+    if (name == "simulated") return std::make_unique<SimulatedPlatform>();
+    if (name != "native" && recognised) *recognised = false;
+    return std::make_unique<NativePlatform>(sysroot);
 }
 
-}  // namespace platform
-}  // namespace instr
+} // namespace platform
+} // namespace instr

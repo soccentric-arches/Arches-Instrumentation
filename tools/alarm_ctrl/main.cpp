@@ -35,7 +35,8 @@
 #include "instr/alarms/daemon.h"
 #include "instr/ctrl/ctrl.h"
 
-int main(int argc, char** argv) {
-  auto table = instr::alarms::build_alarms_table(nullptr);
-  return instr::ctrl::tool_main(argc, argv, table, INSTR_CTRL_PROG, INSTR_CTRL_SOCKET);
+int main(int argc, char** argv)
+{
+    auto table = instr::alarms::build_alarms_table(nullptr);
+    return instr::ctrl::tool_main(argc, argv, table, INSTR_CTRL_PROG, INSTR_CTRL_SOCKET);
 }

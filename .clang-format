@@ -13,8 +13,8 @@
 #     order — main header, blank line, system block, blank line, project
 #     block — is deliberate, and Google's block regrouping would churn it.
 Language: Cpp
-BasedOnStyle: Google
-ColumnLimit: 100
+BasedOnStyle: Microsoft
+ColumnLimit: 300
 AllowShortCaseLabelsOnASingleLine: true
 AllowShortBlocksOnASingleLine: Always
 AllowShortIfStatementsOnASingleLine: WithoutElse

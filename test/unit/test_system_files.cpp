@@ -41,133 +41,145 @@
 
 using namespace instr;
 
-namespace {
+namespace
+{
 
-const char* kDaemons[] = {"istate", "networkd",   "monitord",  "hardware", "faults",
-                          "alarms", "logmanager", "telemetry", "ota",      "backup"};
+const char* kDaemons[] = {"istate", "networkd", "monitord", "hardware", "faults", "alarms", "logmanager", "telemetry", "ota", "backup"};
 
-std::string slurp(const std::string& p) {
-  std::ifstream f(p);
-  std::ostringstream ss;
-  ss << f.rdbuf();
-  return ss.str();
+std::string slurp(const std::string& p)
+{
+    std::ifstream f(p);
+    std::ostringstream ss;
+    ss << f.rdbuf();
+    return ss.str();
 }
-std::string unit(const std::string& d) {
-  return slurp(std::string(REPO_ROOT) + "/system/systemd/instr-" + d + ".service");
+std::string unit(const std::string& d)
+{
+    return slurp(std::string(REPO_ROOT) + "/system/systemd/instr-" + d + ".service");
 }
-size_t count_of(const std::string& hay, const std::string& needle) {
-  size_t n = 0, pos = 0;
-  while ((pos = hay.find(needle, pos)) != std::string::npos) {
-    ++n;
-    pos += needle.size();
-  }
-  return n;
-}
-
-}  // namespace
-
-TEST(SystemFiles, EveryDaemonHasAUnit) {
-  for (const char* d : kDaemons) EXPECT_FALSE(unit(d).empty()) << d;
-}
-
-TEST(SystemFiles, UnitsHaveExactlyOneServiceSection) {
-  // A repeated [Service] header is legal to systemd but hides edits: a
-  // directive added under the first copy sits above the second and reads as
-  // dead. Nine of these shipped with an empty duplicate.
-  for (const char* d : kDaemons)
-    EXPECT_EQ(count_of(unit(d), "[Service]"), 1u) << d << " has a duplicated [Service] section";
-}
-
-TEST(SystemFiles, EveryDaemonRunsAsItsOwnUnprivilegedUser) {
-  // §10: each daemon unprivileged and confined.
-  const std::string users =
-      slurp(std::string(REPO_ROOT) + "/system/sysusers.d/instrumentation.conf");
-  for (const char* d : kDaemons) {
-    const std::string u = std::string("instr-") + d;
-    EXPECT_NE(unit(d).find("User=" + u), std::string::npos) << d << " does not run as " << u;
-    EXPECT_NE(users.find("u " + u + " "), std::string::npos)
-        << u << " is not declared in sysusers.d";
-    EXPECT_NE(unit(d).find("NoNewPrivileges=yes"), std::string::npos) << d;
-    EXPECT_NE(unit(d).find("ProtectSystem=strict"), std::string::npos) << d;
-  }
-}
-
-TEST(SystemFiles, ConfigurationPeerHasItsOwnUser) {
-  // Configuration is architecturally a spoke (§3.3) and needs a user for the
-  // same reason: its socket is owned by it and nothing else.
-  const std::string users =
-      slurp(std::string(REPO_ROOT) + "/system/sysusers.d/instrumentation.conf");
-  EXPECT_NE(users.find("u instr-configuration "), std::string::npos);
-}
-
-TEST(SystemFiles, IstateCanChownSpokeSockets) {
-  // Socket permissions enforce the call graph (§3.1, §10). istate hands each
-  // socket to its spoke's user, which needs CAP_CHOWN. An empty bounding set
-  // silently disables the entire mechanism.
-  const std::string u = unit("istate");
-  EXPECT_NE(u.find("AmbientCapabilities=CAP_CHOWN"), std::string::npos);
-  EXPECT_NE(u.find("CapabilityBoundingSet=CAP_CHOWN"), std::string::npos);
-  // ... and nothing more than that: istate requests unit changes through
-  // systemd rather than performing privileged operations itself (§7.1).
-  EXPECT_EQ(u.find("CAP_SYS_ADMIN"), std::string::npos);
-}
-
-TEST(SystemFiles, CapabilitiesAreGrantedOnlyWhereRequired) {
-  // §10: "capabilities granted only where genuinely required".
-  EXPECT_NE(unit("networkd").find("CAP_NET_ADMIN"), std::string::npos);
-  EXPECT_NE(unit("ota").find("CAP_SYS_BOOT"), std::string::npos);
-  // Observation-only daemons get nothing at all.
-  for (const char* d : {"monitord", "faults", "alarms", "telemetry", "logmanager", "backup"}) {
-    EXPECT_NE(unit(d).find("CapabilityBoundingSet="), std::string::npos) << d;
-    EXPECT_EQ(unit(d).find("AmbientCapabilities=CAP_"), std::string::npos)
-        << d << " is granted a capability it should not need";
-  }
-}
-
-TEST(SystemFiles, UnitOrderingMatchesTheDeclaredStartupOrder) {
-  // §7.1 declares istate → faults, monitord, hardware → alarms, logmanager,
-  // telemetry → networkd → ota, backup. The orchestrator knows it; the units
-  // must agree, or systemd starts everything at once and the observation
-  // daemons miss the boot window they exist to capture.
-  const auto& order = istate::startup_order();
-  std::map<std::string, size_t> rank;
-  for (size_t i = 0; i < order.size(); ++i) rank[order[i]] = i;
-
-  for (const auto& kv : istate::dependency_edges()) {
-    const std::string u = unit(kv.first);
-    if (u.empty()) continue;
-    for (const auto& dep : kv.second) {
-      // Each declared dependency edge is expressed as an After= in the unit.
-      EXPECT_NE(u.find("instr-" + dep + ".service"), std::string::npos)
-          << kv.first << " must be ordered after " << dep;
+size_t count_of(const std::string& hay, const std::string& needle)
+{
+    size_t n = 0, pos = 0;
+    while ((pos = hay.find(needle, pos)) != std::string::npos)
+    {
+        ++n;
+        pos += needle.size();
     }
-  }
-  // Everything is ordered after the hub.
-  for (const char* d : kDaemons) {
-    if (std::string(d) == "istate") continue;
-    EXPECT_NE(unit(d).find("After="), std::string::npos) << d << " has no ordering at all";
-  }
+    return n;
 }
 
-TEST(SystemFiles, RunDirectoryIsDeclaredExactlyOnce) {
-  const std::string t = slurp(std::string(REPO_ROOT) + "/system/tmpfiles.d/instrumentation.conf");
-  size_t decls = 0;
-  std::istringstream in(t);
-  std::string line;
-  while (std::getline(in, line)) {
-    if (line.empty() || line[0] == '#') continue;
-    if (line.find("/run/instrumentation") != std::string::npos) ++decls;
-  }
-  EXPECT_EQ(decls, 1u) << "contradictory tmpfiles entries for the same path:\n" << t;
-  EXPECT_NE(t.find("instr-istate instr"), std::string::npos);
+} // namespace
+
+TEST(SystemFiles, EveryDaemonHasAUnit)
+{
+    for (const char* d : kDaemons) EXPECT_FALSE(unit(d).empty()) << d;
 }
 
-TEST(SystemFiles, UdevGrantsHardwareTheDevicesItDrives) {
-  // §13: udev rules where device access requires them (R7: the Hardware
-  // daemon is the only hardware writer, so it is the only one named).
-  const std::string u = slurp(std::string(REPO_ROOT) + "/system/udev/70-instrumentation.rules");
-  for (const char* sub : {"leds", "can", "usb"})
-    EXPECT_NE(u.find(sub), std::string::npos) << "no udev rule covering " << sub;
-  EXPECT_NE(u.find("watchdog"), std::string::npos);
-  EXPECT_NE(u.find("instr-istate"), std::string::npos) << "the watchdog belongs to istate (§7.1)";
+TEST(SystemFiles, UnitsHaveExactlyOneServiceSection)
+{
+    // A repeated [Service] header is legal to systemd but hides edits: a
+    // directive added under the first copy sits above the second and reads as
+    // dead. Nine of these shipped with an empty duplicate.
+    for (const char* d : kDaemons) EXPECT_EQ(count_of(unit(d), "[Service]"), 1u) << d << " has a duplicated [Service] section";
+}
+
+TEST(SystemFiles, EveryDaemonRunsAsItsOwnUnprivilegedUser)
+{
+    // §10: each daemon unprivileged and confined.
+    const std::string users = slurp(std::string(REPO_ROOT) + "/system/sysusers.d/instrumentation.conf");
+    for (const char* d : kDaemons)
+    {
+        const std::string u = std::string("instr-") + d;
+        EXPECT_NE(unit(d).find("User=" + u), std::string::npos) << d << " does not run as " << u;
+        EXPECT_NE(users.find("u " + u + " "), std::string::npos) << u << " is not declared in sysusers.d";
+        EXPECT_NE(unit(d).find("NoNewPrivileges=yes"), std::string::npos) << d;
+        EXPECT_NE(unit(d).find("ProtectSystem=strict"), std::string::npos) << d;
+    }
+}
+
+TEST(SystemFiles, ConfigurationPeerHasItsOwnUser)
+{
+    // Configuration is architecturally a spoke (§3.3) and needs a user for the
+    // same reason: its socket is owned by it and nothing else.
+    const std::string users = slurp(std::string(REPO_ROOT) + "/system/sysusers.d/instrumentation.conf");
+    EXPECT_NE(users.find("u instr-configuration "), std::string::npos);
+}
+
+TEST(SystemFiles, IstateCanChownSpokeSockets)
+{
+    // Socket permissions enforce the call graph (§3.1, §10). istate hands each
+    // socket to its spoke's user, which needs CAP_CHOWN. An empty bounding set
+    // silently disables the entire mechanism.
+    const std::string u = unit("istate");
+    EXPECT_NE(u.find("AmbientCapabilities=CAP_CHOWN"), std::string::npos);
+    EXPECT_NE(u.find("CapabilityBoundingSet=CAP_CHOWN"), std::string::npos);
+    // ... and nothing more than that: istate requests unit changes through
+    // systemd rather than performing privileged operations itself (§7.1).
+    EXPECT_EQ(u.find("CAP_SYS_ADMIN"), std::string::npos);
+}
+
+TEST(SystemFiles, CapabilitiesAreGrantedOnlyWhereRequired)
+{
+    // §10: "capabilities granted only where genuinely required".
+    EXPECT_NE(unit("networkd").find("CAP_NET_ADMIN"), std::string::npos);
+    EXPECT_NE(unit("ota").find("CAP_SYS_BOOT"), std::string::npos);
+    // Observation-only daemons get nothing at all.
+    for (const char* d : {"monitord", "faults", "alarms", "telemetry", "logmanager", "backup"})
+    {
+        EXPECT_NE(unit(d).find("CapabilityBoundingSet="), std::string::npos) << d;
+        EXPECT_EQ(unit(d).find("AmbientCapabilities=CAP_"), std::string::npos) << d << " is granted a capability it should not need";
+    }
+}
+
+TEST(SystemFiles, UnitOrderingMatchesTheDeclaredStartupOrder)
+{
+    // §7.1 declares istate → faults, monitord, hardware → alarms, logmanager,
+    // telemetry → networkd → ota, backup. The orchestrator knows it; the units
+    // must agree, or systemd starts everything at once and the observation
+    // daemons miss the boot window they exist to capture.
+    const auto& order = istate::startup_order();
+    std::map<std::string, size_t> rank;
+    for (size_t i = 0; i < order.size(); ++i) rank[order[i]] = i;
+
+    for (const auto& kv : istate::dependency_edges())
+    {
+        const std::string u = unit(kv.first);
+        if (u.empty()) continue;
+        for (const auto& dep : kv.second)
+        {
+            // Each declared dependency edge is expressed as an After= in the unit.
+            EXPECT_NE(u.find("instr-" + dep + ".service"), std::string::npos) << kv.first << " must be ordered after " << dep;
+        }
+    }
+    // Everything is ordered after the hub.
+    for (const char* d : kDaemons)
+    {
+        if (std::string(d) == "istate") continue;
+        EXPECT_NE(unit(d).find("After="), std::string::npos) << d << " has no ordering at all";
+    }
+}
+
+TEST(SystemFiles, RunDirectoryIsDeclaredExactlyOnce)
+{
+    const std::string t = slurp(std::string(REPO_ROOT) + "/system/tmpfiles.d/instrumentation.conf");
+    size_t decls = 0;
+    std::istringstream in(t);
+    std::string line;
+    while (std::getline(in, line))
+    {
+        if (line.empty() || line[0] == '#') continue;
+        if (line.find("/run/instrumentation") != std::string::npos) ++decls;
+    }
+    EXPECT_EQ(decls, 1u) << "contradictory tmpfiles entries for the same path:\n" << t;
+    EXPECT_NE(t.find("instr-istate instr"), std::string::npos);
+}
+
+TEST(SystemFiles, UdevGrantsHardwareTheDevicesItDrives)
+{
+    // §13: udev rules where device access requires them (R7: the Hardware
+    // daemon is the only hardware writer, so it is the only one named).
+    const std::string u = slurp(std::string(REPO_ROOT) + "/system/udev/70-instrumentation.rules");
+    for (const char* sub : {"leds", "can", "usb"}) EXPECT_NE(u.find(sub), std::string::npos) << "no udev rule covering " << sub;
+    EXPECT_NE(u.find("watchdog"), std::string::npos);
+    EXPECT_NE(u.find("instr-istate"), std::string::npos) << "the watchdog belongs to istate (§7.1)";
 }

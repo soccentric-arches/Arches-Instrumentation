@@ -44,70 +44,80 @@
 #include "instr/common/config.h"
 #include "instr/common/json.h"
 
-namespace instr {
+namespace instr
+{
 
-class ConfigSink {
- public:
-  // Applies an accepted document to the daemon's domain objects. Returning a
-  // non-ok Error rejects the delivery: the sink rolls back to the previous
-  // document so a bad push cannot leave a daemon half-configured.
-  using Apply = std::function<Error(const ConfigDocument&)>;
+class ConfigSink
+{
+  public:
+    // Applies an accepted document to the daemon's domain objects. Returning a
+    // non-ok Error rejects the delivery: the sink rolls back to the previous
+    // document so a bad push cannot leave a daemon half-configured.
+    using Apply = std::function<Error(const ConfigDocument&)>;
 
-  ConfigSink(std::string daemon, JValue schema, Apply apply)
-      : daemon_(std::move(daemon)), schema_(std::move(schema)), apply_(std::move(apply)) {}
-
-  // Returns "" when the delivery was accepted and applied, otherwise a
-  // diagnosable reason. Never throws; never leaves a partial config.
-  std::string deliver(const std::string& yaml, uint64_t revision) {
-    auto parsed = ConfigDocument::parse(
-        yaml, schema_, daemon_ + " config (revision " + std::to_string(revision) + ")");
-    if (!parsed.ok()) return parsed.error.str();
-    std::lock_guard<std::mutex> lk(mu_);
-    if (apply_) {
-      Error e = apply_(*parsed);
-      if (!e.ok()) {
-        // The daemon refused the values themselves (out of range, mutually
-        // inconsistent). Re-apply what we had so the daemon is never left
-        // running on a half-written document.
-        if (revision_ > 0) (void)apply_(current_);
-        return e.str();
-      }
+    ConfigSink(std::string daemon, JValue schema, Apply apply) : daemon_(std::move(daemon)), schema_(std::move(schema)), apply_(std::move(apply))
+    {
     }
-    current_ = *parsed;
-    revision_ = revision;
-    return "";
-  }
 
-  ConfigDocument current() const {
-    std::lock_guard<std::mutex> lk(mu_);
-    return current_;
-  }
-  uint64_t revision() const {
-    std::lock_guard<std::mutex> lk(mu_);
-    return revision_;
-  }
-  // True once a delivery has been accepted; until then the daemon runs on
-  // its compiled defaults (a virgin /pst must not stop it starting).
-  bool configured() const {
-    std::lock_guard<std::mutex> lk(mu_);
-    return revision_ > 0;
-  }
-  const std::string& daemon() const { return daemon_; }
+    // Returns "" when the delivery was accepted and applied, otherwise a
+    // diagnosable reason. Never throws; never leaves a partial config.
+    std::string deliver(const std::string& yaml, uint64_t revision)
+    {
+        auto parsed = ConfigDocument::parse(yaml, schema_, daemon_ + " config (revision " + std::to_string(revision) + ")");
+        if (!parsed.ok()) return parsed.error.str();
+        std::lock_guard<std::mutex> lk(mu_);
+        if (apply_)
+        {
+            Error e = apply_(*parsed);
+            if (!e.ok())
+            {
+                // The daemon refused the values themselves (out of range, mutually
+                // inconsistent). Re-apply what we had so the daemon is never left
+                // running on a half-written document.
+                if (revision_ > 0) (void)apply_(current_);
+                return e.str();
+            }
+        }
+        current_ = *parsed;
+        revision_ = revision;
+        return "";
+    }
 
- private:
-  mutable std::mutex mu_;
-  std::string daemon_;
-  JValue schema_;
-  Apply apply_;
-  ConfigDocument current_;
-  uint64_t revision_ = 0;
+    ConfigDocument current() const
+    {
+        std::lock_guard<std::mutex> lk(mu_);
+        return current_;
+    }
+    uint64_t revision() const
+    {
+        std::lock_guard<std::mutex> lk(mu_);
+        return revision_;
+    }
+    // True once a delivery has been accepted; until then the daemon runs on
+    // its compiled defaults (a virgin /pst must not stop it starting).
+    bool configured() const
+    {
+        std::lock_guard<std::mutex> lk(mu_);
+        return revision_ > 0;
+    }
+    const std::string& daemon() const
+    {
+        return daemon_;
+    }
+
+  private:
+    mutable std::mutex mu_;
+    std::string daemon_;
+    JValue schema_;
+    Apply apply_;
+    ConfigDocument current_;
+    uint64_t revision_ = 0;
 };
 
 // Loads a daemon's JSON Schema from the image (installed by the recipe into
 // ${datadir}/instrumentation/schemas). A missing schema is not fatal: the
 // document is then accepted unvalidated and the caller warns, because a
 // packaging slip must not stop the device booting (R10).
-Result<JValue> load_daemon_schema(class IFileSystem& fs, const std::string& sysroot,
-                                  const std::string& daemon);
+Result<JValue> load_daemon_schema(class IFileSystem& fs, const std::string& sysroot, const std::string& daemon);
 
-}  // namespace instr
+} // namespace instr

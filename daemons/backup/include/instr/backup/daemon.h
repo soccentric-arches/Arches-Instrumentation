@@ -35,114 +35,161 @@
 #include "instr/transport/transport.h"
 #include "backup.grpc.pb.h"
 
-namespace instr {
-namespace backup {
+namespace instr
+{
+namespace backup
+{
 using namespace domain;
 using namespace instr::transport;
 
-class BackupCore {
- public:
-  BackupCore(IFileSystem& fs, const BackupOptions& opts, TimeSource& ts)
-      : engine_(fs, opts), ts_(ts) {}
+class BackupCore
+{
+  public:
+    BackupCore(IFileSystem& fs, const BackupOptions& opts, TimeSource& ts) : engine_(fs, opts), ts_(ts)
+    {
+    }
 
-  // Configuration delivered by istate (§7.10, §9).
-  struct Config {
-    bool enabled = true;
-    std::vector<std::string> paths{"/pst/system"};
-    std::vector<std::string> excludes;
-    bool schedule_enabled = false;
-    double schedule_interval_s = 86400;
-    std::string destination = "local";  // local | hq | both
-    std::string local_dir = "/pst/backup";
-    uint32_t retain_archives = 5;
-  };
-  const Config& config() const { return cfg_; }
-  Error apply_config(const ConfigDocument& doc) {
-    Config c;
-    c.enabled = doc.get_bool("enabled", true);
-    c.paths = doc.get_list("paths");
-    if (c.paths.empty()) c.paths = {"/pst/system"};
-    c.excludes = doc.get_list("excludes");
-    c.schedule_enabled = doc.get_bool("schedule_enabled", false);
-    c.schedule_interval_s = double(doc.get_int("schedule_interval_s", 86400));
-    c.destination = doc.get_string("destination", "local");
-    c.local_dir = doc.get_string("local_dir", "/pst/backup");
-    c.retain_archives = uint32_t(doc.get_int("retain_archives", 5));
-    if (c.schedule_enabled && c.schedule_interval_s < 60)
-      return Error::make(Errc::InvalidArgument, "schedule_interval_s must be >= 60",
-                         "backup config");
-    cfg_ = c;
-    set_schedule(c.schedule_enabled, c.schedule_interval_s);
-    archive_dir_ = c.local_dir;
-    if (on_config_) on_config_(cfg_);
-    return Error::none();
-  }
-  void set_config_listener(std::function<void(const Config&)> f) { on_config_ = std::move(f); }
+    // Configuration delivered by istate (§7.10, §9).
+    struct Config
+    {
+        bool enabled = true;
+        std::vector<std::string> paths{"/pst/system"};
+        std::vector<std::string> excludes;
+        bool schedule_enabled = false;
+        double schedule_interval_s = 86400;
+        std::string destination = "local"; // local | hq | both
+        std::string local_dir = "/pst/backup";
+        uint32_t retain_archives = 5;
+    };
+    const Config& config() const
+    {
+        return cfg_;
+    }
+    Error apply_config(const ConfigDocument& doc)
+    {
+        Config c;
+        c.enabled = doc.get_bool("enabled", true);
+        c.paths = doc.get_list("paths");
+        if (c.paths.empty()) c.paths = {"/pst/system"};
+        c.excludes = doc.get_list("excludes");
+        c.schedule_enabled = doc.get_bool("schedule_enabled", false);
+        c.schedule_interval_s = double(doc.get_int("schedule_interval_s", 86400));
+        c.destination = doc.get_string("destination", "local");
+        c.local_dir = doc.get_string("local_dir", "/pst/backup");
+        c.retain_archives = uint32_t(doc.get_int("retain_archives", 5));
+        if (c.schedule_enabled && c.schedule_interval_s < 60) return Error::make(Errc::InvalidArgument, "schedule_interval_s must be >= 60", "backup config");
+        cfg_ = c;
+        set_schedule(c.schedule_enabled, c.schedule_interval_s);
+        archive_dir_ = c.local_dir;
+        if (on_config_) on_config_(cfg_);
+        return Error::none();
+    }
+    void set_config_listener(std::function<void(const Config&)> f)
+    {
+        on_config_ = std::move(f);
+    }
 
-  BackupEngine& engine() { return engine_; }
-  void set_archive_dir(const std::string& d) { archive_dir_ = d; }
-  const std::string& archive_dir() const { return archive_dir_; }
-  void set_restore_roots(const std::vector<std::string>& roots) { restore_roots_ = roots; }
-  const std::vector<std::string>& restore_roots() const { return restore_roots_; }
-  // istate-directed commit: writes staged files under istate's supervision.
-  void set_commit_fn(BackupEngine::CommitFn f) { commit_fn_ = std::move(f); }
-  TimeSource& clock() { return ts_; }
-  void set_event_sink(std::function<void(const std::string& action, const std::string& meta,
-                                         bool ok, const std::string& err)>
-                          f) {
-    sink_ = std::move(f);
-  }
-  void emit_event(const std::string& action, const std::string& meta, bool ok,
-                  const std::string& err) {
-    if (sink_) sink_(action, meta, ok, err);
-  }
-  // Schedule (runtime state; persisted config lives in /pst via istate).
-  bool schedule_enabled() const { return schedule_enabled_; }
-  double schedule_interval_s() const { return schedule_interval_s_; }
-  void set_schedule(bool enabled, double interval_s) {
-    schedule_enabled_ = enabled;
-    schedule_interval_s_ = interval_s;
-  }
-  bool has_commit_fn() const { return bool(commit_fn_); }
-  Error commit(const std::vector<tar::FileEntry>& files) { return commit_fn_(files); }
+    BackupEngine& engine()
+    {
+        return engine_;
+    }
+    void set_archive_dir(const std::string& d)
+    {
+        archive_dir_ = d;
+    }
+    const std::string& archive_dir() const
+    {
+        return archive_dir_;
+    }
+    void set_restore_roots(const std::vector<std::string>& roots)
+    {
+        restore_roots_ = roots;
+    }
+    const std::vector<std::string>& restore_roots() const
+    {
+        return restore_roots_;
+    }
+    // istate-directed commit: writes staged files under istate's supervision.
+    void set_commit_fn(BackupEngine::CommitFn f)
+    {
+        commit_fn_ = std::move(f);
+    }
+    TimeSource& clock()
+    {
+        return ts_;
+    }
+    void set_event_sink(std::function<void(const std::string& action, const std::string& meta, bool ok, const std::string& err)> f)
+    {
+        sink_ = std::move(f);
+    }
+    void emit_event(const std::string& action, const std::string& meta, bool ok, const std::string& err)
+    {
+        if (sink_) sink_(action, meta, ok, err);
+    }
+    // Schedule (runtime state; persisted config lives in /pst via istate).
+    bool schedule_enabled() const
+    {
+        return schedule_enabled_;
+    }
+    double schedule_interval_s() const
+    {
+        return schedule_interval_s_;
+    }
+    void set_schedule(bool enabled, double interval_s)
+    {
+        schedule_enabled_ = enabled;
+        schedule_interval_s_ = interval_s;
+    }
+    bool has_commit_fn() const
+    {
+        return bool(commit_fn_);
+    }
+    Error commit(const std::vector<tar::FileEntry>& files)
+    {
+        return commit_fn_(files);
+    }
 
- private:
-  bool schedule_enabled_ = false;
-  double schedule_interval_s_ = 86400;
-  BackupEngine engine_;
-  TimeSource& ts_;
-  std::string archive_dir_ = "/pst/backup";
-  std::vector<std::string> restore_roots_ = {"/pst/system"};
-  BackupEngine::CommitFn commit_fn_;
-  std::function<void(const std::string&, const std::string&, bool, const std::string&)> sink_;
-  Config cfg_;
-  std::function<void(const Config&)> on_config_;
+  private:
+    bool schedule_enabled_ = false;
+    double schedule_interval_s_ = 86400;
+    BackupEngine engine_;
+    TimeSource& ts_;
+    std::string archive_dir_ = "/pst/backup";
+    std::vector<std::string> restore_roots_ = {"/pst/system"};
+    BackupEngine::CommitFn commit_fn_;
+    std::function<void(const std::string&, const std::string&, bool, const std::string&)> sink_;
+    Config cfg_;
+    std::function<void(const Config&)> on_config_;
 };
 
 CommandTable build_backup_table(BackupCore* core);
 
-class BackupSpoke {
- public:
-  BackupSpoke(BackupCore* core, Logger* log, const CommandTable* table,
-              const std::string& hub_target, const std::string& build_version);
-  void start();
-  void stop();
-  bool registered() const { return channel_->registered(); }
-  // Configuration is delivered by istate over the channel and validated
-  // against this schema before it can change behaviour (R4, §9).
-  void set_schema(JValue schema);
-  uint64_t config_revision() const { return channel_->config_revision(); }
-  void send_event(const std::string& action, const std::string& archive, const std::string& meta,
-                  bool ok, const std::string& err);
+class BackupSpoke
+{
+  public:
+    BackupSpoke(BackupCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version);
+    void start();
+    void stop();
+    bool registered() const
+    {
+        return channel_->registered();
+    }
+    // Configuration is delivered by istate over the channel and validated
+    // against this schema before it can change behaviour (R4, §9).
+    void set_schema(JValue schema);
+    uint64_t config_revision() const
+    {
+        return channel_->config_revision();
+    }
+    void send_event(const std::string& action, const std::string& archive, const std::string& meta, bool ok, const std::string& err);
 
- private:
-  BackupCore* core_;
-  Logger* log_;
-  const CommandTable* table_;
-  std::unique_ptr<ConfigSink> config_sink_;
-  std::unique_ptr<SpokeChannel<backup::BackupHub, backup::BackupSpokeFrame, backup::BackupHubFrame>>
-      channel_;
+  private:
+    BackupCore* core_;
+    Logger* log_;
+    const CommandTable* table_;
+    std::unique_ptr<ConfigSink> config_sink_;
+    std::unique_ptr<SpokeChannel<backup::BackupHub, backup::BackupSpokeFrame, backup::BackupHubFrame>> channel_;
 };
 
-}  // namespace backup
-}  // namespace instr
+} // namespace backup
+} // namespace instr

@@ -39,40 +39,43 @@
 
 #include "instr/common/error.h"
 
-namespace instr {
-namespace crypto {
+namespace instr
+{
+namespace crypto
+{
 
-struct Digest32 {
-  std::array<uint8_t, 32> b{};
-  std::string hex() const;
+struct Digest32
+{
+    std::array<uint8_t, 32> b{};
+    std::string hex() const;
 };
 
 Digest32 sha256(const uint8_t* data, size_t len);
-inline Digest32 sha256(const std::string& s) {
-  return sha256(reinterpret_cast<const uint8_t*>(s.data()), s.size());
+inline Digest32 sha256(const std::string& s)
+{
+    return sha256(reinterpret_cast<const uint8_t*>(s.data()), s.size());
 }
 Digest32 hmac_sha256(const std::string& key, const std::string& msg);
 
 // ---- X25519 (RFC 7748) ----
-struct X25519Key {
-  std::array<uint8_t, 32> priv{};
-  std::array<uint8_t, 32> pub{};
+struct X25519Key
+{
+    std::array<uint8_t, 32> priv{};
+    std::array<uint8_t, 32> pub{};
 };
 using Rng32 = std::function<void(uint8_t*, size_t)>;
 X25519Key x25519_generate(const Rng32& rng);
 std::array<uint8_t, 32> x25519(const uint8_t priv[32], const uint8_t pub_in[32]);
 
 // ---- ChaCha20 stream cipher (RFC 8439) ----
-void chacha20(const uint8_t key[32], const uint8_t nonce[12], uint32_t counter, const uint8_t* in,
-              uint8_t* out, size_t len);
+void chacha20(const uint8_t key[32], const uint8_t nonce[12], uint32_t counter, const uint8_t* in, uint8_t* out, size_t len);
 // Encrypt-then-MAC convenience: ChaCha20 stream + HMAC-SHA256 over
 // (nonce || ciphertext). Output layout: nonce(12) || ciphertext || tag(32).
 std::string aead_seal(const std::string& key32, const std::string& plaintext, const Rng32& rng);
 Result<std::string> aead_open(const std::string& key32, const std::string& sealed);
 
 // ---- HKDF-SHA256 (RFC 5869) ----
-std::string hkdf_sha256(const std::string& ikm, const std::string& salt, const std::string& info,
-                        size_t len);
+std::string hkdf_sha256(const std::string& ikm, const std::string& salt, const std::string& info, size_t len);
 
 // ---- encodings ----
 std::string base64_encode(const std::string& raw);
@@ -85,5 +88,5 @@ Result<std::string> hex_decode(const std::string& hex);
 // silently degrading — key generation must not run without entropy (§6.2).
 Error random_bytes(uint8_t* out, size_t n);
 
-}  // namespace crypto
-}  // namespace instr
+} // namespace crypto
+} // namespace instr

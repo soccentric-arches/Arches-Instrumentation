@@ -40,63 +40,106 @@
 #include "instr/platform/platform.h"
 #include "logmanager.grpc.pb.h"
 
-namespace instr {
-namespace logmanager {
+namespace instr
+{
+namespace logmanager
+{
 using namespace domain;
 using namespace instr::transport;
 
-class LogCore {
- public:
-  LogCore(IFileSystem& fs, const std::string& base_dir, TimeSource& ts)
-      : store_(fs, base_dir),
-        bundles_(fs, base_dir + "-bundles"),
-        forensics_(fs, base_dir + "-crash"),
-        ts_(ts) {
-    bundles_.set_log_base_dir(base_dir);
-  }
+class LogCore
+{
+  public:
+    LogCore(IFileSystem& fs, const std::string& base_dir, TimeSource& ts) : store_(fs, base_dir), bundles_(fs, base_dir + "-bundles"), forensics_(fs, base_dir + "-crash"), ts_(ts)
+    {
+        bundles_.set_log_base_dir(base_dir);
+    }
 
-  // Configuration delivered by istate (§7.7, §9): which logs to collect,
-  // rotation, retention and the storage budget for this resource class.
-  struct Config {
-    bool enabled = true;
-    uint64_t budget_bytes = 128ull * 1024 * 1024;
-    double prune_interval_s = 300.0;
-    uint32_t tail_max_rate_per_s = 50;
-    uint64_t coredump_max_bytes = 32ull * 1024 * 1024;
-    std::vector<SourceSpec> sources;
-  };
-  const Config& config() const { return cfg_; }
-  Error apply_config(const ConfigDocument& doc);
-  void set_config_listener(std::function<void(const Config&)> f) { on_config_ = std::move(f); }
+    // Configuration delivered by istate (§7.7, §9): which logs to collect,
+    // rotation, retention and the storage budget for this resource class.
+    struct Config
+    {
+        bool enabled = true;
+        uint64_t budget_bytes = 128ull * 1024 * 1024;
+        double prune_interval_s = 300.0;
+        uint32_t tail_max_rate_per_s = 50;
+        uint64_t coredump_max_bytes = 32ull * 1024 * 1024;
+        std::vector<SourceSpec> sources;
+    };
+    const Config& config() const
+    {
+        return cfg_;
+    }
+    Error apply_config(const ConfigDocument& doc);
+    void set_config_listener(std::function<void(const Config&)> f)
+    {
+        on_config_ = std::move(f);
+    }
 
-  // Where the bulk payload socket lives, reported to callers by bundle-fetch.
-  void set_bulk_socket_path(std::string p) { bulk_socket_path_ = std::move(p); }
-  const std::string& bulk_socket_path() const { return bulk_socket_path_; }
+    // Where the bulk payload socket lives, reported to callers by bundle-fetch.
+    void set_bulk_socket_path(std::string p)
+    {
+        bulk_socket_path_ = std::move(p);
+    }
+    const std::string& bulk_socket_path() const
+    {
+        return bulk_socket_path_;
+    }
 
-  LogStore& store() { return store_; }
-  BundleStore& bundles() { return bundles_; }
-  CrashForensics& forensics() { return forensics_; }
-  TimeSource& clock() { return ts_; }
+    LogStore& store()
+    {
+        return store_;
+    }
+    BundleStore& bundles()
+    {
+        return bundles_;
+    }
+    CrashForensics& forensics()
+    {
+        return forensics_;
+    }
+    TimeSource& clock()
+    {
+        return ts_;
+    }
 
-  void set_sink(std::function<void(const LogLine&)> f) {
-    std::lock_guard<std::mutex> lk(mu_);
-    sink_ = std::move(f);
-  }
-  void emit(const LogLine& l) {
-    std::lock_guard<std::mutex> lk(mu_);
-    if (sink_) sink_(l);
-  }
+    // Crash forensics (§7.7). istate notices an abnormal exit and asks for a
+    // capture without knowing where coredumps land — that is platform
+    // knowledge. The resolver is injected from main so LogCore stays free of
+    // the platform layer and the domain stays testable.
+    void set_coredump_resolver(std::function<std::string(const std::string& daemon)> f)
+    {
+        std::lock_guard<std::mutex> lk(mu_);
+        coredump_resolver_ = std::move(f);
+    }
+    std::string resolve_coredump(const std::string& daemon)
+    {
+        std::lock_guard<std::mutex> lk(mu_);
+        return coredump_resolver_ ? coredump_resolver_(daemon) : std::string();
+    }
 
- private:
-  LogStore store_;
-  BundleStore bundles_;
-  CrashForensics forensics_;
-  TimeSource& ts_;
-  std::function<void(const LogLine&)> sink_;
-  std::mutex mu_;
-  Config cfg_;
-  std::function<void(const Config&)> on_config_;
-  std::string bulk_socket_path_ = "/run/instrumentation/logmanager-bulk.sock";
+    void set_sink(std::function<void(const LogLine&)> f)
+    {
+        std::lock_guard<std::mutex> lk(mu_);
+        sink_ = std::move(f);
+    }
+    void emit(const LogLine& l)
+    {
+        std::lock_guard<std::mutex> lk(mu_);
+        if (sink_) sink_(l);
+    }
+
+  private:
+    LogStore store_;
+    BundleStore bundles_;
+    CrashForensics forensics_;
+    TimeSource& ts_;
+    std::function<void(const LogLine&)> sink_;
+    std::function<std::string(const std::string&)> coredump_resolver_;
+    std::mutex mu_;
+    Config cfg_;
+    std::function<void(const Config&)> on_config_;
+    std::string bulk_socket_path_ = "/run/instrumentation/logmanager-bulk.sock";
 };
 
 // ---- collection (§7.7: "Collects from the journal and from application log
@@ -108,72 +151,86 @@ class LogCore {
 //
 // Without this the daemon rotates, prunes, tails and bundles a store that
 // nothing ever writes to — which is what it did before this existed.
-class LogCollector {
- public:
-  LogCollector(LogCore* core, platform::IPlatform* plat, IFileSystem* fs, TimeSource* ts,
-               Logger* log);
+class LogCollector
+{
+  public:
+    LogCollector(LogCore* core, platform::IPlatform* plat, IFileSystem* fs, TimeSource* ts, Logger* log);
 
-  // One collection pass over every configured source. Returns the number of
-  // lines appended. Sources are re-read from the core's config each pass, so
-  // a delivery from istate takes effect without a restart.
-  size_t poll();
-  void start();
-  void stop();
-  void set_interval_s(double s) { worker_.set_interval_s(s); }
-  uint64_t polls() const { return worker_.ticks(); }
-  uint64_t lines_collected() const { return lines_.load(); }
+    // One collection pass over every configured source. Returns the number of
+    // lines appended. Sources are re-read from the core's config each pass, so
+    // a delivery from istate takes effect without a restart.
+    size_t poll();
+    void start();
+    void stop();
+    void set_interval_s(double s)
+    {
+        worker_.set_interval_s(s);
+    }
+    uint64_t polls() const
+    {
+        return worker_.ticks();
+    }
+    uint64_t lines_collected() const
+    {
+        return lines_.load();
+    }
 
- private:
-  size_t collect_journal(const SourceSpec& spec);
-  size_t collect_file(const SourceSpec& spec);
-  size_t emit(const SourceSpec& spec, const std::string& raw);
+  private:
+    size_t collect_journal(const SourceSpec& spec);
+    size_t collect_file(const SourceSpec& spec);
+    size_t emit(const SourceSpec& spec, const std::string& raw);
 
-  // Per-source follow position. The journal has no cursor API, so dedup is
-  // by remembering the last line handed back; a file sink tracks a byte
-  // offset and restarts at 0 when the file shrinks (rotation or truncation).
-  struct Cursor {
-    std::string last_line;
-    uint64_t offset = 0;
-  };
-  std::map<std::string, Cursor> cursors_;
+    // Per-source follow position. The journal has no cursor API, so dedup is
+    // by remembering the last line handed back; a file sink tracks a byte
+    // offset and restarts at 0 when the file shrinks (rotation or truncation).
+    struct Cursor
+    {
+        std::string last_line;
+        uint64_t offset = 0;
+    };
+    std::map<std::string, Cursor> cursors_;
 
-  LogCore* core_;
-  platform::IPlatform* plat_;
-  IFileSystem* fs_;
-  TimeSource* ts_;
-  Logger* log_;
-  std::atomic<uint64_t> lines_{0};
-  PeriodicWorker worker_;
+    LogCore* core_;
+    platform::IPlatform* plat_;
+    IFileSystem* fs_;
+    TimeSource* ts_;
+    Logger* log_;
+    std::atomic<uint64_t> lines_{0};
+    PeriodicWorker worker_;
 };
 
 CommandTable build_log_table(LogCore* core);
 int level_index_public(const std::string& level);
 std::string first_source(LogCore* core);
 
-class LogSpoke {
- public:
-  LogSpoke(LogCore* core, Logger* log, const CommandTable* table, const std::string& hub_target,
-           const std::string& build_version);
-  void start();
-  void stop();
-  bool registered() const { return channel_->registered(); }
-  // Configuration is delivered by istate over the channel and validated
-  // against this schema before it can change behaviour (R4, §9).
-  void set_schema(JValue schema);
-  uint64_t config_revision() const { return channel_->config_revision(); }
-  void send_line(const LogLine& l);
-  void send_bundle(const BundleMeta& m);
-  void send_crash(const std::string& daemon, const std::string& coredump, uint32_t tail_lines);
+class LogSpoke
+{
+  public:
+    LogSpoke(LogCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version);
+    void start();
+    void stop();
+    bool registered() const
+    {
+        return channel_->registered();
+    }
+    // Configuration is delivered by istate over the channel and validated
+    // against this schema before it can change behaviour (R4, §9).
+    void set_schema(JValue schema);
+    uint64_t config_revision() const
+    {
+        return channel_->config_revision();
+    }
+    void send_line(const LogLine& l);
+    void send_bundle(const BundleMeta& m);
+    void send_crash(const std::string& daemon, const std::string& coredump, uint32_t tail_lines);
 
- private:
-  LogCore* core_;
-  Logger* log_;
-  const CommandTable* table_;
-  std::unique_ptr<ConfigSink> config_sink_;
-  std::unique_ptr<
-      SpokeChannel<logmanager::LogHub, logmanager::LogSpokeFrame, logmanager::LogHubFrame>>
-      channel_;
+  private:
+    LogCore* core_;
+    Logger* log_;
+    const CommandTable* table_;
+    std::unique_ptr<ConfigSink> config_sink_;
+    std::unique_ptr<SpokeChannel<logmanager::LogHub, logmanager::LogSpokeFrame, logmanager::LogHubFrame>> channel_;
 };
 
-}  // namespace logmanager
-}  // namespace instr
+} // namespace logmanager
+} // namespace instr

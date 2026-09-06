@@ -35,120 +35,126 @@ using namespace instr;
 using namespace instr::networkd;
 using namespace instr::networkd::domain;
 
-TEST(NetworkdPlan, RendersCompletePlan) {
-  NetworkPlan p;
-  IfaceConfig eth;
-  eth.name = "eth0";
-  eth.mode = "dhcp";
-  eth.priority = 10;
-  p.ifaces.push_back(eth);
-  FirewallRule r;
-  r.action = "deny";
-  r.proto = "tcp";
-  r.src = "any";
-  r.dst_port = 23;
-  r.comment = "telnet";
-  p.firewall.push_back(r);
-  p.ssh_enabled = false;
-  p.wg.hq_endpoint = "hq.example:51820";
-  p.wg_up = true;
-  auto j = render_plan_json(p);
-  ASSERT_TRUE(j.is_object());
-  EXPECT_TRUE(j.has("interfaces"));
-  EXPECT_TRUE(j.has("firewall"));
-  EXPECT_TRUE(j.has("wireguard"));
-  EXPECT_FALSE(j.find("ssh_enabled")->as_bool());
-  EXPECT_TRUE(j.find("wireguard")->find("up")->as_bool());
+TEST(NetworkdPlan, RendersCompletePlan)
+{
+    NetworkPlan p;
+    IfaceConfig eth;
+    eth.name = "eth0";
+    eth.mode = "dhcp";
+    eth.priority = 10;
+    p.ifaces.push_back(eth);
+    FirewallRule r;
+    r.action = "deny";
+    r.proto = "tcp";
+    r.src = "any";
+    r.dst_port = 23;
+    r.comment = "telnet";
+    p.firewall.push_back(r);
+    p.ssh_enabled = false;
+    p.wg.hq_endpoint = "hq.example:51820";
+    p.wg_up = true;
+    auto j = render_plan_json(p);
+    ASSERT_TRUE(j.is_object());
+    EXPECT_TRUE(j.has("interfaces"));
+    EXPECT_TRUE(j.has("firewall"));
+    EXPECT_TRUE(j.has("wireguard"));
+    EXPECT_FALSE(j.find("ssh_enabled")->as_bool());
+    EXPECT_TRUE(j.find("wireguard")->find("up")->as_bool());
 }
 
-TEST(NetworkdTunnelGuard, KeepsChangeWhenHqReachable) {
-  NetworkPlan prev, next;
-  double now = 100;
-  auto res = TunnelGuard::guarded_change(
-      prev, next, [](const NetworkPlan&) { return Error::none(); }, [] { return true; }, 5.0,
-      [&now] { return now; });
-  EXPECT_TRUE(res.applied);
-  EXPECT_FALSE(res.reverted);
+TEST(NetworkdTunnelGuard, KeepsChangeWhenHqReachable)
+{
+    NetworkPlan prev, next;
+    double now = 100;
+    auto res = TunnelGuard::guarded_change(prev, next, [](const NetworkPlan&) { return Error::none(); }, [] { return true; }, 5.0, [&now] { return now; });
+    EXPECT_TRUE(res.applied);
+    EXPECT_FALSE(res.reverted);
 }
 
-TEST(NetworkdTunnelGuard, RevertsWhenHqUnreachablePastTimeout) {
-  // Mandatory behaviour (§7.2): firewall change that kills the tunnel
-  // auto-reverts if HQ is not reachable within the timeout.
-  NetworkPlan prev, next;
-  double now = 100;
-  int applies = 0;
-  auto res = TunnelGuard::guarded_change(
-      prev, next,
-      [&](const NetworkPlan&) {
-        ++applies;
-        return Error::none();
-      },
-      [] { return false; }, 0.5,  // never reachable
-      [&now] {
-        now += 0.1;  // test clock advances per probe
-        return now;
-      });
-  EXPECT_TRUE(res.applied);
-  EXPECT_TRUE(res.reverted);
-  EXPECT_EQ(applies, 2);  // next applied, then previous re-applied
-  EXPECT_NE(res.detail.find("auto-reverted"), std::string::npos);
+TEST(NetworkdTunnelGuard, RevertsWhenHqUnreachablePastTimeout)
+{
+    // Mandatory behaviour (§7.2): firewall change that kills the tunnel
+    // auto-reverts if HQ is not reachable within the timeout.
+    NetworkPlan prev, next;
+    double now = 100;
+    int applies = 0;
+    auto res = TunnelGuard::guarded_change(
+        prev, next,
+        [&](const NetworkPlan&) {
+            ++applies;
+            return Error::none();
+        },
+        [] { return false; }, 0.5, // never reachable
+        [&now] {
+            now += 0.1; // test clock advances per probe
+            return now;
+        });
+    EXPECT_TRUE(res.applied);
+    EXPECT_TRUE(res.reverted);
+    EXPECT_EQ(applies, 2); // next applied, then previous re-applied
+    EXPECT_NE(res.detail.find("auto-reverted"), std::string::npos);
 }
 
-TEST(NetworkdRemoteAccess, OpenExpiresAutomatically) {
-  RemoteAccessManager mgr;
-  auto w = mgr.open("alice", 60, 1'700'000'000);
-  ASSERT_TRUE(w.ok());
-  EXPECT_TRUE(mgr.any_active(1'700'000'030));
-  auto expired = mgr.sweep(1'700'000'061);
-  ASSERT_EQ(expired.size(), 1u);
-  EXPECT_EQ(expired[0].operator_name, "alice");
-  EXPECT_FALSE(mgr.any_active(1'700'000'062));
+TEST(NetworkdRemoteAccess, OpenExpiresAutomatically)
+{
+    RemoteAccessManager mgr;
+    auto w = mgr.open("alice", 60, 1'700'000'000);
+    ASSERT_TRUE(w.ok());
+    EXPECT_TRUE(mgr.any_active(1'700'000'030));
+    auto expired = mgr.sweep(1'700'000'061);
+    ASSERT_EQ(expired.size(), 1u);
+    EXPECT_EQ(expired[0].operator_name, "alice");
+    EXPECT_FALSE(mgr.any_active(1'700'000'062));
 }
 
-TEST(NetworkdRemoteAccess, RequiresAttributionAndBoundsTtl) {
-  RemoteAccessManager mgr;
-  EXPECT_FALSE(mgr.open("", 60, 0).ok());  // must be attributed
-  EXPECT_FALSE(mgr.open("bob", 0, 0).ok());  // ttl > 0
-  EXPECT_FALSE(mgr.open("bob", 25 * 3600ull, 0).ok());  // ttl ≤ 24h
+TEST(NetworkdRemoteAccess, RequiresAttributionAndBoundsTtl)
+{
+    RemoteAccessManager mgr;
+    EXPECT_FALSE(mgr.open("", 60, 0).ok()); // must be attributed
+    EXPECT_FALSE(mgr.open("bob", 0, 0).ok()); // ttl > 0
+    EXPECT_FALSE(mgr.open("bob", 25 * 3600ull, 0).ok()); // ttl ≤ 24h
 }
 
-TEST(NetworkdTimeDaemons, RendersChronyAndPtp) {
-  TimePolicy p;
-  p.ntp_servers = {"pool.example.org"};
-  p.ptp_domain = 7;
-  p.ptp_profile = "g8275-1";
-  auto c = render_time_daemons(p);
-  EXPECT_NE(c.chrony_conf.find("server pool.example.org iburst"), std::string::npos);
-  EXPECT_NE(c.chrony_conf.find("refclock SHM 0"), std::string::npos);  // gnss priority
-  EXPECT_NE(c.ptp4l_args.find("-d 7"), std::string::npos);
-  EXPECT_NE(c.ptp4l_args.find("--profile=g8275-1"), std::string::npos);
+TEST(NetworkdTimeDaemons, RendersChronyAndPtp)
+{
+    TimePolicy p;
+    p.ntp_servers = {"pool.example.org"};
+    p.ptp_domain = 7;
+    p.ptp_profile = "g8275-1";
+    auto c = render_time_daemons(p);
+    EXPECT_NE(c.chrony_conf.find("server pool.example.org iburst"), std::string::npos);
+    EXPECT_NE(c.chrony_conf.find("refclock SHM 0"), std::string::npos); // gnss priority
+    EXPECT_NE(c.ptp4l_args.find("-d 7"), std::string::npos);
+    EXPECT_NE(c.ptp4l_args.find("--profile=g8275-1"), std::string::npos);
 }
 
-TEST(NetworkdFailover, RanksReachablePreferredInterfacesFirst) {
-  IfaceConfig a, b;
-  a.name = "eth0";
-  a.priority = 5;
-  b.name = "wwan0";
-  b.priority = 10;
-  std::vector<IfaceConfig> cfgs = {b, a};
-  std::vector<Reachability> probes = {{"eth0", false, 0}, {"wwan0", true, 20}};
-  auto ranked = ConnectivityRanker::rank(cfgs, probes);
-  ASSERT_EQ(ranked.size(), 2u);
-  EXPECT_EQ(ranked[0], "wwan0");  // reachable beats lower-priority-but-down
+TEST(NetworkdFailover, RanksReachablePreferredInterfacesFirst)
+{
+    IfaceConfig a, b;
+    a.name = "eth0";
+    a.priority = 5;
+    b.name = "wwan0";
+    b.priority = 10;
+    std::vector<IfaceConfig> cfgs = {b, a};
+    std::vector<Reachability> probes = {{"eth0", false, 0}, {"wwan0", true, 20}};
+    auto ranked = ConnectivityRanker::rank(cfgs, probes);
+    ASSERT_EQ(ranked.size(), 2u);
+    EXPECT_EQ(ranked[0], "wwan0"); // reachable beats lower-priority-but-down
 }
 
-TEST(NetworkdCore, GuardedApplyThroughPlatformRecordsRevert) {
-  platform::SimulatedPlatform plat;
-  ManualTimeSource ts;
-  NetworkdCore core(plat, ts);
-  NetworkPlan next;
-  core.set_reachability_fn([] { return false; });
-  double t = 0;
-  core.set_clock_fn([&t] {
-    t += 0.05;  // test clock advances per probe
-    return t;
-  });
-  auto res = core.guarded_apply(next, 0.4);
-  EXPECT_TRUE(res.reverted);
-  EXPECT_GE(plat.applied_plans().size(), 2u);
+TEST(NetworkdCore, GuardedApplyThroughPlatformRecordsRevert)
+{
+    platform::SimulatedPlatform plat;
+    ManualTimeSource ts;
+    NetworkdCore core(plat, ts);
+    NetworkPlan next;
+    core.set_reachability_fn([] { return false; });
+    double t = 0;
+    core.set_clock_fn([&t] {
+        t += 0.05; // test clock advances per probe
+        return t;
+    });
+    auto res = core.guarded_apply(next, 0.4);
+    EXPECT_TRUE(res.reverted);
+    EXPECT_GE(plat.applied_plans().size(), 2u);
 }

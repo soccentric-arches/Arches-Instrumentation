@@ -39,15 +39,29 @@ using namespace instr;
 using namespace instr::alarms;
 using namespace instr::alarms::domain;
 
-namespace {
-class CountingTs : public TimeSource {
- public:
-  uint64_t mono = 1'000'000'000;
-  uint64_t seq = 0;
-  uint64_t mono_ns() override { return mono; }
-  int64_t wall_ns() override { return 1'700'000'000'000'000'000; }
-  std::string boot_id() override { return "boot-1"; }
-  uint64_t next_seq() override { return ++seq; }
+namespace
+{
+class CountingTs : public TimeSource
+{
+  public:
+    uint64_t mono = 1'000'000'000;
+    uint64_t seq = 0;
+    uint64_t mono_ns() override
+    {
+        return mono;
+    }
+    int64_t wall_ns() override
+    {
+        return 1'700'000'000'000'000'000;
+    }
+    std::string boot_id() override
+    {
+        return "boot-1";
+    }
+    uint64_t next_seq() override
+    {
+        return ++seq;
+    }
 };
 
 static const char* kCatalog = R"yaml(
@@ -72,173 +86,186 @@ entries:
     hq_reportable: true
 )yaml";
 
-struct Fixture {
-  SimulatedFileSystem fs;
-  CountingTs ts;
-  AlarmManager mgr{fs, "/pst/state/alarms/active.db", ts};
-  Fixture() {
-    auto entries = load_catalog_entries(kCatalog);
-    assert(entries.ok());
-    mgr.merge_catalog(*entries);
-  }
+struct Fixture
+{
+    SimulatedFileSystem fs;
+    CountingTs ts;
+    AlarmManager mgr{fs, "/pst/state/alarms/active.db", ts};
+    Fixture()
+    {
+        auto entries = load_catalog_entries(kCatalog);
+        assert(entries.ok());
+        mgr.merge_catalog(*entries);
+    }
 };
-}  // namespace
+} // namespace
 
-TEST(AlarmsStateMachine, RaiseActiveAckClear) {
-  Fixture f;
-  uint32_t id = 0x30220002u;
-  auto ev = f.mgr.raise(id, "networkd-app", "tunnel down");
-  ASSERT_TRUE(ev.ok());
-  EXPECT_EQ(ev->action, "raise");
-  ASSERT_EQ(f.mgr.active().size(), 1u);
-  EXPECT_EQ(f.mgr.active()[0].count, 1u);
-  EXPECT_FALSE(f.mgr.active()[0].acknowledged);
-  EXPECT_EQ(f.mgr.active()[0].probable_cause, "connectivity-issue");  // X.733 from catalog
+TEST(AlarmsStateMachine, RaiseActiveAckClear)
+{
+    Fixture f;
+    uint32_t id = 0x30220002u;
+    auto ev = f.mgr.raise(id, "networkd-app", "tunnel down");
+    ASSERT_TRUE(ev.ok());
+    EXPECT_EQ(ev->action, "raise");
+    ASSERT_EQ(f.mgr.active().size(), 1u);
+    EXPECT_EQ(f.mgr.active()[0].count, 1u);
+    EXPECT_FALSE(f.mgr.active()[0].acknowledged);
+    EXPECT_EQ(f.mgr.active()[0].probable_cause, "connectivity-issue"); // X.733 from catalog
 
-  auto ack = f.mgr.acknowledge(id);
-  ASSERT_TRUE(ack.ok());
-  EXPECT_TRUE((*f.mgr.find(id))->acknowledged);
+    auto ack = f.mgr.acknowledge(id);
+    ASSERT_TRUE(ack.ok());
+    EXPECT_TRUE((*f.mgr.find(id))->acknowledged);
 
-  auto clr = f.mgr.clear(id, "networkd-app");
-  ASSERT_TRUE(clr.ok());
-  EXPECT_TRUE(f.mgr.active().empty());
+    auto clr = f.mgr.clear(id, "networkd-app");
+    ASSERT_TRUE(clr.ok());
+    EXPECT_TRUE(f.mgr.active().empty());
 }
 
-TEST(AlarmsStateMachine, ReRaiseCountsAndUpdatesLastSeen) {
-  Fixture f;
-  uint32_t id = 0x30220002u;
-  f.mgr.raise(id, "app", "first");
-  f.ts.mono += 1'000'000'000ull;
-  auto ev = f.mgr.raise(id, "app", "again");
-  ASSERT_TRUE(ev.ok());
-  EXPECT_EQ(f.mgr.active()[0].count, 2u);
-  EXPECT_EQ(ev->record.last_seen.seq, f.mgr.active()[0].first_seen.seq + 1);
+TEST(AlarmsStateMachine, ReRaiseCountsAndUpdatesLastSeen)
+{
+    Fixture f;
+    uint32_t id = 0x30220002u;
+    f.mgr.raise(id, "app", "first");
+    f.ts.mono += 1'000'000'000ull;
+    auto ev = f.mgr.raise(id, "app", "again");
+    ASSERT_TRUE(ev.ok());
+    EXPECT_EQ(f.mgr.active()[0].count, 2u);
+    EXPECT_EQ(ev->record.last_seen.seq, f.mgr.active()[0].first_seen.seq + 1);
 }
 
-TEST(AlarmsStateMachine, SeverityChangeOnActiveAlarm) {
-  Fixture f;
-  uint32_t id = 0x30220002u;  // MAJOR in catalog
-  f.mgr.raise(id, "app", "v1");
-  // Catalog entry changed to CRITICAL (e.g. new release) then re-raise.
-  CatalogEntry updated;
-  updated.id = id;
-  updated.name = "netd_tunnel_down";
-  updated.severity = common::SEV_CRITICAL;
-  f.mgr.merge_catalog({updated});
-  auto ev = f.mgr.raise(id, "app", "v2");
-  ASSERT_TRUE(ev.ok());
-  EXPECT_EQ(ev->action, "severity_change");
-  EXPECT_EQ(f.mgr.active()[0].severity, common::SEV_CRITICAL);
-  EXPECT_EQ(f.mgr.active()[0].count, 2u);  // still one alarm, not two
+TEST(AlarmsStateMachine, SeverityChangeOnActiveAlarm)
+{
+    Fixture f;
+    uint32_t id = 0x30220002u; // MAJOR in catalog
+    f.mgr.raise(id, "app", "v1");
+    // Catalog entry changed to CRITICAL (e.g. new release) then re-raise.
+    CatalogEntry updated;
+    updated.id = id;
+    updated.name = "netd_tunnel_down";
+    updated.severity = common::SEV_CRITICAL;
+    f.mgr.merge_catalog({updated});
+    auto ev = f.mgr.raise(id, "app", "v2");
+    ASSERT_TRUE(ev.ok());
+    EXPECT_EQ(ev->action, "severity_change");
+    EXPECT_EQ(f.mgr.active()[0].severity, common::SEV_CRITICAL);
+    EXPECT_EQ(f.mgr.active()[0].count, 2u); // still one alarm, not two
 }
 
-TEST(AlarmsR5, UnknownIdRefusedLoudly) {
-  Fixture f;
-  auto r = f.mgr.raise(0xdeadbeefu, "app", "mystery");
-  EXPECT_FALSE(r.ok());
-  EXPECT_EQ(r.error.code, Errc::NotFound);
-  EXPECT_NE(r.error.message.find("never invented"), std::string::npos);
+TEST(AlarmsR5, UnknownIdRefusedLoudly)
+{
+    Fixture f;
+    auto r = f.mgr.raise(0xdeadbeefu, "app", "mystery");
+    EXPECT_FALSE(r.ok());
+    EXPECT_EQ(r.error.code, Errc::NotFound);
+    EXPECT_NE(r.error.message.find("never invented"), std::string::npos);
 }
 
-TEST(AlarmsR5, ClearRefusesForeignOwner) {
-  Fixture f;
-  uint32_t id = 0x30220002u;
-  f.mgr.raise(id, "app-a", "x");
-  auto r = f.mgr.clear(id, "app-b");
-  EXPECT_FALSE(r.ok());
-  EXPECT_TRUE(f.mgr.find(id).ok());
+TEST(AlarmsR5, ClearRefusesForeignOwner)
+{
+    Fixture f;
+    uint32_t id = 0x30220002u;
+    f.mgr.raise(id, "app-a", "x");
+    auto r = f.mgr.clear(id, "app-b");
+    EXPECT_FALSE(r.ok());
+    EXPECT_TRUE(f.mgr.find(id).ok());
 }
 
-TEST(AlarmsSnapshotOnFault, CriticalRequestsBoundedCapture) {
-  Fixture f;
-  uint32_t captured = 0;
-  f.mgr.set_snapshot_sink([&](uint32_t id) { captured = id; });
-  std::vector<AlarmStateEvent> events;
-  f.mgr.set_event_sink([&](const AlarmStateEvent& ev) { events.push_back(ev); });
-  f.mgr.raise(0x10410007u, "hardware", "device failed");  // CRITICAL in catalog
-  EXPECT_EQ(captured, 0x10410007u);
-  bool saw_snapshot_request = false;
-  for (const auto& ev : events)
-    if (ev.action == "snapshot_request") saw_snapshot_request = true;
-  EXPECT_TRUE(saw_snapshot_request);
+TEST(AlarmsSnapshotOnFault, CriticalRequestsBoundedCapture)
+{
+    Fixture f;
+    uint32_t captured = 0;
+    f.mgr.set_snapshot_sink([&](uint32_t id) { captured = id; });
+    std::vector<AlarmStateEvent> events;
+    f.mgr.set_event_sink([&](const AlarmStateEvent& ev) { events.push_back(ev); });
+    f.mgr.raise(0x10410007u, "hardware", "device failed"); // CRITICAL in catalog
+    EXPECT_EQ(captured, 0x10410007u);
+    bool saw_snapshot_request = false;
+    for (const auto& ev : events)
+        if (ev.action == "snapshot_request") saw_snapshot_request = true;
+    EXPECT_TRUE(saw_snapshot_request);
 }
 
-TEST(AlarmsEscalation, PromotesUnacknowledgedAfterThreshold) {
-  Fixture f;
-  f.mgr.set_escalation({{0, 60, common::SEV_CRITICAL}});  // default policy
-  f.mgr.raise(0x30220002u, "app", "x");  // MAJOR
-  // Before threshold: no change.
-  auto none = f.mgr.escalation_sweep(f.ts.mono + 10ull * 1'000'000'000ull);
-  EXPECT_TRUE(none.empty());
-  // Past threshold: promoted to CRITICAL.
-  f.ts.mono += 60ull * 1'000'000'000ull;
-  auto promoted = f.mgr.escalation_sweep(f.ts.mono);
-  ASSERT_EQ(promoted.size(), 1u);
-  EXPECT_EQ(promoted[0].action, "severity_change");
-  EXPECT_EQ(f.mgr.active()[0].severity, common::SEV_CRITICAL);
+TEST(AlarmsEscalation, PromotesUnacknowledgedAfterThreshold)
+{
+    Fixture f;
+    f.mgr.set_escalation({{0, 60, common::SEV_CRITICAL}}); // default policy
+    f.mgr.raise(0x30220002u, "app", "x"); // MAJOR
+    // Before threshold: no change.
+    auto none = f.mgr.escalation_sweep(f.ts.mono + 10ull * 1'000'000'000ull);
+    EXPECT_TRUE(none.empty());
+    // Past threshold: promoted to CRITICAL.
+    f.ts.mono += 60ull * 1'000'000'000ull;
+    auto promoted = f.mgr.escalation_sweep(f.ts.mono);
+    ASSERT_EQ(promoted.size(), 1u);
+    EXPECT_EQ(promoted[0].action, "severity_change");
+    EXPECT_EQ(f.mgr.active()[0].severity, common::SEV_CRITICAL);
 }
 
-TEST(AlarmsEscalation, AcknowledgedAlarmsDoNotEscalate) {
-  Fixture f;
-  f.mgr.set_escalation({{0, 60, common::SEV_CRITICAL}});
-  f.mgr.raise(0x30220002u, "app", "x");
-  f.mgr.acknowledge(0x30220002u);
-  f.ts.mono += 120ull * 1'000'000'000ull;
-  EXPECT_TRUE(f.mgr.escalation_sweep(f.ts.mono).empty());
+TEST(AlarmsEscalation, AcknowledgedAlarmsDoNotEscalate)
+{
+    Fixture f;
+    f.mgr.set_escalation({{0, 60, common::SEV_CRITICAL}});
+    f.mgr.raise(0x30220002u, "app", "x");
+    f.mgr.acknowledge(0x30220002u);
+    f.ts.mono += 120ull * 1'000'000'000ull;
+    EXPECT_TRUE(f.mgr.escalation_sweep(f.ts.mono).empty());
 }
 
-TEST(AlarmsPersistence, ActiveTableSurvivesRestart) {
-  SimulatedFileSystem fs;
-  CountingTs ts;
-  {
-    AlarmManager mgr(fs, "/pst/state/alarms/active.db", ts);
-    auto entries = load_catalog_entries(kCatalog);
-    mgr.merge_catalog(*entries);
-    mgr.raise(0x30220002u, "app", "persist me");
-    EXPECT_TRUE(mgr.save().ok());
-  }
-  {
-    AlarmManager mgr2(fs, "/pst/state/alarms/active.db", ts);
-    ASSERT_TRUE(mgr2.load().ok());
-    ASSERT_EQ(mgr2.active().size(), 1u);
-    EXPECT_EQ(mgr2.active()[0].owner, "app");
-    EXPECT_EQ(mgr2.active()[0].count, 1u);
-    EXPECT_EQ(mgr2.active()[0].probable_cause, "connectivity-issue");
-  }
-}
-
-TEST(AlarmsCatalogMerge, PreservesOperatorEdits) {
-  Fixture f;
-  // Operator edits the shipped severity.
-  for (auto& c : f.mgr.mutable_catalog())
-    if (c.id == 0x30220002u) {
-      c.severity = common::SEV_CRITICAL;
-      c.operator_edited = true;
+TEST(AlarmsPersistence, ActiveTableSurvivesRestart)
+{
+    SimulatedFileSystem fs;
+    CountingTs ts;
+    {
+        AlarmManager mgr(fs, "/pst/state/alarms/active.db", ts);
+        auto entries = load_catalog_entries(kCatalog);
+        mgr.merge_catalog(*entries);
+        mgr.raise(0x30220002u, "app", "persist me");
+        EXPECT_TRUE(mgr.save().ok());
     }
-  // Regeneration with the shipped (MAJOR) entry.
-  auto shipped = load_catalog_entries(kCatalog);
-  auto st = f.mgr.merge_catalog(*shipped);
-  EXPECT_EQ(st.preserved_operator_edits, 1u);
-  for (const auto& c : f.mgr.catalog()) {
-    // Braces around the EXPECT too: the macro expands to an if/else, which
-    // otherwise dangles against the if above it.
-    if (c.id == 0x30220002u) {
-      EXPECT_EQ(c.severity, common::SEV_CRITICAL);
+    {
+        AlarmManager mgr2(fs, "/pst/state/alarms/active.db", ts);
+        ASSERT_TRUE(mgr2.load().ok());
+        ASSERT_EQ(mgr2.active().size(), 1u);
+        EXPECT_EQ(mgr2.active()[0].owner, "app");
+        EXPECT_EQ(mgr2.active()[0].count, 1u);
+        EXPECT_EQ(mgr2.active()[0].probable_cause, "connectivity-issue");
     }
-  }
-  // A new entry gets added.
-  EXPECT_EQ(st.added, 0u);
-  CatalogEntry fresh;
-  fresh.id = 0x20803001u;
-  fresh.name = "tlm_registration_conflict";
-  st = f.mgr.merge_catalog({fresh});
-  EXPECT_EQ(st.added, 1u);
 }
 
-TEST(AlarmsCorrelation, X733CorrelatedNotificationsCarried) {
-  Fixture f;
-  auto ev = f.mgr.raise(0x30220002u, "app", "x", {0x50510001u});
-  ASSERT_TRUE(ev.ok());
-  ASSERT_EQ(f.mgr.active()[0].correlated.size(), 1u);
-  EXPECT_EQ(f.mgr.active()[0].correlated[0], 0x50510001u);  // kernel fault correlated
+TEST(AlarmsCatalogMerge, PreservesOperatorEdits)
+{
+    Fixture f;
+    // Operator edits the shipped severity.
+    for (auto& c : f.mgr.mutable_catalog())
+        if (c.id == 0x30220002u)
+        {
+            c.severity = common::SEV_CRITICAL;
+            c.operator_edited = true;
+        }
+    // Regeneration with the shipped (MAJOR) entry.
+    auto shipped = load_catalog_entries(kCatalog);
+    auto st = f.mgr.merge_catalog(*shipped);
+    EXPECT_EQ(st.preserved_operator_edits, 1u);
+    for (const auto& c : f.mgr.catalog())
+    {
+        // Braces around the EXPECT too: the macro expands to an if/else, which
+        // otherwise dangles against the if above it.
+        if (c.id == 0x30220002u) { EXPECT_EQ(c.severity, common::SEV_CRITICAL); }
+    }
+    // A new entry gets added.
+    EXPECT_EQ(st.added, 0u);
+    CatalogEntry fresh;
+    fresh.id = 0x20803001u;
+    fresh.name = "tlm_registration_conflict";
+    st = f.mgr.merge_catalog({fresh});
+    EXPECT_EQ(st.added, 1u);
+}
+
+TEST(AlarmsCorrelation, X733CorrelatedNotificationsCarried)
+{
+    Fixture f;
+    auto ev = f.mgr.raise(0x30220002u, "app", "x", {0x50510001u});
+    ASSERT_TRUE(ev.ok());
+    ASSERT_EQ(f.mgr.active()[0].correlated.size(), 1u);
+    EXPECT_EQ(f.mgr.active()[0].correlated[0], 0x50510001u); // kernel fault correlated
 }

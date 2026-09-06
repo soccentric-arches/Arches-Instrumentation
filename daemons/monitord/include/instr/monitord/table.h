@@ -31,12 +31,14 @@
 #pragma once
 #include "instr/common/command_table.h"
 
-namespace instr {
-namespace monitord {
+namespace instr
+{
+namespace monitord
+{
 
-class MonitorCore;  // domain+state facade, defined in transport.h
+class MonitorCore; // domain+state facade, defined in transport.h
 
 CommandTable build_monitor_table(MonitorCore* core);
 
-}  // namespace monitord
-}  // namespace instr
+} // namespace monitord
+} // namespace instr

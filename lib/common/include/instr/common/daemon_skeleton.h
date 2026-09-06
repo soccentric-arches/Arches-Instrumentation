@@ -37,23 +37,28 @@
 
 #include "instr/common/error.h"
 
-namespace instr {
+namespace instr
+{
 
-struct DaemonArgs {
-  std::string name;
-  std::string socket_override;  // --socket PATH (ctrl socket override)
-  std::string hub_socket;  // --hub PATH: istate registration socket
-  std::string root;  // --root PATH: relocate /pst and /run for tests
-  // --platform native|simulated (or INSTR_PLATFORM). The simulated platform
-  // must be able to run the entire suite on a build host with no hardware
-  // (REQ §5), which means the daemons themselves have to be able to select
-  // it — not only the unit tests.
-  std::string platform = "native";
-  bool help = false;
+struct DaemonArgs
+{
+    std::string name;
+    std::string socket_override; // --socket PATH (ctrl socket override)
+    std::string hub_socket; // --hub PATH: istate registration socket
+    std::string root; // --root PATH: relocate /pst and /run for tests
+    // --platform native|simulated (or INSTR_PLATFORM). The simulated platform
+    // must be able to run the entire suite on a build host with no hardware
+    // (REQ §5), which means the daemons themselves have to be able to select
+    // it — not only the unit tests.
+    std::string platform = "native";
+    bool help = false;
 };
 
 // True when the daemon was asked for the simulated platform.
-inline bool use_simulated_platform(const DaemonArgs& a) { return a.platform == "simulated"; }
+inline bool use_simulated_platform(const DaemonArgs& a)
+{
+    return a.platform == "simulated";
+}
 
 DaemonArgs parse_daemon_args(int argc, char** argv, const std::string& daemon_name);
 
@@ -64,10 +69,12 @@ void install_signal_handlers(std::atomic<bool>& stop_flag);
 // systemd readiness notification via NOTIFY_SOCKET (datagram, no libsystemd
 // dependency). Returns false when NOTIFY_SOCKET is unset (running unsupervised).
 bool sd_notify(const std::string& status);
-inline bool sd_notify_ready() { return sd_notify("READY=1"); }
+inline bool sd_notify_ready()
+{
+    return sd_notify("READY=1");
+}
 
 // Block until stop_flag is set or `heartbeat` returns false.
-void run_until_stop(const std::atomic<bool>& stop_flag, const std::function<bool()>& heartbeat,
-                    int poll_ms = 200);
+void run_until_stop(const std::atomic<bool>& stop_flag, const std::function<bool()>& heartbeat, int poll_ms = 200);
 
-}  // namespace instr
+} // namespace instr

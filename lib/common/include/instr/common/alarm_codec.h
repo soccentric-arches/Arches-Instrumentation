@@ -37,27 +37,30 @@
 
 #include "instr/common/error.h"
 
-namespace instr {
+namespace instr
+{
 
-enum class AlarmDomain : uint8_t {
-  Hardware = 1,
-  Software = 2,
-  Network = 3,
-  Application = 4,
-  Fault = 5,
+enum class AlarmDomain : uint8_t
+{
+    Hardware = 1,
+    Software = 2,
+    Network = 3,
+    Application = 4,
+    Fault = 5,
 };
 
-enum class X733Type : uint8_t {
-  Equipment = 1,
-  Communications = 2,
-  ProcessingError = 3,
-  QualityOfService = 4,
-  Environmental = 5,
+enum class X733Type : uint8_t
+{
+    Equipment = 1,
+    Communications = 2,
+    ProcessingError = 3,
+    QualityOfService = 4,
+    Environmental = 5,
 };
 
 const char* alarm_domain_name(AlarmDomain);
 const char* x733_type_name(X733Type);
-AlarmDomain alarm_domain_from_name(const std::string&);  // "hardware" etc.
+AlarmDomain alarm_domain_from_name(const std::string&); // "hardware" etc.
 X733Type x733_type_from_name(const std::string&);
 
 // Module numbering: 0x01..0x0A are the ten daemons, 0x10.. are application
@@ -65,19 +68,21 @@ X733Type x733_type_from_name(const std::string&);
 const std::map<uint8_t, std::string>& module_names();
 uint8_t module_from_name(const std::string&);
 
-struct AlarmId {
-  AlarmDomain domain;
-  uint8_t module;
-  X733Type type;
-  uint16_t index;
-  bool operator==(const AlarmId& o) const {
-    return domain == o.domain && module == o.module && type == o.type && index == o.index;
-  }
+struct AlarmId
+{
+    AlarmDomain domain;
+    uint8_t module;
+    X733Type type;
+    uint16_t index;
+    bool operator==(const AlarmId& o) const
+    {
+        return domain == o.domain && module == o.module && type == o.type && index == o.index;
+    }
 };
 
-constexpr uint32_t encode_alarm_id(AlarmDomain d, uint8_t module, X733Type t, uint16_t index) {
-  return (static_cast<uint32_t>(d) << 28) | (static_cast<uint32_t>(module) << 20) |
-         (static_cast<uint32_t>(t) << 16) | index;
+constexpr uint32_t encode_alarm_id(AlarmDomain d, uint8_t module, X733Type t, uint16_t index)
+{
+    return (static_cast<uint32_t>(d) << 28) | (static_cast<uint32_t>(module) << 20) | (static_cast<uint32_t>(t) << 16) | index;
 }
 
 Result<AlarmId> decode_alarm_id(uint32_t id);
@@ -85,4 +90,4 @@ Result<AlarmId> decode_alarm_id(uint32_t id);
 // Canonical text form: 0x<domain>_<module>_<type>_<index:04x>
 std::string alarm_id_string(uint32_t id);
 
-}  // namespace instr
+} // namespace instr

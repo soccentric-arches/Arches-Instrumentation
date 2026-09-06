@@ -45,38 +45,42 @@
 
 #include "instr/istate/core.h"
 
-namespace instr {
-namespace istate {
+namespace instr
+{
+namespace istate
+{
 
 // Hub impls derive from the generated nested `<X>Hub::Service` classes.
 // Builds and runs the full gRPC server for istate. Socket paths are
 // /run/instrumentation/<daemon>.sock (created by istate, §3.1) plus
 // configuration.sock. Returns the server (BuildAndStart) or nullptr.
-std::unique_ptr<grpc::Server> build_hub_server(
-    IstateCore& core, const std::string& run_dir,
-    std::vector<std::unique_ptr<grpc::Service>>* services);
+std::unique_ptr<grpc::Server> build_hub_server(IstateCore& core, const std::string& run_dir, std::vector<std::unique_ptr<grpc::Service>>* services);
 
 // HQ session client: dials HqPeer over the tunnel, pushes spooled data,
 // receives config pushes / OTA commands / backpressure.
-class HqClient {
- public:
-  HqClient(IstateCore& core, Logger& log, const std::string& hq_target);
-  void start();
-  void stop();
-  bool connected() const { return connected_; }
+class HqClient
+{
+  public:
+    HqClient(IstateCore& core, Logger& log, const std::string& hq_target);
+    void start();
+    void stop();
+    bool connected() const
+    {
+        return connected_;
+    }
 
- private:
-  void run_loop();
-  bool try_session();
+  private:
+    void run_loop();
+    bool try_session();
 
-  IstateCore& core_;
-  Logger& log_;
-  std::string target_;
-  std::thread thread_;
-  std::atomic<bool> running_{false};
-  std::atomic<bool> connected_{false};
-  JitteredBackoff backoff_{2.0, 60.0};
+    IstateCore& core_;
+    Logger& log_;
+    std::string target_;
+    std::thread thread_;
+    std::atomic<bool> running_{false};
+    std::atomic<bool> connected_{false};
+    JitteredBackoff backoff_{2.0, 60.0};
 };
 
-}  // namespace istate
-}  // namespace instr
+} // namespace istate
+} // namespace instr

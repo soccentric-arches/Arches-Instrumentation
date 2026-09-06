@@ -52,7 +52,7 @@ Messages: `HealthCheckResult`, `DeviceInfo`, `HardwareSpokeFrame`, `HardwareHubF
 
 ## istate.proto (package `instr.istate`)
 
-Messages: `SystemInfoRequest`, `SystemInfo`, `GetConfigRequest`, `ConfigSnapshot`, `SetConfigRequest`, `SetConfigReply`, `ListSpokesRequest`, `SpokeStatus`, `SpokeStatusList`, `SpokeControlRequest`, `ResetRequest`, `EventFilter`, `TimelineEvent`, `TailSpec`, `HealthScoreRequest`, `HealthScoreReply`, `EnrollmentRequest`, `EnrollmentStatus`, `RotateKeyRequest`, `RelayRequest`, `BudgetStatus`, `BudgetsRequest`, `BudgetsReply`, `EventsFrame`, `FaultsFrame`, `DeviceFrame`, `HqFrame`
+Messages: `SystemInfoRequest`, `SystemInfo`, `GetConfigRequest`, `ConfigSnapshot`, `SetConfigRequest`, `SetConfigReply`, `ListSpokesRequest`, `SpokeStatus`, `SpokeStatusList`, `SpokeControlRequest`, `ResetRequest`, `EventFilter`, `TimelineEvent`, `TailSpec`, `HealthScoreRequest`, `HealthScoreReply`, `EnrollmentRequest`, `EnrollmentStatus`, `RotateKeyRequest`, `RelayRequest`, `BudgetStatus`, `BudgetsRequest`, `BudgetsReply`, `RaiseAlarmRequest`, `ClearAlarmRequest`, `AlarmAck`, `RegisterMetricRequest`, `MetricSample`, `ReportMetricsRequest`, `ReportMetricsReply`, `SetAppConfigRequest`, `EventsFrame`, `FaultsFrame`, `DeviceFrame`, `HqFrame`
 
 ### service `ConfigurationApi`
 
@@ -71,6 +71,18 @@ Messages: `SystemInfoRequest`, `SystemInfo`, `GetConfigRequest`, `ConfigSnapshot
 | `RotateKey` | `RotateKeyRequest` | `common.Ack` | unary |
 | `RelayCommand` | `RelayRequest` | `common.Ack` | unary |
 | `Budgets` | `BudgetsRequest` | `BudgetsReply` | unary |
+
+### service `ApplicationApi`
+
+| RPC | request | response | streaming |
+|-----|---------|----------|-----------|
+| `GetSystemInfo` | `SystemInfoRequest` | `SystemInfo` | unary |
+| `GetConfig` | `GetConfigRequest` | `ConfigSnapshot` | unary |
+| `SetAppConfig` | `SetAppConfigRequest` | `SetConfigReply` | unary |
+| `RaiseAlarm` | `RaiseAlarmRequest` | `AlarmAck` | unary |
+| `ClearAlarm` | `ClearAlarmRequest` | `AlarmAck` | unary |
+| `RegisterMetric` | `RegisterMetricRequest` | `common.Ack` | unary |
+| `ReportMetrics` | `ReportMetricsRequest` | `ReportMetricsReply` | unary |
 
 ### service `HqPeer`
 

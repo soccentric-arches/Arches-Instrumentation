@@ -41,77 +41,81 @@
 
 using namespace instr;
 
-namespace {
+namespace
+{
 
-const char* kDaemons[] = {"istate", "networkd",   "monitord",  "hardware", "faults",
-                          "alarms", "logmanager", "telemetry", "ota",      "backup"};
+const char* kDaemons[] = {"istate", "networkd", "monitord", "hardware", "faults", "alarms", "logmanager", "telemetry", "ota", "backup"};
 
-std::string slurp(const std::string& path) {
-  std::ifstream f(path);
-  std::ostringstream ss;
-  ss << f.rdbuf();
-  return ss.str();
+std::string slurp(const std::string& path)
+{
+    std::ifstream f(path);
+    std::ostringstream ss;
+    ss << f.rdbuf();
+    return ss.str();
 }
-std::string schema_path(const std::string& d) {
-  return std::string(REPO_ROOT) + "/schemas/" + d + ".schema.json";
+std::string schema_path(const std::string& d)
+{
+    return std::string(REPO_ROOT) + "/schemas/" + d + ".schema.json";
 }
-std::string default_path(const std::string& d) {
-  return std::string(REPO_ROOT) + "/system/defaults/" + d + "/config.yaml";
-}
-
-}  // namespace
-
-TEST(DefaultConfigs, EveryDaemonShipsASchema) {
-  for (const char* d : kDaemons) {
-    const std::string text = slurp(schema_path(d));
-    ASSERT_FALSE(text.empty()) << "missing schemas/" << d << ".schema.json (REQ §9)";
-    auto schema = load_schema_text(text);
-    ASSERT_TRUE(schema.ok()) << d << ": " << schema.error.str();
-  }
+std::string default_path(const std::string& d)
+{
+    return std::string(REPO_ROOT) + "/system/defaults/" + d + "/config.yaml";
 }
 
-TEST(DefaultConfigs, EveryDaemonShipsDefaults) {
-  for (const char* d : kDaemons) {
-    ASSERT_FALSE(slurp(default_path(d)).empty())
-        << "missing system/defaults/" << d << "/config.yaml (REQ §9)";
-  }
+} // namespace
+
+TEST(DefaultConfigs, EveryDaemonShipsASchema)
+{
+    for (const char* d : kDaemons)
+    {
+        const std::string text = slurp(schema_path(d));
+        ASSERT_FALSE(text.empty()) << "missing schemas/" << d << ".schema.json (REQ §9)";
+        auto schema = load_schema_text(text);
+        ASSERT_TRUE(schema.ok()) << d << ": " << schema.error.str();
+    }
 }
 
-TEST(DefaultConfigs, ShippedDefaultsValidateAgainstTheirSchema) {
-  for (const char* d : kDaemons) {
-    auto schema = load_schema_text(slurp(schema_path(d)));
-    ASSERT_TRUE(schema.ok()) << d;
-    auto doc = ConfigDocument::parse(slurp(default_path(d)), *schema,
-                                     std::string("system/defaults/") + d + "/config.yaml");
-    EXPECT_TRUE(doc.ok()) << d << " default config rejected: " << doc.error.str();
-  }
+TEST(DefaultConfigs, EveryDaemonShipsDefaults)
+{
+    for (const char* d : kDaemons) { ASSERT_FALSE(slurp(default_path(d)).empty()) << "missing system/defaults/" << d << "/config.yaml (REQ §9)"; }
 }
 
-TEST(DefaultConfigs, SchemaRejectsAnUnknownKeyLoudly) {
-  // A typo must be a loud error, never a silent behavioural change (§9).
-  auto schema = load_schema_text(slurp(schema_path("monitord")));
-  ASSERT_TRUE(schema.ok());
-  auto doc = ConfigDocument::parse("enabled: true\nintervl: 5\n", *schema, "typo.yaml");
-  ASSERT_FALSE(doc.ok());
-  EXPECT_NE(doc.error.str().find("intervl"), std::string::npos)
-      << "the rejection must name the offending key: " << doc.error.str();
+TEST(DefaultConfigs, ShippedDefaultsValidateAgainstTheirSchema)
+{
+    for (const char* d : kDaemons)
+    {
+        auto schema = load_schema_text(slurp(schema_path(d)));
+        ASSERT_TRUE(schema.ok()) << d;
+        auto doc = ConfigDocument::parse(slurp(default_path(d)), *schema, std::string("system/defaults/") + d + "/config.yaml");
+        EXPECT_TRUE(doc.ok()) << d << " default config rejected: " << doc.error.str();
+    }
 }
 
-TEST(DefaultConfigs, SchemaRejectsAnOutOfRangeValue) {
-  auto schema = load_schema_text(slurp(schema_path("monitord")));
-  ASSERT_TRUE(schema.ok());
-  auto doc = ConfigDocument::parse("enabled: true\ninterval: 0\n", *schema, "range.yaml");
-  EXPECT_FALSE(doc.ok()) << "interval below the schema minimum must be refused";
+TEST(DefaultConfigs, SchemaRejectsAnUnknownKeyLoudly)
+{
+    // A typo must be a loud error, never a silent behavioural change (§9).
+    auto schema = load_schema_text(slurp(schema_path("monitord")));
+    ASSERT_TRUE(schema.ok());
+    auto doc = ConfigDocument::parse("enabled: true\nintervl: 5\n", *schema, "typo.yaml");
+    ASSERT_FALSE(doc.ok());
+    EXPECT_NE(doc.error.str().find("intervl"), std::string::npos) << "the rejection must name the offending key: " << doc.error.str();
 }
 
-TEST(DefaultConfigs, PerClassIntervalMapIsConstrained) {
-  // additionalProperties-as-schema: an open map whose values are still typed.
-  auto schema = load_schema_text(slurp(schema_path("monitord")));
-  ASSERT_TRUE(schema.ok());
-  auto ok = ConfigDocument::parse("enabled: true\nintervals_per_class:\n  cpu: 2.5\n", *schema,
-                                  "map-ok.yaml");
-  EXPECT_TRUE(ok.ok()) << ok.error.str();
-  auto bad = ConfigDocument::parse("enabled: true\nintervals_per_class:\n  cpu: nonsense\n",
-                                   *schema, "map-bad.yaml");
-  EXPECT_FALSE(bad.ok()) << "a non-numeric interval must be refused";
+TEST(DefaultConfigs, SchemaRejectsAnOutOfRangeValue)
+{
+    auto schema = load_schema_text(slurp(schema_path("monitord")));
+    ASSERT_TRUE(schema.ok());
+    auto doc = ConfigDocument::parse("enabled: true\ninterval: 0\n", *schema, "range.yaml");
+    EXPECT_FALSE(doc.ok()) << "interval below the schema minimum must be refused";
+}
+
+TEST(DefaultConfigs, PerClassIntervalMapIsConstrained)
+{
+    // additionalProperties-as-schema: an open map whose values are still typed.
+    auto schema = load_schema_text(slurp(schema_path("monitord")));
+    ASSERT_TRUE(schema.ok());
+    auto ok = ConfigDocument::parse("enabled: true\nintervals_per_class:\n  cpu: 2.5\n", *schema, "map-ok.yaml");
+    EXPECT_TRUE(ok.ok()) << ok.error.str();
+    auto bad = ConfigDocument::parse("enabled: true\nintervals_per_class:\n  cpu: nonsense\n", *schema, "map-bad.yaml");
+    EXPECT_FALSE(bad.ok()) << "a non-numeric interval must be refused";
 }
