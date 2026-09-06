@@ -83,6 +83,7 @@ void MonitorSpoke::start() {
 
 void MonitorSpoke::stop() {
   running_ = false;
+  sample_cv_.notify_all();  // do not wait out the remaining sampling interval
   if (sampler_thread_.joinable()) sampler_thread_.join();
   channel_->stop();
 }
@@ -102,14 +103,16 @@ void MonitorSpoke::sample_loop() {
       });
       ++frames_;
     }
-    // Sleep until the nearest class deadline (min interval across classes).
+    // Wait until the nearest class deadline (min interval across classes).
+    // A plain sleep here would make shutdown take up to a full sampling
+    // interval — minutes on a slow-sampling board — so wait on the stop
+    // signal instead and wake immediately when it arrives.
     double interval = 1e9;
     for (const char* cls : {"cpu", "memory", "storage", "thermal", "load", "system"})
       interval = std::min(interval, core_->sampler().interval_for(cls));
-    struct timespec ts;
-    ts.tv_sec = time_t(interval);
-    ts.tv_nsec = long((interval - double(time_t(interval))) * 1e9);
-    nanosleep(&ts, nullptr);
+    std::unique_lock<std::mutex> lk(sample_mu_);
+    sample_cv_.wait_for(lk, std::chrono::duration<double>(interval),
+                        [this] { return !running_.load(); });
   }
 }
 

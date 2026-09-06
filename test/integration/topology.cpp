@@ -195,23 +195,14 @@ TEST(Topology, ServerListensOnASocketPerSpoke) {
 
 TEST(Topology, SpokeRegistersOverTheRealTransport) {
   Topology t;
-  const auto t0 = std::chrono::steady_clock::now();
   t.start_monitord();
   ASSERT_TRUE(wait_for([&] { return t.mon->registered(); }))
       << "monitord never completed the registration handshake";
-  const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                      std::chrono::steady_clock::now() - t0)
-                      .count();
-  std::fprintf(stderr, "[timing] registration took %lld ms\n", (long long)ms);
   // istate sees it as an attached spoke, not merely an expected one.
-  bool ok = wait_for([&] {
+  ASSERT_TRUE(wait_for([&] {
     auto s = t.core->orchestrator().spoke("monitord");
     return s.ok() && (*s)->state == SpokeState::Ready;
-  });
-  auto sp = t.core->orchestrator().spoke("monitord");
-  std::fprintf(stderr, "[state] ok=%d found=%d state=%s\n", ok, sp.ok(),
-               sp.ok() ? spoke_state_name((*sp)->state) : "n/a");
-  ASSERT_TRUE(ok);
+  })) << "the hub never marked monitord ready";
 }
 
 TEST(Topology, ConfigurationIsDeliveredAndAcknowledgedOverTheChannel) {

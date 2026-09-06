@@ -32,6 +32,9 @@
 
 #pragma once
 #include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <mutex>
 #include <thread>
 
 #include "instr/ctrl/ctrl.h"
@@ -73,6 +76,8 @@ class MonitorSpoke {
       channel_;
   std::atomic<bool> running_{false};
   std::thread sampler_thread_;
+  std::mutex sample_mu_;
+  std::condition_variable sample_cv_;
   std::atomic<uint64_t> frames_{0};
 };
 
