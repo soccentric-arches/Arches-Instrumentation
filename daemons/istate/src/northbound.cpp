@@ -36,6 +36,7 @@ namespace istate
 
 // ---------------- EventTimeline ----------------
 
+/// @brief Append a stamped event, evicting past the bound.
 void EventTimeline::append(const std::string& kind, const std::string& actor, const std::string& detail_json, TimeSource& ts)
 {
     TimelineRecord ev;
@@ -52,6 +53,7 @@ void EventTimeline::append(const std::string& kind, const std::string& actor, co
     while (events_.size() > max_events_) events_.pop_front();
 }
 
+/// @brief Events after a sequence number.
 std::vector<TimelineRecord> EventTimeline::since(uint64_t seq) const
 {
     std::vector<TimelineRecord> out;
@@ -62,6 +64,7 @@ std::vector<TimelineRecord> EventTimeline::since(uint64_t seq) const
 
 // ---------------- TailFanout ----------------
 
+/// @brief Subscribe to the live tail.
 int TailFanout::subscribe(Subscriber s)
 {
     std::lock_guard<std::mutex> lk(mu_);
@@ -73,6 +76,7 @@ int TailFanout::subscribe(Subscriber s)
     return id;
 }
 
+/// @brief Cancel a subscription.
 void TailFanout::unsubscribe(int id)
 {
     std::lock_guard<std::mutex> lk(mu_);
@@ -84,6 +88,7 @@ void TailFanout::unsubscribe(int id)
         }
 }
 
+/// @brief Publish a line to all subscribers.
 void TailFanout::publish(const std::string& json_line)
 {
     std::lock_guard<std::mutex> lk(mu_);
@@ -98,15 +103,18 @@ void TailFanout::publish(const std::string& json_line)
 
 // ---------------- NorthboundSpool ----------------
 
+/// @brief Bind the spool to storage, config and budgets.
 NorthboundSpool::NorthboundSpool(IFileSystem& fs, const SpoolConfig& cfg, BudgetManager* budgets) : fs_(fs), spool_(fs, cfg), budgets_(budgets)
 {
 }
 
+/// @brief Open the backing store.
 Error NorthboundSpool::open()
 {
     return spool_.open();
 }
 
+/// @brief Enqueue a record (protected classes never drop).
 Result<bool> NorthboundSpool::enqueue(SpoolPriority prio, const std::string& payload, uint64_t mono_ns)
 {
     // Budget enforcement before the write: alarm before the limit (§6).
@@ -127,6 +135,7 @@ Result<bool> NorthboundSpool::enqueue(SpoolPriority prio, const std::string& pay
     return Result<bool>::good(true);
 }
 
+/// @brief Drain a batch, honouring backpressure.
 NorthboundSpool::DrainReport NorthboundSpool::drain(const std::function<bool(const DiskSpool::Entry&)>& send, size_t max_batch)
 {
     DrainReport rep;

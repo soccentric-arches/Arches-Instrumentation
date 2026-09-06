@@ -48,110 +48,130 @@ namespace instr
 namespace istate
 {
 
-class BudgetManager; // forward (defined in pst.h)
+class BudgetManager; ///< forward (defined in pst.h)
 
-// ---- event timeline: single ordered per-device stream (§7.1) ----
+/// @brief Event timeline: single ordered per-device stream (§7.1).
 struct TimelineRecord
 {
-    uint64_t seq = 0;
-    Stamp ts;
-    std::string kind; // boot / config_change / alarm / fault / update / restart / audit
-    std::string actor;
-    std::string detail_json;
+    uint64_t seq = 0;        ///< Monotonic event sequence.
+    Stamp ts;                ///< Event timestamp.
+    std::string kind;        ///< boot / config_change / alarm / fault / update / restart / audit.
+    std::string actor;       ///< Who produced it.
+    std::string detail_json; ///< Event detail.
 };
 
+/// @brief Bounded event timeline with sequence-based queries.
 class EventTimeline
 {
   public:
+    /// @brief Construct a timeline with an event bound.
     EventTimeline(size_t max_events) : max_events_(max_events)
     {
     }
+    /// @brief Append a stamped event (oldest evicted past the bound).
     void append(const std::string& kind, const std::string& actor, const std::string& detail_json, TimeSource& ts);
+    /// @brief Retained events, oldest first.
     const std::deque<TimelineRecord>& events() const
     {
         return events_;
     }
+    /// @brief Events with sequence greater than @p seq.
     std::vector<TimelineRecord> since(uint64_t seq) const;
+    /// @brief Events currently retained.
     size_t size() const
     {
         return events_.size();
     }
 
   private:
-    std::deque<TimelineRecord> events_;
-    size_t max_events_;
-    uint64_t next_seq_ = 1;
+    std::deque<TimelineRecord> events_;   ///< Retained events, oldest first.
+    size_t max_events_;                   ///< Event bound.
+    uint64_t next_seq_ = 1;               ///< Next sequence number.
 };
 
-// ---- tail fanout: live log tail to HQ and Configuration (§7.1) ----
+/// @brief Tail fanout: live log tail to HQ and Configuration (§7.1).
 class TailFanout
 {
   public:
+    /// @brief One subscriber's line callback.
     using Subscriber = std::function<void(const std::string& json_line)>;
+    /// @brief Subscribe; returns a subscription id for unsubscribe().
     int subscribe(Subscriber s);
+    /// @brief Cancel a subscription.
     void unsubscribe(int id);
+    /// @brief Publish one line to every subscriber (bounded per-subscriber queue).
     void publish(const std::string& json_line);
 
   private:
+    /// @brief One subscriber with its pending queue.
     struct Sub
     {
-        int id;
-        Subscriber fn;
-        std::deque<std::string> pending; // bounded per subscriber
+        int id;                          ///< Subscription id.
+        Subscriber fn;                   ///< Line callback.
+        std::deque<std::string> pending; ///< Bounded per subscriber.
     };
-    std::vector<Sub> subs_;
-    int next_id_ = 1;
-    std::mutex mu_;
+    std::vector<Sub> subs_;    ///< Active subscribers.
+    int next_id_ = 1;          ///< Subscription id generator.
+    std::mutex mu_;            ///< Guards subs_.
 };
 
-// ---- northbound spool ----
+/// @brief Northbound spool: disk-backed queue to HQ with drop policy and budgeting.
 class NorthboundSpool
 {
   public:
+    /// @brief Bind the spool to storage, configuration and budgeting.
     NorthboundSpool(IFileSystem& fs, const SpoolConfig& cfg, BudgetManager* budgets);
 
+    /// @brief Open/create the backing store.
     Error open();
-    // Enqueue with the spool class; protected classes never drop.
+    /// @brief Enqueue with the spool class; protected classes never drop.
     Result<bool> enqueue(SpoolPriority prio, const std::string& payload, uint64_t mono_ns);
-    // Drain callback gets each record; return false to pause (backpressure).
-    // Honours HQ backpressure and jittered drain pacing (§3.4, §11).
+    /// @brief Drain up to @p max_batch records through @p send.
+    ///
+    /// The callback gets each record; return false to pause (backpressure).
+    /// Honours HQ backpressure and jittered drain pacing (§3.4, §11).
     struct DrainReport
     {
-        size_t sent = 0;
-        size_t dropped_telemetry = 0;
-        size_t dropped_logref = 0;
-        size_t dropped_event = 0;
-        size_t refused_protected = 0;
-        bool paused = false;
+        size_t sent = 0;                    ///< Records sent this drain.
+        size_t dropped_telemetry = 0;       ///< Telemetry evictions.
+        size_t dropped_logref = 0;          ///< Log-ref evictions.
+        size_t dropped_event = 0;           ///< Event evictions.
+        size_t refused_protected = 0;       ///< Protected appends refused.
+        bool paused = false;                ///< Drain paused by backpressure.
     };
+    /// @brief Run one drain pass.
     DrainReport drain(const std::function<bool(const DiskSpool::Entry&)>& send, size_t max_batch);
+    /// @brief Lifetime spool statistics.
     const DiskSpool::Stats& stats() const
     {
         return spool_.stats();
     }
+    /// @brief Records currently spooled.
     size_t size() const
     {
         return spool_.size();
     }
 
   private:
-    IFileSystem& fs_;
-    DiskSpool spool_;
-    BudgetManager* budgets_;
+    IFileSystem& fs_;            ///< Storage backend.
+    DiskSpool spool_;            ///< Backing spool.
+    BudgetManager* budgets_;     ///< Budget enforcement (may be null in tests).
 };
 
-// ---- HQ session state machine ----
+/// @brief HQ session state machine: connection states and reconnect backoff.
 class HqSession
 {
   public:
+    /// @brief Session states.
     enum class State
     {
-        Disconnected,
-        Backoff,
-        Connected,
-        Draining,
-        Backpressured
+        Disconnected,     ///< No tunnel/session.
+        Backoff,          ///< Waiting to reconnect.
+        Connected,        ///< Session established.
+        Draining,         ///< Spool draining to HQ.
+        Backpressured     ///< HQ asked us to pause.
     };
+    /// @brief Canonical name of a state.
     static const char* state_name(State s)
     {
         switch (s)
@@ -165,52 +185,61 @@ class HqSession
         return "?";
     }
 
+    /// @brief Construct a session with reconnect backoff parameters.
     HqSession(double backoff_base_s = 1.0, double backoff_max_s = 60.0) : backoff_(backoff_base_s, backoff_max_s)
     {
     }
 
+    /// @brief Current session state.
     State state() const
     {
         return state_;
     }
+    /// @brief Next reconnect delay (jittered).
     double next_delay_s()
     {
         return backoff_.next();
     }
+    /// @brief Transition on a successful connect.
     void on_connected()
     {
         state_ = State::Connected;
         backoff_.reset();
     }
+    /// @brief Transition on a lost session.
     void on_disconnected()
     {
         state_ = State::Backoff;
     }
+    /// @brief Transition on HQ backpressure (pause) or release (drain).
     void on_backpressure(bool pause)
     {
         state_ = pause ? State::Backpressured : State::Draining;
     }
+    /// @brief Force the draining state.
     void set_draining()
     {
         state_ = State::Draining;
     }
+    /// @brief Force the disconnected state.
     void set_disconnected()
     {
         state_ = State::Disconnected;
     }
+    /// @brief Reconnect attempts since the last successful connect.
     uint64_t attempts() const
     {
         return backoff_.attempts();
     }
-    // Deterministic jitter for tests; production uses the seeded RNG.
+    /// @brief Deterministic jitter for tests; production uses the seeded RNG.
     void set_backoff_rng(std::function<double()> rng01)
     {
         backoff_.set_rng(std::move(rng01));
     }
 
   private:
-    State state_ = State::Disconnected;
-    JitteredBackoff backoff_;
+    State state_ = State::Disconnected;   ///< Current state.
+    JitteredBackoff backoff_;             ///< Reconnect backoff sequence.
 };
 
 } // namespace istate
