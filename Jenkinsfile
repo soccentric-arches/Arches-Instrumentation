@@ -1,7 +1,16 @@
-// CI pipeline (REQ §12, §14): build presets, unit+contract+integration+fault
-// tests, coverage gate, static analysis, sanitizers.
+// CI pipeline (REQ §12, §14): build presets, unit + contract + integration +
+// fault-injection + secret-leak tests, coverage gate, static analysis,
+// sanitizers.
+//
+// Nothing here is allowed to pass by not running. A stage that cannot do its
+// job fails the build rather than being skipped — a green pipeline must mean
+// the checks ran, not that they were unavailable.
 pipeline {
   agent { docker { image 'arches/instrumentation-build:latest' } }
+  options {
+    timestamps()
+    timeout(time: 60, unit: 'MINUTES')
+  }
   stages {
     stage('Configure') {
       steps { sh 'cmake --preset jenkins' }
@@ -14,28 +23,46 @@ pipeline {
     }
     stage('Coverage gate') {
       steps {
+        // §12 makes coverage a hard requirement, so the gate runs against a
+        // dedicated instrumented build and the threshold is enforced.
         sh '''
-          cmake --build build-jenkins --target coverage
-          python3 tools/ci/coverage_gate.py build-jenkins/coverage.xml 70
+          set -eu
+          cmake --preset coverage
+          cmake --build --preset coverage
+          ctest --preset coverage --output-on-failure
+          cmake --build build-coverage --target coverage
+          python3 tools/ci/coverage_gate.py build-coverage/coverage.xml "${COVERAGE_MIN:-80}"
         '''
       }
     }
     stage('Static analysis') {
-      steps { sh 'cmake --build --preset jenkins --target run-clang-tidy || true' }
+      // No "|| true": if clang-tidy reports something, that is a finding to
+      // deal with, not output to discard.
+      steps { sh 'cmake --build --preset jenkins --target run-clang-tidy' }
     }
     stage('Sanitizers') {
       parallel {
-        'ASan+UBSan': { sh 'cmake --preset asan && cmake --build --preset asan && ctest --preset asan' }
-        'TSan':       { sh 'cmake --preset tsan  && cmake --build --preset tsan  && ctest --preset tsan' }
+        stage('ASan+UBSan') {
+          steps { sh 'cmake --preset asan && cmake --build --preset asan && ctest --preset asan --output-on-failure' }
+        }
+        stage('TSan') {
+          steps { sh 'cmake --preset tsan && cmake --build --preset tsan && ctest --preset tsan --output-on-failure' }
+        }
       }
     }
     stage('Contract golden') {
       steps {
+        // The descriptor hash is checked by ContractProtos in the Test stage;
+        // this guards against the golden itself being emptied to make that
+        // test pass trivially.
         sh 'test -s test/contract/protos.golden.sha256'
       }
     }
   }
   post {
-    always { archiveArtifacts artifacts: 'build-jenkins/coverage.xml', allowEmptyArchive: true }
+    always {
+      archiveArtifacts artifacts: 'build-coverage/coverage.xml', allowEmptyArchive: true
+      junit testResults: 'build-jenkins/Testing/**/*.xml', allowEmptyResults: true
+    }
   }
 }

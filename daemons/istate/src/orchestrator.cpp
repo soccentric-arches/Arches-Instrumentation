@@ -27,6 +27,8 @@
 
 #include "instr/istate/orchestrator.h"
 
+#include "instr/alarms_gen.h"
+
 #include <algorithm>
 
 #include "instr/transport/transport.h"
@@ -129,7 +131,11 @@ Orchestrator::Reg Orchestrator::register_spoke(const std::string& name,
                         " vs istate " + std::to_string(transport::kProtoSchemaVersion);
     it->second.state = SpokeState::Degraded;
     if (event_sink_)
-      event_sink_("alarm", "{\"alarm_id\":" + std::to_string(0x10103001u) +
+      // Use the generated id, not a literal: a hand-written one had the
+      // module and type nibbles transposed (0x1_01_0_3001 instead of
+      // 0x1_01_3_0001), so HQ would have received an alarm that decodes to
+      // nothing in the catalog (§8).
+      event_sink_("alarm", "{\"alarm_id\":" + std::to_string(INSTR_ALARM_ISTATE_PROTO_MISMATCH) +
                                ",\"detail\":\"proto mismatch " + name + "\"}");
     return Reg::SchemaMismatch;
   }

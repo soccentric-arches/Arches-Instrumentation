@@ -30,7 +30,9 @@
 
 
 #include <cstdio>
+#include <set>
 
+#include "instr/alarms_gen.h"
 #include "instr/common/daemon_skeleton.h"
 #include "instr/common/log.h"
 #include "instr/common/version_gen.h"
@@ -153,9 +155,36 @@ int main(int argc, char** argv) {
                                                   core.options().liveness_hang_timeout_s);
     for (const auto& ev : evs) log.warning("istate", "liveness: " + ev.daemon + " " + ev.event);
     core.orchestrator().pet_watchdog();
-    // Budget alarms before the limit (§6).
-    for (const auto& c : core.budgets().over_warning())
-      log.warning("istate", "storage budget warning: " + c);
+
+    // §6: "an alarm raised before the limit". A log line is not an alarm —
+    // nobody is watching the journal on a fielded device, and the whole
+    // point of the budget is to be visible before storage wedges anything.
+    // Edge-triggered so a standing condition does not re-raise every second.
+    static std::set<std::string> warned, exceeded;
+    auto sync = [&](const std::vector<std::string>& now, std::set<std::string>& seen,
+                    uint32_t alarm_id, const char* what) {
+      std::set<std::string> current(now.begin(), now.end());
+      for (const auto& c : current) {
+        if (seen.insert(c).second) {
+          log.warning("istate", std::string("storage budget ") + what + ": " + c);
+          core.raise_alarm(alarm_id, std::string("consumer '") + c + "' " + what);
+        }
+      }
+      for (auto it = seen.begin(); it != seen.end();) {
+        if (current.count(*it)) {
+          ++it;
+        } else {
+          log.info("istate", std::string("storage budget recovered: ") + *it);
+          it = seen.erase(it);
+        }
+      }
+      if (current.empty() && !seen.empty()) seen.clear();
+      if (current.empty()) core.clear_alarm(alarm_id);
+    };
+    sync(core.budgets().over_warning(), warned, instr::INSTR_ALARM_ISTATE_BUDGET_WARNING,
+         "warning");
+    sync(core.budgets().over_limit(), exceeded, instr::INSTR_ALARM_ISTATE_BUDGET_EXCEEDED,
+         "exceeded");
     return true;
   }, 1000);
 

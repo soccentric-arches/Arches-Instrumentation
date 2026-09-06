@@ -10,7 +10,10 @@ set(DAEMON_SRC
   src/table.cpp)
 add_library(instr_istate_lib STATIC ${DAEMON_SRC})
 target_include_directories(instr_istate_lib PUBLIC include)
-target_link_libraries(instr_istate_lib PUBLIC instr_common instr_platform instr_transport instr_protos instr_ctrl)
+# instr_alarm_ids carries the generated alarm-id header (§8): istate declares
+# its own alarms by id, from the same catalog every other component uses.
+target_link_libraries(instr_istate_lib PUBLIC instr_common instr_platform instr_transport instr_protos instr_ctrl instr_alarm_ids)
+add_dependencies(instr_istate_lib alarm_gen_header)
 
 add_executable(istate src/main.cpp)
 target_link_libraries(istate PRIVATE instr_istate_lib instr_protos)

@@ -27,6 +27,8 @@
 
 #include "instr/istate/core.h"
 
+#include "instr/alarms_gen.h"
+
 #include <future>
 
 #include "instr/common/version_gen.h"
@@ -72,6 +74,9 @@ bool IstateCore::boot(const std::map<std::string, std::string>& default_yaml) {
     log_.critical("istate", "/pst unrecoverable files: booting unprovisioned",
                   {{"files", std::to_string(mount.corrupt.size())}});
     timeline_.append("boot", "istate", "{\"pst_corrupt\":true}", ts_);
+    pending_alarms_.push_back({INSTR_ALARM_ISTATE_PST_CORRUPT,
+                               std::to_string(mount.corrupt.size()) +
+                                   " /pst file(s) failed both copies"});
   }
   // Unclean shutdown detection via the clean-shutdown marker (§11). The
   // marker lives under /pst/state — /run is tmpfs and would be empty on
@@ -80,6 +85,8 @@ bool IstateCore::boot(const std::map<std::string, std::string>& default_yaml) {
   if (!observed_clean_shutdown_) {
     log_.warning("istate", "previous shutdown was not clean");
     timeline_.append("boot", "istate", "{\"unclean_shutdown\":true}", ts_);
+    pending_alarms_.push_back({INSTR_ALARM_ISTATE_UNCLEAN_SHUTDOWN,
+                               "previous shutdown left no clean-shutdown marker"});
     northbound_spool_.enqueue(SpoolPriority::Event, "{\"kind\":\"unclean_shutdown\"}", ts_.mono_ns());
   }
   // Clear it for this run: a crash now leaves no marker for the next boot.
@@ -162,6 +169,12 @@ bool IstateCore::boot(const std::map<std::string, std::string>& default_yaml) {
   // 7. Watchdog: pet while all must-live daemons are live.
   orchestrator_.set_watchdog_required({"faults", "monitord", "hardware", "networkd"});
   (void)plat_.watchdog_set_timeout_s(60);
+
+  // Alarms observed during boot are raised now that the relay exists. They
+  // are queued rather than dropped: the Alarms daemon starts after istate,
+  // so a boot-time condition would otherwise be silently lost.
+  for (const auto& a : pending_alarms_) raise_alarm(a.first, a.second);
+  pending_alarms_.clear();
 
   audit_.load();
   audit_.append("istate", "boot", "boot", "{\"version\":\"" INSTR_VERSION "\"}", ts_);
@@ -359,6 +372,33 @@ void IstateCore::set_hq_backpressure(bool pause) {
   } else {
     hq_session_.on_backpressure(false);
   }
+}
+
+void IstateCore::raise_alarm(uint32_t alarm_id, const std::string& text) {
+  if (!relay_to_spoke_) return;  // alarms not attached yet; nothing to do
+  JValue args = JValue::object();
+  args.set("id", JValue(double(alarm_id)));
+  args.set("owner", JValue(std::string("istate")));
+  args.set("text", JValue(text));
+  transport::GenericHubMsg m;
+  m.has_command = true;
+  m.command.set_op("raise");
+  m.command.set_json_args(args.dump());
+  m.command.set_issued_by("istate");
+  (void)relay_to_spoke_("alarms", m);
+}
+
+void IstateCore::clear_alarm(uint32_t alarm_id) {
+  if (!relay_to_spoke_) return;
+  JValue args = JValue::object();
+  args.set("id", JValue(double(alarm_id)));
+  args.set("owner", JValue(std::string("istate")));
+  transport::GenericHubMsg m;
+  m.has_command = true;
+  m.command.set_op("clear");
+  m.command.set_json_args(args.dump());
+  m.command.set_issued_by("istate");
+  (void)relay_to_spoke_("alarms", m);
 }
 
 bool IstateCore::deliver_config(const std::string& daemon) {

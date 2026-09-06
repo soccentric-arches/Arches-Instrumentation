@@ -134,6 +134,15 @@ class IstateCore {
   // Drain the northbound spool toward HQ (called when connected).
   NorthboundSpool::DrainReport drain_northbound(size_t max_batch = 50);
 
+  // ---- alarms istate declares (R5, §6, §11) ----
+  // R5: alarms are declared, never inferred — only an application sets one.
+  // istate is the application that owns storage budgets, /pst integrity, the
+  // registration handshake and the clock, so these are its to declare. It
+  // does so by asking the Alarms daemon through the same relay everything
+  // else uses (R1); it never writes the alarm table itself.
+  void raise_alarm(uint32_t alarm_id, const std::string& text);
+  void clear_alarm(uint32_t alarm_id);
+
   // ---- capability manifest (§5.1) ----
   // Loaded from the board's descriptor. istate must report what this board
   // actually has: a hardcoded list claims GNSS and CAN on every target and
@@ -209,6 +218,8 @@ class IstateCore {
   std::function<bool(const std::string&, const std::string&)> hq_send_;
   std::string enrollment_secret_;
   std::vector<std::string> capabilities_;
+  // Conditions found during boot, before the Alarms daemon has attached.
+  std::vector<std::pair<uint32_t, std::string>> pending_alarms_;
   bool observed_clean_shutdown_ = false;
   RelayFn relay_to_spoke_;
   std::function<std::map<std::string, std::string>()> default_provider_;

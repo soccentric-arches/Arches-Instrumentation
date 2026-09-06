@@ -98,8 +98,25 @@ add_executable(secret_leak_test secret-leak/secret_leak_test.cpp)
 target_link_libraries(secret_leak_test PRIVATE instr_common instr_backup_lib instr_logmanager_lib instr_telemetry_lib)
 gtest_discover_tests(secret_leak_test)
 
+# ---- ctrl surface: every daemon's operations reachable from its tool ----
+add_executable(unit_ctrl_surface unit/test_ctrl_surface.cpp)
+target_link_libraries(unit_ctrl_surface PRIVATE
+  instr_istate_lib instr_monitord_lib instr_networkd_lib instr_hardware_lib
+  instr_faults_lib instr_alarms_lib instr_logmanager_lib instr_telemetry_lib
+  instr_ota_lib instr_backup_lib instr_ctrl)
+gtest_discover_tests(unit_ctrl_surface)
+
 # ---- coverage gate inputs (Jenkins parses ctest; coverage via gcovr) ----
+# The gate is a hard requirement (§12), so a missing gcovr must fail the
+# build rather than quietly removing the target and letting CI "pass" a
+# stage that never ran.
 find_program(GCOVR_BIN gcovr)
+if(NOT GCOVR_BIN AND COVERAGE)
+  message(FATAL_ERROR
+    "COVERAGE=ON but gcovr was not found. The coverage gate cannot run, and "
+    "silently skipping it would let CI report success for a stage that did "
+    "not execute. Install gcovr or configure without COVERAGE.")
+endif()
 if(GCOVR_BIN)
   add_custom_target(coverage
     COMMAND ${GCOVR_BIN} --root ${CMAKE_SOURCE_DIR}

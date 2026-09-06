@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Coverage gate (REQ §12): fail the build under the threshold."""
+"""Coverage gate (REQ §12): fail the build under the threshold.
+
+§12 makes coverage a hard requirement and says so in design terms: "domain
+logic must be a plain class with no socket, no filesystem, and no hardware
+dependency... A design that cannot reach high coverage is a design defect."
+The threshold is passed in by the pipeline (COVERAGE_MIN, default 80) so
+raising it is a one-line change rather than an edit here.
+"""
 import sys
 import xml.etree.ElementTree as ET
 
