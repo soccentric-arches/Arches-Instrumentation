@@ -44,6 +44,11 @@
 namespace instr {
 namespace istate {
 
+// The configuration schema version this build expects in /pst. Bump it in
+// the same commit that adds keys to system/defaults, so the first boot after
+// an update migrates rather than silently running without them (§6, §7.9).
+inline constexpr const char* kConfigSchemaVersion = "1";
+
 // ---- per-consumer storage budgets (§6: spool, logs, OTA staging can never
 // fill the partition and wedge the device) ----
 class BudgetManager {

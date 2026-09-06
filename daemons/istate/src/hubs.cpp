@@ -824,6 +824,32 @@ std::unique_ptr<grpc::Server> build_hub_server(IstateCore& core, const std::stri
   auto backup = std::make_unique<BackupHubImpl>(core, "backup");
   auto config = std::make_unique<ConfigurationApiImpl>(core);
 
+  // Hub-bound routing (R1: everything reaches a spoke through istate). This
+  // is what carries config deliveries, liveness pings, and relayed data such
+  // as monitord samples on their way to telemetry. Without it the core holds
+  // a null relay and every one of those silently does nothing.
+  std::map<std::string, std::function<bool(const GenericHubMsg&)>> routes;
+  auto route = [&routes](const std::string& name, auto* impl) {
+    routes[name] = [impl](const GenericHubMsg& m) {
+      if (!impl->spoke_registered()) return false;  // no session to push into
+      impl->push(m);
+      return true;
+    };
+  };
+  route("monitord", monitor.get());
+  route("networkd", network.get());
+  route("hardware", hardware.get());
+  route("faults", faults.get());
+  route("alarms", alarms.get());
+  route("logmanager", logs.get());
+  route("telemetry", telemetry.get());
+  route("ota", ota.get());
+  route("backup", backup.get());
+  core.set_relay_fn([routes](const std::string& daemon, const GenericHubMsg& m) {
+    auto it = routes.find(daemon);
+    return it != routes.end() && it->second(m);
+  });
+
   own("monitord"); builder.RegisterService(monitor.get());
   own("networkd"); builder.RegisterService(network.get());
   own("hardware"); builder.RegisterService(hardware.get());

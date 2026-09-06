@@ -171,11 +171,14 @@ std::vector<std::string> PstStore::migrate(const std::map<std::string, std::stri
   std::vector<std::string> added;
   for (const auto& kv : new_defaults) {
     std::string cfg_path = "system/" + kv.first + "/config.yaml";
-    auto cur = fs_.exists(path(cfg_path)) ? read_protected(cfg_path) : Result<std::string>::fail(Error::make(Errc::NotFound, "missing", cfg_path));
     ConfigDocument existing;
-    if (cur.ok()) {
-      auto parsed = ConfigDocument::parse(*cur, JValue::object(), cfg_path);
-      if (parsed.ok()) existing = *parsed;
+    if (fs_.exists(path(cfg_path))) {
+      // load_config, not a bare parse: it also reads the origins sidecar.
+      // Parsing the YAML alone drops every origin to default, so after one
+      // update an operator's edits would look like shipped defaults and the
+      // next HQ push would be free to overwrite them (§9).
+      auto cur = load_config(kv.first);
+      if (cur.ok()) existing = *cur;
     }
     auto defaults = ConfigDocument::parse(kv.second, JValue::object(), "defaults/" + kv.first);
     if (!defaults.ok()) continue;

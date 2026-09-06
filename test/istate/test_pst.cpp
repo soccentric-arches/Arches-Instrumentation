@@ -32,7 +32,9 @@
 #include <gtest/gtest.h>
 
 #include "instr/common/filesystem.h"
+#include "instr/istate/core.h"
 #include "instr/istate/pst.h"
+#include "instr/platform/simulated.h"
 
 using namespace instr;
 using namespace instr::istate;
@@ -147,4 +149,77 @@ TEST(BudgetManager, EnforcesWithAlarmBeforeLimit) {
   f.budgets.record_usage("logs", 1001);
   EXPECT_FALSE(f.budgets.over_limit().empty());
   EXPECT_FALSE(f.budgets.reserve("logs", 100).ok());  // hard enforcement
+}
+
+// §6/§7.9: migration must actually run on the first boot after an update.
+// PstStore::migrate existed and was correct, but nothing called it from the
+// boot path, so a release that added keys left devices running without them.
+
+namespace {
+struct BootFixture {
+  SimulatedFileSystem fs;
+  platform::SimulatedPlatform plat;
+  ManualTimeSource ts;
+  MemorySink log_sink;
+  Logger log{log_sink, ts};
+  IstateOptions opts;
+  BootFixture() {
+    opts.pst_root = "/pst";
+    opts.run_dir = "/run/instrumentation";
+    opts.build_version = "test";
+    fs.mkdirs(opts.run_dir);
+  }
+  BudgetManager budgets{fs, "/pst"};
+  PstStore pst{fs, "/pst", budgets};
+};
+}  // namespace
+
+TEST(PstStore, BootAfterUpdateMigratesAndStampsTheSchemaVersion) {
+  BootFixture f;
+  // A device provisioned by the previous release: seeded, operator-edited,
+  // and stamped with an older schema version.
+  std::map<std::string, std::string> old_defaults{{"monitord", "enabled: true\ninterval: 5\n"}};
+  ASSERT_TRUE(f.pst.seed_defaults(old_defaults).ok());
+  {
+    auto doc = f.pst.load_config("monitord");
+    ASSERT_TRUE(doc.ok());
+    (*doc).set("interval", "17", Origin::Local);  // operator edit
+    ASSERT_TRUE(f.pst.save_config("monitord", *doc).ok());
+  }
+  ASSERT_TRUE(f.pst.set_schema_version("0").ok());
+
+  // The new release adds a key and keeps the old one.
+  std::map<std::string, std::string> new_defaults{
+      {"monitord", "enabled: true\ninterval: 5\nhighres_window_s: 120\n"}};
+
+  IstateCore core(f.opts, f.fs, f.plat, f.ts, f.log);
+  ASSERT_TRUE(core.boot(new_defaults));
+
+  auto doc = core.pst().load_config("monitord");
+  ASSERT_TRUE(doc.ok());
+  // The new key arrived...
+  EXPECT_EQ((*doc).get_int("highres_window_s"), 120);
+  // ...and the operator's edit survived it, which is the whole point.
+  EXPECT_EQ((*doc).get_int("interval"), 17);
+  EXPECT_EQ((*doc).origin_of("interval"), Origin::Local);
+  // The version is stamped, so a second boot does not migrate again.
+  EXPECT_EQ(core.pst().schema_version(), std::string(kConfigSchemaVersion));
+}
+
+TEST(PstStore, BootAtTheCurrentSchemaVersionDoesNotRemigrate) {
+  BootFixture f;
+  std::map<std::string, std::string> defaults{{"monitord", "enabled: true\ninterval: 5\n"}};
+  ASSERT_TRUE(f.pst.seed_defaults(defaults).ok());
+  ASSERT_TRUE(f.pst.set_schema_version(kConfigSchemaVersion).ok());
+  {
+    auto doc = f.pst.load_config("monitord");
+    ASSERT_TRUE(doc.ok());
+    (*doc).set("interval", "17", Origin::Local);
+    ASSERT_TRUE(f.pst.save_config("monitord", *doc).ok());
+  }
+  IstateCore core(f.opts, f.fs, f.plat, f.ts, f.log);
+  ASSERT_TRUE(core.boot(defaults));
+  auto doc = core.pst().load_config("monitord");
+  ASSERT_TRUE(doc.ok());
+  EXPECT_EQ((*doc).get_int("interval"), 17);
 }

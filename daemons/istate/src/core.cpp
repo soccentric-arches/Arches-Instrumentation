@@ -89,6 +89,28 @@ bool IstateCore::boot(const std::map<std::string, std::string>& default_yaml) {
     Error e = pst_.seed_defaults(default_yaml);
     if (!e.ok()) log_.error("istate", "default seeding failed: " + e.str());
     timeline_.append("boot", "istate", "{\"virgin\":true,\"seeded\":true}", ts_);
+  } else {
+    // 2b. Config migration on the first boot after an update (§6, §7.9),
+    // driven by .schema-version. A release that adds keys must not leave a
+    // device running without them, and must not overwrite operator edits
+    // while adding them — merge_release adds only what is missing.
+    const std::string on_disk = pst_.schema_version();
+    if (on_disk != kConfigSchemaVersion) {
+      auto added = pst_.migrate(default_yaml);
+      Error e = pst_.set_schema_version(kConfigSchemaVersion);
+      if (!e.ok()) log_.error("istate", "schema version write failed: " + e.str());
+      log_.info("istate", "config migrated " + on_disk + " → " + kConfigSchemaVersion + ": " +
+                              std::to_string(added.size()) + " new keys");
+      JValue ev = JValue::object();
+      ev.set("from", JValue(on_disk));
+      ev.set("to", JValue(std::string(kConfigSchemaVersion)));
+      JValue keys = JValue::array();
+      for (const auto& a : added) keys.push(JValue(a));
+      ev.set("added_keys", keys);
+      timeline_.append("config", "istate", ev.dump(), ts_);
+      northbound_spool_.enqueue(SpoolPriority::Event, ev.dump(), ts_.mono_ns());
+      audit_.append("istate", "update", "config_migration", ev.dump(), ts_);
+    }
   }
 
   // 3. Load persisted schemas for config validation (registered by wiring).
