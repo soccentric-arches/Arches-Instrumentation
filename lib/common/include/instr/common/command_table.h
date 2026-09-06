@@ -47,10 +47,10 @@ namespace instr
 /// @brief Outcome of a ctrl command invocation.
 struct CommandResult
 {
-    bool ok = true;              ///< True on success.
-    std::string error_code;      ///< Errc name when failed ("invalid-argument", ...).
-    std::string error_message;   ///< Diagnosable failure text.
-    std::string json_data;       ///< JSON object/string payload on success.
+    bool ok = true; ///< True on success.
+    std::string error_code; ///< Errc name when failed ("invalid-argument", ...).
+    std::string error_message; ///< Diagnosable failure text.
+    std::string json_data; ///< JSON object/string payload on success.
 
     /// @brief Construct a success result carrying a JSON payload.
     static CommandResult good(std::string json)
@@ -90,18 +90,18 @@ struct CommandResult
 /// @brief One command argument: JSON key, requiredness and help text.
 struct ArgSpec
 {
-    std::string name;        ///< JSON key of the argument.
-    bool required = false;   ///< True when the command cannot run without it.
-    std::string help;        ///< Short help text shown by --help.
+    std::string name; ///< JSON key of the argument.
+    bool required = false; ///< True when the command cannot run without it.
+    std::string help; ///< Short help text shown by --help.
 };
 
 /// @brief One ctrl command: operation name, description, args and handler.
 struct CommandSpec
 {
-    std::string op;                ///< Operation name, e.g. "raise".
-    std::string description;       ///< Human-readable summary for --help.
-    std::vector<ArgSpec> args;      ///< Argument list shown by --help.
-    std::function<CommandResult(const std::string& json_args)> handler;   ///< Implementation; receives the raw JSON args string.
+    std::string op; ///< Operation name, e.g. "raise".
+    std::string description; ///< Human-readable summary for --help.
+    std::vector<ArgSpec> args; ///< Argument list shown by --help.
+    std::function<CommandResult(const std::string& json_args)> handler; ///< Implementation; receives the raw JSON args string.
 };
 
 /// @brief Registry of ctrl commands for a daemon or tool; also renders help and completions.
@@ -157,7 +157,7 @@ class CommandTable
     std::string completion_zsh(const std::string& prog) const;
 
   private:
-    std::map<std::string, CommandSpec> ops_;   ///< Registered commands keyed by op name.
+    std::map<std::string, CommandSpec> ops_; ///< Registered commands keyed by op name.
 };
 
 /// @brief Parse command arguments into a JValue object.

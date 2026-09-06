@@ -45,10 +45,10 @@ namespace tar
 /// @brief One file in a ustar archive.
 struct FileEntry
 {
-    std::string name;            ///< Relative path inside the archive.
-    std::string data;            ///< File contents.
-    uint32_t mode = 0644;        ///< Permission bits.
-    uint64_t mtime = 0;          ///< Modification time, unix seconds.
+    std::string name; ///< Relative path inside the archive.
+    std::string data; ///< File contents.
+    uint32_t mode = 0644; ///< Permission bits.
+    uint64_t mtime = 0; ///< Modification time, unix seconds.
 };
 
 /// @brief Write a POSIX ustar archive (no external tar binary; testable and deterministic).

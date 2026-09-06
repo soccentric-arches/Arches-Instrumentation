@@ -121,9 +121,9 @@ class TokenBucket
         if (tokens_ > burst_) tokens_ = burst_;
         last_ = t;
     }
-    double rate_, burst_, tokens_, last_;   ///< Configured rate/capacity, current tokens, last refill time.
-    std::function<double()> now_;            ///< Clock in seconds (injected or steady).
-    uint64_t suppressed_ = 0, streak_ = 0;  ///< Lifetime refusals and current refusal streak.
+    double rate_, burst_, tokens_, last_; ///< Configured rate/capacity, current tokens, last refill time.
+    std::function<double()> now_; ///< Clock in seconds (injected or steady).
+    uint64_t suppressed_ = 0, streak_ = 0; ///< Lifetime refusals and current refusal streak.
 };
 
 /// @brief Emits "suppressed N events" summaries for a TokenBucket's refusal streaks.
@@ -171,8 +171,8 @@ class SuppressionSummarizer
     }
 
   private:
-    uint64_t threshold_;       ///< Minimum streak length that earns a summary.
-    uint64_t streak_ = 0;      ///< Streak length seen so far.
+    uint64_t threshold_; ///< Minimum streak length that earns a summary.
+    uint64_t streak_ = 0; ///< Streak length seen so far.
 };
 
 } // namespace instr

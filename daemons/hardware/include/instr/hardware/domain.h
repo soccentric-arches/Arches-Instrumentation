@@ -45,70 +45,97 @@ namespace hardware
 namespace domain
 {
 
+/// @brief Outcome state of a device health check.
 enum class CheckState
 {
-    Pass,
-    Fail,
-    Degraded,
-    NotPresent,
-    Unknown
+    Pass,        ///< Check succeeded.
+    Fail,        ///< Check failed.
+    Degraded,    ///< Check passed but below expectations.
+    NotPresent,  ///< Device missing from the platform.
+    Unknown      ///< Check could not run.
 };
+
+/// @brief Canonical name of a check state ("pass", "fail", ...).
 const char* check_state_name(CheckState);
 
+/// @brief One executed device check.
 struct CheckResult
 {
-    std::string device;
-    std::string check;
-    CheckState state = CheckState::Unknown;
-    std::string detail;
-    uint64_t duration_ms = 0;
-    uint64_t mono_ns = 0;
+    std::string device;         ///< Device name from the descriptor.
+    std::string check;          ///< Check name.
+    CheckState state = CheckState::Unknown;   ///< Outcome.
+    std::string detail;         ///< Human-readable detail (failure reason).
+    uint64_t duration_ms = 0;   ///< How long the check took.
+    uint64_t mono_ns = 0;       ///< When it ran.
 };
 
+/// @brief Device controls and quick health checks over the platform primitives.
 class DeviceManager
 {
   public:
+    /// @brief Bind the manager to the platform, a clock and the board descriptor.
     DeviceManager(platform::IPlatform& plat, TimeSource& ts, const platform::DeviceDescriptor& desc) : plat_(plat), ts_(ts), desc_(desc)
     {
     }
 
+    /// @brief Devices listed in the board descriptor.
     const std::vector<platform::DeviceSpec>& devices() const
     {
         return desc_.devices;
     }
+    /// @brief Look up a device spec by name.
+    /// @return Pointer to the spec, or nullptr when unknown.
     const platform::DeviceSpec* find(const std::string& name) const;
 
-    // ---- control operations (driving devices, not read-only) ----
+    /// @brief Control operation: driving devices, not read-only.
+    ///
+    /// @param device Device name.
+    /// @param control_op Control op from the device's controls list.
+    /// @param args Operation arguments.
+    /// @return ok(), or an error for unknown device/op or platform refusal.
     Error control(const std::string& device, const std::string& control_op, const std::map<std::string, std::string>& args);
 
-    // Read a GPIO line via the platform (read side of the control op).
+    /// @brief Read a GPIO line via the platform (read side of the control op).
     Result<bool> gpio_read(const std::string& device);
 
-    // Read side of the CAN control op. control() returns Error and so cannot
-    // hand back frames; receiving gets its own entry point for the same reason
-    // gpio_read does. Returns the frames buffered since the previous call.
+    /// @brief Read side of the CAN control op.
+    ///
+    /// control() returns Error and so cannot hand back frames; receiving gets
+    /// its own entry point for the same reason gpio_read does. Returns the
+    /// frames buffered since the previous call.
+    ///
+    /// @param device Device name.
+    /// @param max_frames Maximum frames returned.
     Result<std::vector<platform::IPlatform::CanFrame>> can_receive(const std::string& device, size_t max_frames);
 
-    // ---- quick health checks: presence + cheap behavioural sanity (one per
-    // device; not a full qualification test — that is the IV&V path) ----
+    /// @brief Run one quick health check (presence + cheap behavioural sanity; not full qualification — that is the IV&V path).
+    /// @param dev Device to check.
+    /// @param chk Check to run.
+    /// @return The check outcome.
     CheckResult run_check(const platform::DeviceSpec& dev, const platform::DeviceCheck& chk);
+    /// @brief Run every check for one device.
     std::vector<CheckResult> check_device(const std::string& name);
+    /// @brief Run every check for every device.
     std::vector<CheckResult> check_all();
 
-    // Periodic scheduling: returns devices whose periodic check is due.
+    /// @brief Override the periodic scheduling interval.
     void set_periodic_interval_s(double s)
     {
         periodic_interval_s_ = s;
     }
+    /// @brief Devices whose periodic check is due.
+    /// @param now_mono_ns Current monotonic time.
+    /// @return Results for due checks.
     std::vector<CheckResult> due_checks(uint64_t now_mono_ns);
 
   private:
+    /// @brief Stamp and return a check result.
     CheckResult make_result(const std::string& dev, const std::string& chk, CheckState st, const std::string& detail, uint64_t started);
-    platform::IPlatform& plat_;
-    TimeSource& ts_;
-    platform::DeviceDescriptor desc_;
-    std::map<std::string, uint64_t> last_check_mono_;
-    double periodic_interval_s_ = 300;
+    platform::IPlatform& plat_;                    ///< Platform primitives (not owned).
+    TimeSource& ts_;                                ///< Clock (not owned).
+    platform::DeviceDescriptor desc_;               ///< Board device inventory.
+    std::map<std::string, uint64_t> last_check_mono_;   ///< Last periodic check per device.
+    double periodic_interval_s_ = 300;              ///< Periodic scheduling interval.
 };
 
 } // namespace domain

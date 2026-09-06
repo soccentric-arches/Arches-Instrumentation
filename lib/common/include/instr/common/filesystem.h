@@ -203,17 +203,17 @@ class SimulatedFileSystem : public IFileSystem
   private:
     /// @brief Internal helper deciding whether a key denotes a directory.
     bool is_dir(const std::string& p) const;
-    std::map<std::string, std::string> files_;          ///< Files only: path → contents.
-    std::map<std::string, bool> dirs_;                  ///< Directories: path → recursive-creation flag.
-    int fail_writes_after_ = 0;                        ///< Write-failure injection point (0 disables).
-    int write_count_ = 0;                              ///< Writes performed since construction.
-    std::map<std::string, int> corrupt_;                ///< Read-corruption schedule per path.
-    std::map<std::string, int> read_count_;             ///< Reads performed per path.
-    std::map<std::string, int64_t> mtimes_;             ///< Forced mtimes per path.
-    int64_t now_unix_s_ = 1'700'000'000;               ///< Simulated unix clock, seconds.
-    uint64_t free_space_ = 1ull << 40;                 ///< Reported free space, bytes.
-    bool fail_renames_ = false;                        ///< Rename-failure injection.
-    bool fail_mkdirs_ = false;                         ///< Mkdirs-failure injection.
+    std::map<std::string, std::string> files_; ///< Files only: path → contents.
+    std::map<std::string, bool> dirs_; ///< Directories: path → recursive-creation flag.
+    int fail_writes_after_ = 0; ///< Write-failure injection point (0 disables).
+    int write_count_ = 0; ///< Writes performed since construction.
+    std::map<std::string, int> corrupt_; ///< Read-corruption schedule per path.
+    std::map<std::string, int> read_count_; ///< Reads performed per path.
+    std::map<std::string, int64_t> mtimes_; ///< Forced mtimes per path.
+    int64_t now_unix_s_ = 1'700'000'000; ///< Simulated unix clock, seconds.
+    uint64_t free_space_ = 1ull << 40; ///< Reported free space, bytes.
+    bool fail_renames_ = false; ///< Rename-failure injection.
+    bool fail_mkdirs_ = false; ///< Mkdirs-failure injection.
 };
 
 } // namespace instr

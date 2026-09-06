@@ -54,10 +54,10 @@ class AlarmsCore
     /// @brief Configuration delivered by istate (§7.6, §9).
     struct Config
     {
-        bool enabled = true;                             ///< Master switch.
-        uint32_t escalation_default_promote_after_s = 3600;   ///< Default escalation threshold.
-        double escalation_sweep_interval_s = 30.0;       ///< Sweep cadence.
-        bool snapshot_on_critical = true;                ///< Snapshot-on-fault switch.
+        bool enabled = true; ///< Master switch.
+        uint32_t escalation_default_promote_after_s = 3600; ///< Default escalation threshold.
+        double escalation_sweep_interval_s = 30.0; ///< Sweep cadence.
+        bool snapshot_on_critical = true; ///< Snapshot-on-fault switch.
     };
     /// @brief Current configuration.
     const Config& config() const
@@ -104,12 +104,12 @@ class AlarmsCore
     }
 
   private:
-    AlarmManager mgr_;                        ///< State machine and persistence.
-    IFileSystem& fs_;                          ///< Storage backend.
-    TimeSource& ts_;                           ///< Clock.
-    std::function<void(const AlarmStateEvent&)> spoke_sink_;   ///< Spoke event routing.
-    Config cfg_;                              ///< Current configuration.
-    std::function<void(const Config&)> on_config_;   ///< Config-accepted listener.
+    AlarmManager mgr_; ///< State machine and persistence.
+    IFileSystem& fs_; ///< Storage backend.
+    TimeSource& ts_; ///< Clock.
+    std::function<void(const AlarmStateEvent&)> spoke_sink_; ///< Spoke event routing.
+    Config cfg_; ///< Current configuration.
+    std::function<void(const Config&)> on_config_; ///< Config-accepted listener.
 };
 
 /// @brief Build the alarms ctrl command table (raise/clear/ack/list/catalog).
@@ -141,11 +141,11 @@ class AlarmsSpoke
     void send_event(const AlarmStateEvent& ev);
 
   private:
-    AlarmsCore* core_;                        ///< Domain core (not owned).
-    Logger* log_;                             ///< Logger (not owned).
-    const CommandTable* table_;               ///< Command table (not owned).
-    std::unique_ptr<ConfigSink> config_sink_;      ///< Validates and applies config deliveries.
-    std::unique_ptr<SpokeChannel<alarms::AlarmHub, alarms::AlarmSpokeFrame, alarms::AlarmHubFrame>> channel_;   ///< gRPC channel to istate.
+    AlarmsCore* core_; ///< Domain core (not owned).
+    Logger* log_; ///< Logger (not owned).
+    const CommandTable* table_; ///< Command table (not owned).
+    std::unique_ptr<ConfigSink> config_sink_; ///< Validates and applies config deliveries.
+    std::unique_ptr<SpokeChannel<alarms::AlarmHub, alarms::AlarmSpokeFrame, alarms::AlarmHubFrame>> channel_; ///< gRPC channel to istate.
 };
 
 } // namespace alarms

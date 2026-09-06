@@ -96,8 +96,8 @@ class FrameDecoder
     }
 
   private:
-    std::string buf_;          ///< Partially received bytes, awaiting a full frame.
-    bool bad_length_ = false;  ///< Latched on an oversized declared length.
+    std::string buf_; ///< Partially received bytes, awaiting a full frame.
+    bool bad_length_ = false; ///< Latched on an oversized declared length.
 };
 
 } // namespace frames

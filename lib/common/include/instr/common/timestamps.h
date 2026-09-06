@@ -45,11 +45,11 @@ namespace instr
 /// @brief One timestamped observation: monotonic time, boot id, wall time and arrival order.
 struct Stamp
 {
-    uint64_t mono_ns = 0;      ///< CLOCK_MONOTONIC reading in nanoseconds.
-    std::string boot_id;       ///< Boot the monotonic reading belongs to (monotonic resets per boot).
-    int64_t wall_ns = 0;       ///< Wall-clock time in nanoseconds since the epoch.
-    uint64_t seq = 0;          ///< Process-wide arrival order; history is never reordered below this.
-    bool wall_valid = false;   ///< True when wall_ns is trustworthy (a clock lock existed).
+    uint64_t mono_ns = 0; ///< CLOCK_MONOTONIC reading in nanoseconds.
+    std::string boot_id; ///< Boot the monotonic reading belongs to (monotonic resets per boot).
+    int64_t wall_ns = 0; ///< Wall-clock time in nanoseconds since the epoch.
+    uint64_t seq = 0; ///< Process-wide arrival order; history is never reordered below this.
+    bool wall_valid = false; ///< True when wall_ns is trustworthy (a clock lock existed).
 };
 
 /// @brief Injected clock so domain logic has no OS dependency.
@@ -85,10 +85,10 @@ class SystemTimeSource : public TimeSource
 class ManualTimeSource : public TimeSource
 {
   public:
-    uint64_t mono = 1'000'000'000ull;                 ///< Fixed monotonic reading (1 s).
-    int64_t wall = 1'700'000'000'000'000'000ll;       ///< Fixed wall reading.
-    std::string bid = "boot-1";                       ///< Fixed boot id.
-    uint64_t seq_counter = 0;                         ///< Running sequence counter.
+    uint64_t mono = 1'000'000'000ull; ///< Fixed monotonic reading (1 s).
+    int64_t wall = 1'700'000'000'000'000'000ll; ///< Fixed wall reading.
+    std::string bid = "boot-1"; ///< Fixed boot id.
+    uint64_t seq_counter = 0; ///< Running sequence counter.
     /// @copydoc TimeSource::mono_ns
     uint64_t mono_ns() override
     {
@@ -131,8 +131,8 @@ class TimeReconciler
     /// @brief A pending observation awaiting reconciliation.
     struct Pending
     {
-        uint64_t seq;       ///< Arrival-order sequence number.
-        uint64_t mono_ns;   ///< Monotonic reading taken before the lock.
+        uint64_t seq; ///< Arrival-order sequence number.
+        uint64_t mono_ns; ///< Monotonic reading taken before the lock.
     };
     /// @brief Queue of pending observations in arrival order.
     const std::deque<Pending>& pending() const
@@ -193,14 +193,14 @@ class TimeReconciler
     }
 
   private:
-    TimeSource& ts_;                  ///< Clock the reconciler reads from.
-    std::deque<Pending> pending_;     ///< Observations awaiting a wall stamp, in seq order.
-    std::vector<Stamp> stamped_;      ///< Stamps produced by reconcile(), in seq order.
-    bool locked_ = false;            ///< True after the first reconcile() call.
-    int64_t offset_ns_ = 0;          ///< Last applied wall correction.
-    std::string source_;             ///< Last lock source name.
-    int64_t base_wall_ns_ = 0;       ///< Wall anchor for the locked mapping.
-    uint64_t base_mono_ns_ = 0;      ///< Monotonic anchor for the locked mapping.
+    TimeSource& ts_; ///< Clock the reconciler reads from.
+    std::deque<Pending> pending_; ///< Observations awaiting a wall stamp, in seq order.
+    std::vector<Stamp> stamped_; ///< Stamps produced by reconcile(), in seq order.
+    bool locked_ = false; ///< True after the first reconcile() call.
+    int64_t offset_ns_ = 0; ///< Last applied wall correction.
+    std::string source_; ///< Last lock source name.
+    int64_t base_wall_ns_ = 0; ///< Wall anchor for the locked mapping.
+    uint64_t base_mono_ns_ = 0; ///< Monotonic anchor for the locked mapping.
 };
 
 /// @brief Build a Stamp from any TimeSource (seq assigned by the source).

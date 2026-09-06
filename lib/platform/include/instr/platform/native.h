@@ -167,8 +167,8 @@ class NativePlatform : public IPlatform
     bool open_follow_fd();
     /// @brief Read up to @p max_lines kernel messages from @p fd into @p out.
     static void read_kmsg_into(int fd, std::vector<std::string>* out, int max_lines);
-    std::mutex kmsg_mu_;              ///< Serialises /dev/kmsg follow access.
-    int kmsg_follow_fd_ = -1;        ///< Long-lived /dev/kmsg descriptor (-1 closed).
+    std::mutex kmsg_mu_; ///< Serialises /dev/kmsg follow access.
+    int kmsg_follow_fd_ = -1; ///< Long-lived /dev/kmsg descriptor (-1 closed).
 
     // Bootloader environment access (U-Boot fw_printenv/fw_setenv), with a
     // flag-file fallback for boards that have no U-Boot environment.
@@ -180,8 +180,8 @@ class NativePlatform : public IPlatform
     bool have_fw_env();
     /// @brief Flag-file fallback for boards without U-Boot env.
     Error write_boot_file(const std::string& rel, const std::string& value);
-    bool fw_env_checked_ = false;     ///< True after the first U-Boot env probe.
-    bool fw_env_present_ = false;     ///< Cached U-Boot env availability.
+    bool fw_env_checked_ = false; ///< True after the first U-Boot env probe.
+    bool fw_env_present_ = false; ///< Cached U-Boot env availability.
 
     // Network application helpers. Every mutation goes through run_cmd /
     // write_conf, which record what they would do and only execute when
@@ -201,10 +201,10 @@ class NativePlatform : public IPlatform
     /// @brief True when INSTR_APPLY_NETWORK=1 (mutations allowed).
     bool apply_enabled() const;
 
-    std::vector<std::string> applied_commands_;   ///< Log of executed/intended network commands.
-    std::string sysroot_;                          ///< File-access root ("/" on device).
-    int watchdog_fd_ = -1;                         ///< Open watchdog device descriptor.
-    bool watchdog_opened_ = false;                 ///< True once the watchdog has been configured.
+    std::vector<std::string> applied_commands_; ///< Log of executed/intended network commands.
+    std::string sysroot_; ///< File-access root ("/" on device).
+    int watchdog_fd_ = -1; ///< Open watchdog device descriptor.
+    bool watchdog_opened_ = false; ///< True once the watchdog has been configured.
 };
 
 } // namespace platform

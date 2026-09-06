@@ -47,7 +47,7 @@ namespace crypto
 /// @brief A 32-byte digest with a lowercase-hex renderer.
 struct Digest32
 {
-    std::array<uint8_t, 32> b{};   ///< Raw digest bytes.
+    std::array<uint8_t, 32> b{}; ///< Raw digest bytes.
     /// @brief Render the digest as 64 lowercase hex characters.
     std::string hex() const;
 };
@@ -72,8 +72,8 @@ Digest32 hmac_sha256(const std::string& key, const std::string& msg);
 /// @brief An X25519 keypair (RFC 7748).
 struct X25519Key
 {
-    std::array<uint8_t, 32> priv{};   ///< Private scalar (device secret).
-    std::array<uint8_t, 32> pub{};    ///< Public curve point.
+    std::array<uint8_t, 32> priv{}; ///< Private scalar (device secret).
+    std::array<uint8_t, 32> pub{}; ///< Public curve point.
 };
 /// @brief Random-source callback filling a buffer with @p len bytes.
 using Rng32 = std::function<void(uint8_t*, size_t)>;

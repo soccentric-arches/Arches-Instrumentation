@@ -50,12 +50,12 @@ class JValue
     /// @brief The JSON type of this value.
     enum class Type
     {
-        Null,      ///< Absent or explicit null.
-        Bool,      ///< true/false.
-        Number,    ///< Double-precision number (integers stored exactly up to 2^53).
-        String,    ///< UTF-8 text.
-        Array,     ///< Ordered sequence of JValues.
-        Object     ///< Ordered map of key → JValue.
+        Null, ///< Absent or explicit null.
+        Bool, ///< true/false.
+        Number, ///< Double-precision number (integers stored exactly up to 2^53).
+        String, ///< UTF-8 text.
+        Array, ///< Ordered sequence of JValues.
+        Object ///< Ordered map of key → JValue.
     };
 
     /// @brief Construct a null value.
@@ -260,12 +260,12 @@ class JValue
     std::string dump(int indent = 0) const;
 
   private:
-    Type type_;                                   ///< Tag selecting the active union member.
-    bool bool_ = false;                           ///< Bool payload.
-    double num_ = 0;                              ///< Number payload.
-    std::string str_;                             ///< String payload.
-    std::vector<JValue> arr_;                      ///< Array payload.
-    std::vector<std::pair<std::string, JValue>> obj_;  ///< Object payload in insertion order.
+    Type type_; ///< Tag selecting the active union member.
+    bool bool_ = false; ///< Bool payload.
+    double num_ = 0; ///< Number payload.
+    std::string str_; ///< String payload.
+    std::vector<JValue> arr_; ///< Array payload.
+    std::vector<std::pair<std::string, JValue>> obj_; ///< Object payload in insertion order.
 };
 
 /// @brief Strict JSON parser.
@@ -288,8 +288,8 @@ class JsonValidator
     /// @brief One validation problem, located by JSON-pointer-style path.
     struct Issue
     {
-        std::string path;      ///< Pointer-ish location, e.g. /network/ifaces/2/mode.
-        std::string message;   ///< Human-readable description of the violation.
+        std::string path; ///< Pointer-ish location, e.g. /network/ifaces/2/mode.
+        std::string message; ///< Human-readable description of the violation.
     };
     /// @brief Validate @p instance against @p schema.
     ///

@@ -49,19 +49,19 @@ namespace instr
 /// @brief Eviction class for a spool record; lower values drop first.
 enum class SpoolPriority : uint8_t
 {
-    Telemetry = 0,   ///< Dropped first.
-    LogRef = 1,      ///< Dropped second.
-    Event = 2,       ///< Dropped third.
-    Fault = 3,       ///< Protected; never dropped.
-    Alarm = 4,       ///< Protected; never dropped.
+    Telemetry = 0, ///< Dropped first.
+    LogRef = 1, ///< Dropped second.
+    Event = 2, ///< Dropped third.
+    Fault = 3, ///< Protected; never dropped.
+    Alarm = 4, ///< Protected; never dropped.
 };
 
 /// @brief Sizing and location parameters for a DiskSpool.
 struct SpoolConfig
 {
-    std::string dir;                                  ///< Directory holding segment files.
-    uint64_t max_bytes = 64 * 1024 * 1024;            ///< Total size budget across segments.
-    uint64_t segment_bytes = 4 * 1024 * 1024;         ///< Per-segment size cap.
+    std::string dir; ///< Directory holding segment files.
+    uint64_t max_bytes = 64 * 1024 * 1024; ///< Total size budget across segments.
+    uint64_t segment_bytes = 4 * 1024 * 1024; ///< Per-segment size cap.
 };
 
 /// @brief Bounded, disk-backed spool with an explicit drop policy (REQ §4, §7.1, §11).
@@ -86,10 +86,10 @@ class DiskSpool
     /// @brief One stored record as returned by peek().
     struct Entry
     {
-        uint64_t seq = 0;                          ///< Process-wide arrival sequence.
-        SpoolPriority priority = SpoolPriority::Telemetry;   ///< Eviction class.
-        uint64_t mono_ns = 0;                      ///< Monotonic production time.
-        std::string payload;                       ///< Opaque record bytes.
+        uint64_t seq = 0; ///< Process-wide arrival sequence.
+        SpoolPriority priority = SpoolPriority::Telemetry; ///< Eviction class.
+        uint64_t mono_ns = 0; ///< Monotonic production time.
+        std::string payload; ///< Opaque record bytes.
     };
 
     /// @brief Append one record, enforcing the size budget with the drop policy.
@@ -114,12 +114,12 @@ class DiskSpool
     /// @brief Lifetime counters, including per-priority drop counts.
     struct Stats
     {
-        uint64_t count = 0;              ///< Records currently in the spool.
-        uint64_t bytes = 0;              ///< Bytes currently stored.
-        uint64_t dropped_telemetry = 0;  ///< Lifetime telemetry evictions.
-        uint64_t dropped_logref = 0;     ///< Lifetime log-ref evictions.
-        uint64_t dropped_event = 0;      ///< Lifetime event evictions.
-        uint64_t refused_protected = 0;  ///< Appends refused because only protected records fit.
+        uint64_t count = 0; ///< Records currently in the spool.
+        uint64_t bytes = 0; ///< Bytes currently stored.
+        uint64_t dropped_telemetry = 0; ///< Lifetime telemetry evictions.
+        uint64_t dropped_logref = 0; ///< Lifetime log-ref evictions.
+        uint64_t dropped_event = 0; ///< Lifetime event evictions.
+        uint64_t refused_protected = 0; ///< Appends refused because only protected records fit.
     };
     /// @brief Current statistics snapshot.
     const Stats& stats() const
@@ -142,9 +142,9 @@ class DiskSpool
     /// @brief On-disk record header used while rebuilding the index.
     struct Record
     {
-        SpoolPriority prio;    ///< Eviction class.
-        uint64_t mono_ns;      ///< Monotonic production time.
-        uint32_t len;          ///< Payload length in bytes.
+        SpoolPriority prio; ///< Eviction class.
+        uint64_t mono_ns; ///< Monotonic production time.
+        uint32_t len; ///< Payload length in bytes.
     };
     /// @brief Start a new segment file (rolls when segment_bytes is reached).
     Error append_segment();
@@ -160,31 +160,31 @@ class DiskSpool
         return fs_.join(cfg_.dir, "spool-" + std::to_string(seg_seq) + ".seg");
     }
 
-    IFileSystem& fs_;      ///< Storage backend.
-    SpoolConfig cfg_;      ///< Location and sizing.
+    IFileSystem& fs_; ///< Storage backend.
+    SpoolConfig cfg_; ///< Location and sizing.
     /// @brief One segment file's bookkeeping.
     struct Seg
     {
-        uint64_t seq;        ///< Segment sequence number.
-        uint64_t bytes;      ///< Bytes stored in this segment.
-        uint64_t records;    ///< Records stored in this segment.
+        uint64_t seq; ///< Segment sequence number.
+        uint64_t bytes; ///< Bytes stored in this segment.
+        uint64_t records; ///< Records stored in this segment.
     };
-    std::deque<Seg> segments_;    ///< Live segments, oldest first.
+    std::deque<Seg> segments_; ///< Live segments, oldest first.
     /// @brief In-memory index: record header + segment seq + offset.
     struct IdxRec
     {
-        SpoolPriority prio;    ///< Eviction class.
-        uint64_t mono_ns;      ///< Monotonic production time.
-        uint32_t len;          ///< Payload length.
-        uint64_t seg;          ///< Owning segment sequence.
-        uint64_t off;          ///< Byte offset within the segment.
+        SpoolPriority prio; ///< Eviction class.
+        uint64_t mono_ns; ///< Monotonic production time.
+        uint32_t len; ///< Payload length.
+        uint64_t seg; ///< Owning segment sequence.
+        uint64_t off; ///< Byte offset within the segment.
     };
-    std::deque<IdxRec> index_;      ///< Oldest-first record index.
-    uint64_t next_seg_seq_ = 1;     ///< Sequence for the next segment file.
-    uint64_t next_seq_ = 1;         ///< Sequence for the next record.
-    uint64_t bytes_ = 0;            ///< Total bytes stored.
-    uint64_t seg_offset_ = 0;       ///< Write offset in the current segment.
-    Stats stats_;                   ///< Lifetime statistics.
+    std::deque<IdxRec> index_; ///< Oldest-first record index.
+    uint64_t next_seg_seq_ = 1; ///< Sequence for the next segment file.
+    uint64_t next_seq_ = 1; ///< Sequence for the next record.
+    uint64_t bytes_ = 0; ///< Total bytes stored.
+    uint64_t seg_offset_ = 0; ///< Write offset in the current segment.
+    Stats stats_; ///< Lifetime statistics.
 };
 
 } // namespace instr

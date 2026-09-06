@@ -125,12 +125,12 @@ class ConfigSink
     }
 
   private:
-    mutable std::mutex mu_;         ///< Serialises deliver()/current()/revision() across threads.
-    std::string daemon_;            ///< Owning daemon name for diagnostics.
-    JValue schema_;                 ///< Schema every delivery is validated against.
-    Apply apply_;                   ///< Domain-apply callback; a non-ok result rejects the delivery.
-    ConfigDocument current_;        ///< Last accepted document (rolled back to on rejection).
-    uint64_t revision_ = 0;         ///< Revision of the last accepted delivery.
+    mutable std::mutex mu_; ///< Serialises deliver()/current()/revision() across threads.
+    std::string daemon_; ///< Owning daemon name for diagnostics.
+    JValue schema_; ///< Schema every delivery is validated against.
+    Apply apply_; ///< Domain-apply callback; a non-ok result rejects the delivery.
+    ConfigDocument current_; ///< Last accepted document (rolled back to on rejection).
+    uint64_t revision_ = 0; ///< Revision of the last accepted delivery.
 };
 
 /// @brief Loads a daemon's JSON Schema from the image (installed into ${datadir}/instrumentation/schemas).

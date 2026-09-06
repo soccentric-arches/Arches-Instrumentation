@@ -43,21 +43,21 @@ namespace instr
 /// @brief Top-level alarm/fault domain (identity bits [31:28]).
 enum class AlarmDomain : uint8_t
 {
-    Hardware = 1,     ///< Physical equipment faults.
-    Software = 2,     ///< Daemon/software faults.
-    Network = 3,      ///< Network faults.
-    Application = 4,  ///< Colocated-application alarms (R5).
-    Fault = 5,        ///< Faults daemon internal.
+    Hardware = 1, ///< Physical equipment faults.
+    Software = 2, ///< Daemon/software faults.
+    Network = 3, ///< Network faults.
+    Application = 4, ///< Colocated-application alarms (R5).
+    Fault = 5, ///< Faults daemon internal.
 };
 
 /// @brief X.733 event type (identity bits [19:16]).
 enum class X733Type : uint8_t
 {
-    Equipment = 1,        ///< Physical/equipment-related.
-    Communications = 2,   ///< Transmission/link problems.
-    ProcessingError = 3,  ///< Software/processing problem.
+    Equipment = 1, ///< Physical/equipment-related.
+    Communications = 2, ///< Transmission/link problems.
+    ProcessingError = 3, ///< Software/processing problem.
     QualityOfService = 4, ///< Performance/QoS degradation.
-    Environmental = 5,    ///< Environmental conditions.
+    Environmental = 5, ///< Environmental conditions.
 };
 
 /// @brief Canonical lowercase name of an alarm domain ("hardware", ...).
@@ -94,10 +94,10 @@ uint8_t module_from_name(const std::string&);
 /// @brief A structured alarm identity (the four 32-bit ID fields unpacked).
 struct AlarmId
 {
-    AlarmDomain domain;   ///< Identity bits [31:28].
-    uint8_t module;       ///< Identity bits [27:20] (daemon or application module).
-    X733Type type;        ///< Identity bits [19:16] (X.733 event type).
-    uint16_t index;       ///< Identity bits [15:0] (alarm number within module).
+    AlarmDomain domain; ///< Identity bits [31:28].
+    uint8_t module; ///< Identity bits [27:20] (daemon or application module).
+    X733Type type; ///< Identity bits [19:16] (X.733 event type).
+    uint16_t index; ///< Identity bits [15:0] (alarm number within module).
     /// @brief Structural equality for map/set keys and tests.
     bool operator==(const AlarmId& o) const
     {

@@ -296,47 +296,47 @@ class SimulatedPlatform : public IPlatform
     /// @}
 
   private:
-    std::mutex mu_;                  ///< Serialises scripted state across threads.
+    std::mutex mu_; ///< Serialises scripted state across threads.
     // Follow cursor: index of the first kernel line not yet handed out in
     // follow mode (see kernel_log_lines).
-    size_t follow_cursor_ = 0;       ///< Kernel-log follow position.
-    std::vector<Partition> partitions_;              ///< Scripted partition topology.
-    std::vector<TimeSourceInfo> time_sources_;       ///< Scripted time sources.
-    MeasuredBootState measured_boot_;                ///< Scripted attestation state.
-    std::map<std::string, std::vector<CanFrame>> can_rx_;   ///< Queued receive frames per interface.
-    std::map<std::string, std::vector<CanFrame>> can_tx_;   ///< Recorded sent frames per interface.
-    std::map<std::string, bool> can_present_;         ///< CAN controller presence per interface.
-    FactoryIdentity identity_;      ///< Scripted factory identity.
-    bool entropy_ = true;          ///< Scripted entropy availability.
-    std::vector<StorageDevice> storage_;             ///< Scripted storage devices.
-    std::vector<ThermalZone> thermals_;              ///< Scripted thermal zones.
-    std::vector<PowerSource> power_;                 ///< Scripted power sources.
-    std::vector<IfaceInfo> ifaces_;                  ///< Scripted interfaces.
-    MemInfo mem_;                   ///< Scripted memory snapshot.
-    CpuSnapshot cpu_;               ///< Scripted CPU snapshot.
-    double load_ = 0.5;             ///< Scripted load average.
-    uint32_t processes_ = 80;       ///< Scripted process count.
-    uint64_t uptime_ = 0;           ///< Scripted uptime.
-    uint32_t boot_count_ = 1;       ///< Scripted boot count.
-    bool clean_shutdown_ = true;    ///< Scripted last-shutdown state.
-    bool time_locked_ = false;      ///< Scripted time-lock state.
-    bool hq_reachable_ = false;     ///< Scripted HQ reachability.
-    bool fail_watchdog_ = false, fail_gpio_ = false, fail_usb_ = false;   ///< Fault-injection flags.
-    bool fail_can_ = false, fail_display_ = false, fail_unit_start_ = false;   ///< Fault-injection flags.
-    bool fail_boot_slots_ = false;  ///< Fault-injection flag for boot-slot ops.
+    size_t follow_cursor_ = 0; ///< Kernel-log follow position.
+    std::vector<Partition> partitions_; ///< Scripted partition topology.
+    std::vector<TimeSourceInfo> time_sources_; ///< Scripted time sources.
+    MeasuredBootState measured_boot_; ///< Scripted attestation state.
+    std::map<std::string, std::vector<CanFrame>> can_rx_; ///< Queued receive frames per interface.
+    std::map<std::string, std::vector<CanFrame>> can_tx_; ///< Recorded sent frames per interface.
+    std::map<std::string, bool> can_present_; ///< CAN controller presence per interface.
+    FactoryIdentity identity_; ///< Scripted factory identity.
+    bool entropy_ = true; ///< Scripted entropy availability.
+    std::vector<StorageDevice> storage_; ///< Scripted storage devices.
+    std::vector<ThermalZone> thermals_; ///< Scripted thermal zones.
+    std::vector<PowerSource> power_; ///< Scripted power sources.
+    std::vector<IfaceInfo> ifaces_; ///< Scripted interfaces.
+    MemInfo mem_; ///< Scripted memory snapshot.
+    CpuSnapshot cpu_; ///< Scripted CPU snapshot.
+    double load_ = 0.5; ///< Scripted load average.
+    uint32_t processes_ = 80; ///< Scripted process count.
+    uint64_t uptime_ = 0; ///< Scripted uptime.
+    uint32_t boot_count_ = 1; ///< Scripted boot count.
+    bool clean_shutdown_ = true; ///< Scripted last-shutdown state.
+    bool time_locked_ = false; ///< Scripted time-lock state.
+    bool hq_reachable_ = false; ///< Scripted HQ reachability.
+    bool fail_watchdog_ = false, fail_gpio_ = false, fail_usb_ = false; ///< Fault-injection flags.
+    bool fail_can_ = false, fail_display_ = false, fail_unit_start_ = false; ///< Fault-injection flags.
+    bool fail_boot_slots_ = false; ///< Fault-injection flag for boot-slot ops.
     bool watchdog_running_ = false; ///< Simulated watchdog armed state.
-    uint64_t watchdog_pets_ = 0;    ///< Pets counted.
-    std::map<std::string, bool> leds_;          ///< LED states.
-    std::map<int, bool> gpios_;                 ///< GPIO states.
-    std::map<std::string, bool> units_;         ///< Unit states.
-    std::vector<std::string> started_units_;    ///< Units started so far.
-    std::vector<std::string> usb_resets_;       ///< USB resets so far.
-    std::vector<std::string> display_cmds_;     ///< Display commands so far.
-    std::vector<std::string> restarts_;         ///< Unit restarts so far.
-    std::vector<std::string> kernel_log_;       ///< Scripted kernel log.
-    std::map<std::string, std::vector<std::string>> journal_;   ///< Scripted per-unit journal.
-    std::vector<std::string> applied_plans_;    ///< Recorded network plans.
-    BootSlotState slots_;           ///< Simulated A/B slot state.
+    uint64_t watchdog_pets_ = 0; ///< Pets counted.
+    std::map<std::string, bool> leds_; ///< LED states.
+    std::map<int, bool> gpios_; ///< GPIO states.
+    std::map<std::string, bool> units_; ///< Unit states.
+    std::vector<std::string> started_units_; ///< Units started so far.
+    std::vector<std::string> usb_resets_; ///< USB resets so far.
+    std::vector<std::string> display_cmds_; ///< Display commands so far.
+    std::vector<std::string> restarts_; ///< Unit restarts so far.
+    std::vector<std::string> kernel_log_; ///< Scripted kernel log.
+    std::map<std::string, std::vector<std::string>> journal_; ///< Scripted per-unit journal.
+    std::vector<std::string> applied_plans_; ///< Recorded network plans.
+    BootSlotState slots_; ///< Simulated A/B slot state.
 };
 
 } // namespace platform

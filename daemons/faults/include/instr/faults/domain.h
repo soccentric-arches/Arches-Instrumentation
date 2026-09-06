@@ -52,31 +52,31 @@ namespace domain
 /// @brief One fault-detection rule from fault-rules.yaml (rules are data).
 struct FaultRule
 {
-    std::string name;               ///< Rule name.
-    std::string pattern;            ///< Regex source text.
-    std::regex re;                  ///< Compiled pattern.
-    uint32_t fault_id = 0;          ///< Packed fault identity.
-    common::Severity severity = common::SEV_MAJOR;   ///< Severity to assign.
-    std::string x733_type;          ///< X.733 event type.
-    std::string probable_cause;     ///< Probable cause text.
-    std::string dedup_key;          ///< Template, e.g. "bus:$device".
-    uint32_t dedup_window_s = 60;   ///< Dedup merge window.
-    double rate_limit_per_s = 5;    ///< Per-rule emission cap.
+    std::string name; ///< Rule name.
+    std::string pattern; ///< Regex source text.
+    std::regex re; ///< Compiled pattern.
+    uint32_t fault_id = 0; ///< Packed fault identity.
+    common::Severity severity = common::SEV_MAJOR; ///< Severity to assign.
+    std::string x733_type; ///< X.733 event type.
+    std::string probable_cause; ///< Probable cause text.
+    std::string dedup_key; ///< Template, e.g. "bus:$device".
+    uint32_t dedup_window_s = 60; ///< Dedup merge window.
+    double rate_limit_per_s = 5; ///< Per-rule emission cap.
 };
 
 /// @brief One detected fault as reported upward.
 struct FaultRecord
 {
-    uint32_t fault_id = 0;          ///< Packed fault identity.
-    uint64_t mono_ns = 0;           ///< Detection time.
-    std::string rule;               ///< Rule that matched.
-    common::Severity severity = common::SEV_MAJOR;   ///< Severity.
-    std::string raw_line;           ///< Triggering kernel line.
-    uint32_t occurrences = 1;       ///< Merged occurrence count.
-    std::string device_key;         ///< Rendered dedup key.
-    std::string x733_type;          ///< X.733 event type.
-    std::string probable_cause;     ///< Probable cause text.
-    bool backfill = false;          ///< True when recovered from the boot ring.
+    uint32_t fault_id = 0; ///< Packed fault identity.
+    uint64_t mono_ns = 0; ///< Detection time.
+    std::string rule; ///< Rule that matched.
+    common::Severity severity = common::SEV_MAJOR; ///< Severity.
+    std::string raw_line; ///< Triggering kernel line.
+    uint32_t occurrences = 1; ///< Merged occurrence count.
+    std::string device_key; ///< Rendered dedup key.
+    std::string x733_type; ///< X.733 event type.
+    std::string probable_cause; ///< Probable cause text.
+    bool backfill = false; ///< True when recovered from the boot ring.
 };
 
 /// @brief Loads and validates a fault-rules.yaml document.
@@ -104,7 +104,7 @@ class RuleEngine
     static std::string render_dedup_key(const std::string& tmpl, const std::string& line);
 
   private:
-    std::vector<FaultRule> rules_;    ///< Compiled rule set.
+    std::vector<FaultRule> rules_; ///< Compiled rule set.
 };
 
 /// @brief Deduplication: identical keys within the window merge occurrence counts.
@@ -127,11 +127,11 @@ class Deduplicator
     /// @brief Per-key window state.
     struct Entry
     {
-        uint64_t first_ns = 0;    ///< First occurrence in the window.
-        uint64_t last_ns = 0;     ///< Most recent occurrence.
-        uint32_t count = 0;       ///< Occurrences merged.
+        uint64_t first_ns = 0; ///< First occurrence in the window.
+        uint64_t last_ns = 0; ///< Most recent occurrence.
+        uint32_t count = 0; ///< Occurrences merged.
     };
-    std::map<std::string, Entry> map_;    ///< Active dedup windows.
+    std::map<std::string, Entry> map_; ///< Active dedup windows.
 };
 
 /// @brief Parse a fault id in the catalog's "0x5_05_1_0001" form.
@@ -157,11 +157,11 @@ class FaultProcessor
     /// @brief Lifetime counters.
     struct Stats
     {
-        uint64_t lines_scanned = 0;      ///< Kernel lines fed.
-        uint64_t faults_raised = 0;      ///< Records emitted.
-        uint64_t duplicates_merged = 0;  ///< Occurrences folded into existing faults.
-        uint64_t suppressed_events = 0;  ///< Events dropped by rate limiting.
-        uint64_t backfill_lines = 0;     ///< Lines recovered from the boot ring.
+        uint64_t lines_scanned = 0; ///< Kernel lines fed.
+        uint64_t faults_raised = 0; ///< Records emitted.
+        uint64_t duplicates_merged = 0; ///< Occurrences folded into existing faults.
+        uint64_t suppressed_events = 0; ///< Events dropped by rate limiting.
+        uint64_t backfill_lines = 0; ///< Lines recovered from the boot ring.
     };
 
     /// @brief Feed kernel-log lines.
@@ -206,16 +206,16 @@ class FaultProcessor
     /// @brief False when the global ceiling is exhausted for this instant.
     bool global_allow(uint64_t mono_ns);
 
-    RuleEngine engine_;                            ///< Rule matching.
-    Deduplicator dedup_;                           ///< Window-based merging.
-    std::map<std::string, double> bucket_tokens_;    ///< Per-rule token buckets.
-    std::map<std::string, uint64_t> bucket_last_mono_;   ///< Per-rule last-refill time.
-    std::map<std::string, uint64_t> suppressed_streak_;   ///< Per-rule suppression streaks.
-    Stats stats_;                                  ///< Lifetime counters.
-    double global_rate_per_s_ = 0;                 ///< Global ceiling (0 = disabled).
-    double global_tokens_ = 0;                     ///< Global token count.
-    uint64_t global_last_mono_ = 0;                ///< Global last-refill time.
-    uint64_t global_suppressed_ = 0;               ///< Global suppression counter.
+    RuleEngine engine_; ///< Rule matching.
+    Deduplicator dedup_; ///< Window-based merging.
+    std::map<std::string, double> bucket_tokens_; ///< Per-rule token buckets.
+    std::map<std::string, uint64_t> bucket_last_mono_; ///< Per-rule last-refill time.
+    std::map<std::string, uint64_t> suppressed_streak_; ///< Per-rule suppression streaks.
+    Stats stats_; ///< Lifetime counters.
+    double global_rate_per_s_ = 0; ///< Global ceiling (0 = disabled).
+    double global_tokens_ = 0; ///< Global token count.
+    uint64_t global_last_mono_ = 0; ///< Global last-refill time.
+    uint64_t global_suppressed_ = 0; ///< Global suppression counter.
 };
 
 } // namespace domain

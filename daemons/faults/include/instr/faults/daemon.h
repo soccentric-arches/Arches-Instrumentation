@@ -46,11 +46,11 @@ using namespace instr::transport;
 /// @brief Configuration delivered by istate (R4: faults never opens /pst itself).
 struct FaultsConfig
 {
-    bool enabled = true;             ///< Master switch.
-    bool backfill_boot_log = true;   ///< Feed the boot ring once at start.
-    double poll_interval_s = 1.0;    ///< Kernel ring / journal follow interval.
-    double max_events_per_s = 0;     ///< Global emission ceiling; 0 = rule-level limits only.
-    bool stream_to_hq = true;        ///< Forward faults through istate.
+    bool enabled = true; ///< Master switch.
+    bool backfill_boot_log = true; ///< Feed the boot ring once at start.
+    double poll_interval_s = 1.0; ///< Kernel ring / journal follow interval.
+    double max_events_per_s = 0; ///< Global emission ceiling; 0 = rule-level limits only.
+    bool stream_to_hq = true; ///< Forward faults through istate.
 };
 
 /// @brief Faults domain core: rule loading, processor, config and record routing.
@@ -132,12 +132,12 @@ class FaultsCore
     }
 
   private:
-    std::string rules_text_;                  ///< Raw loaded rules text.
-    std::optional<FaultProcessor> processor_;      ///< Compiled processor (none until rules load).
-    std::vector<FaultRule> empty_rules_;           ///< Returned by rules() before rules load.
-    std::function<void(const FaultRecord&)> sink_;   ///< Fault-record sink.
-    FaultsConfig cfg_;                        ///< Current configuration.
-    std::function<void(const FaultsConfig&)> on_config_;   ///< Config-accepted listener.
+    std::string rules_text_; ///< Raw loaded rules text.
+    std::optional<FaultProcessor> processor_; ///< Compiled processor (none until rules load).
+    std::vector<FaultRule> empty_rules_; ///< Returned by rules() before rules load.
+    std::function<void(const FaultRecord&)> sink_; ///< Fault-record sink.
+    FaultsConfig cfg_; ///< Current configuration.
+    std::function<void(const FaultsConfig&)> on_config_; ///< Config-accepted listener.
 };
 
 /// @brief Build the faults ctrl command table (rules, stats, feed).
@@ -171,11 +171,11 @@ class FaultsSpoke
     }
 
   private:
-    FaultsCore* core_;                        ///< Domain core (not owned).
-    Logger* log_;                             ///< Logger (not owned).
-    const CommandTable* table_;               ///< Command table (not owned).
-    std::unique_ptr<ConfigSink> config_sink_;      ///< Validates and applies config deliveries.
-    std::unique_ptr<SpokeChannel<faults::FaultHub, faults::FaultSpokeFrame, faults::FaultHubFrame>> channel_;   ///< gRPC channel to istate.
+    FaultsCore* core_; ///< Domain core (not owned).
+    Logger* log_; ///< Logger (not owned).
+    const CommandTable* table_; ///< Command table (not owned).
+    std::unique_ptr<ConfigSink> config_sink_; ///< Validates and applies config deliveries.
+    std::unique_ptr<SpokeChannel<faults::FaultHub, faults::FaultSpokeFrame, faults::FaultHubFrame>> channel_; ///< gRPC channel to istate.
 };
 
 /// @brief Kernel-log follower (§7.5: "real-time monitoring of the kernel ring buffer and journal").
@@ -208,11 +208,11 @@ class FaultFollower
     }
 
   private:
-    FaultsCore* core_;             ///< Domain core (not owned).
-    platform::IPlatform* plat_;    ///< Kernel-log source (not owned).
-    TimeSource* ts_;               ///< Clock (not owned).
-    Logger* log_;                  ///< Logger (not owned).
-    PeriodicWorker worker_;        ///< Polling scheduler.
+    FaultsCore* core_; ///< Domain core (not owned).
+    platform::IPlatform* plat_; ///< Kernel-log source (not owned).
+    TimeSource* ts_; ///< Clock (not owned).
+    Logger* log_; ///< Logger (not owned).
+    PeriodicWorker worker_; ///< Polling scheduler.
 };
 
 } // namespace faults

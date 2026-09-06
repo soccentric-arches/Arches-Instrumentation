@@ -45,10 +45,10 @@ namespace instr
 /// @brief Who last set a configuration value; drives overwrite and reset rules.
 enum class Origin
 {
-    Default = 0,   ///< Shipped with the release.
-    App = 1,       ///< Set by an application via the provisioning API.
-    Local = 2,     ///< Set by the on-device operator; protected from overwrite.
-    Hq = 3         ///< Pushed by HQ via istate.
+    Default = 0, ///< Shipped with the release.
+    App = 1, ///< Set by an application via the provisioning API.
+    Local = 2, ///< Set by the on-device operator; protected from overwrite.
+    Hq = 3 ///< Pushed by HQ via istate.
 };
 
 /// @brief Stable lowercase name of an origin ("default", "app", "local", "hq").
@@ -156,8 +156,8 @@ class ConfigDocument
     void load_origins_yaml(const std::string& text);
 
   private:
-    std::map<std::string, std::string> values_;    ///< Flattened key → scalar text.
-    std::map<std::string, Origin> origins_;        ///< Flattened key → who set it.
+    std::map<std::string, std::string> values_; ///< Flattened key → scalar text.
+    std::map<std::string, Origin> origins_; ///< Flattened key → who set it.
 };
 
 /// @brief Load a JSON schema from text (for schemas/*.json at daemon startup).

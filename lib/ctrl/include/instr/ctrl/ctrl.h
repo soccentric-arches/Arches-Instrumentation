@@ -67,8 +67,8 @@ class StreamSink
     }
 
   private:
-    int fd_;                        ///< Client connection descriptor.
-    std::atomic<bool> closed_{false};   ///< Latched on the first failed send.
+    int fd_; ///< Client connection descriptor.
+    std::atomic<bool> closed_{false}; ///< Latched on the first failed send.
 };
 
 /// @brief Unix-socket control server dispatching from a shared CommandTable.
@@ -125,15 +125,15 @@ class CtrlServer
     /// @brief Serve one connection: read frames, dispatch to table or stream handler.
     void serve_conn(int fd);
 
-    const CommandTable* table_;   ///< Command registry driving dispatch (not owned).
-    std::string path_;            ///< Bound socket path.
+    const CommandTable* table_; ///< Command registry driving dispatch (not owned).
+    std::string path_; ///< Bound socket path.
     /// Atomic: the accept thread reads this while stop() closes and clears it
     // from another thread. As a plain int that is a data race (TSan flags it),
     // and on a weakly-ordered target — half this fleet is aarch64 — the accept
     // loop can miss the close and spin on a stale descriptor.
     std::atomic<int> listen_fd_{-1};
-    std::atomic<bool> running_{false};   ///< Server lifecycle flag.
-    std::thread accept_thread_;        ///< Thread running serve_accept().
+    std::atomic<bool> running_{false}; ///< Server lifecycle flag.
+    std::thread accept_thread_; ///< Thread running serve_accept().
     // Each connection thread flags itself done on exit; serve_accept() joins
     // the flagged ones before spawning more. A plain vector<thread> pruned by
     // joinable() never shrinks — a thread stays joinable after its function
@@ -141,12 +141,12 @@ class CtrlServer
     // connection, for the life of the daemon.
     struct Conn
     {
-        std::thread thread;                       ///< Worker serving one connection.
-        std::shared_ptr<std::atomic<bool>> done;    ///< Set by the worker on exit; reaped on accept.
+        std::thread thread; ///< Worker serving one connection.
+        std::shared_ptr<std::atomic<bool>> done; ///< Set by the worker on exit; reaped on accept.
     };
-    std::vector<Conn> conn_threads_;      ///< Recently accepted connections awaiting reap.
-    std::map<std::string, std::function<void(const std::string&, StreamSink&)>> streams_;   ///< Streaming handlers by op.
-    mutable std::mutex mu_;              ///< Guards conn_threads_.
+    std::vector<Conn> conn_threads_; ///< Recently accepted connections awaiting reap.
+    std::map<std::string, std::function<void(const std::string&, StreamSink&)>> streams_; ///< Streaming handlers by op.
+    mutable std::mutex mu_; ///< Guards conn_threads_.
 };
 
 /// @brief Unix-socket control client for talking to a CtrlServer.
@@ -182,8 +182,8 @@ class CtrlClient
     /// @brief Read one length-prefixed frame from the socket.
     bool recv_frame(std::string* out);
 
-    std::string path_;     ///< Socket path to connect to.
-    int fd_ = -1;          ///< Connection descriptor; -1 when closed.
+    std::string path_; ///< Socket path to connect to.
+    int fd_ = -1; ///< Connection descriptor; -1 when closed.
     // One decoder per connection: a single read() often carries several frames
     // (a stream burst), and a fresh decoder per call would discard the tail.
     frames::FrameDecoder dec_;
@@ -243,16 +243,16 @@ class BulkServer
     /// @brief Read a handle from @p fd and stream the resolved file until close.
     void serve_one(int fd);
 
-    std::string path_;        ///< Bound socket path.
-    Resolver resolve_;        ///< Handle → file path resolver.
+    std::string path_; ///< Bound socket path.
+    Resolver resolve_; ///< Handle → file path resolver.
     /// Atomic: the accept thread reads this while stop() closes and clears it
     // from another thread. As a plain int that is a data race (TSan flags it),
     // and on a weakly-ordered target — half this fleet is aarch64 — the accept
     // loop can miss the close and spin on a stale descriptor.
     std::atomic<int> listen_fd_{-1};
-    std::atomic<bool> running_{false};   ///< Server lifecycle flag.
-    std::atomic<uint64_t> served_{0};    ///< Bytes served so far.
-    std::thread accept_thread_;        ///< Thread running serve_accept().
+    std::atomic<bool> running_{false}; ///< Server lifecycle flag.
+    std::atomic<uint64_t> served_{0}; ///< Bytes served so far.
+    std::thread accept_thread_; ///< Thread running serve_accept().
 };
 
 /// @brief Read a payload by handle from a bulk socket, chunk by chunk.

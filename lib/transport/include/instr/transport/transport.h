@@ -70,25 +70,25 @@ constexpr uint32_t kProtoSchemaVersion = 2; // v2: config delivery (§9)
 /// @brief Type-erased spoke→hub message used by the transport layer.
 struct GenericSpokeMsg
 {
-    std::string daemon;              ///< Which spoke sent it.
-    std::string type;                ///< e.g. "sample", "fault", "batch", "event".
-    std::string payload_json;        ///< Opaque JSON payload.
-    common::TimeStamp ts;            ///< Record timestamp.
+    std::string daemon; ///< Which spoke sent it.
+    std::string type; ///< e.g. "sample", "fault", "batch", "event".
+    std::string payload_json; ///< Opaque JSON payload.
+    common::TimeStamp ts; ///< Record timestamp.
 };
 
 /// @brief Type-erased hub→spoke message (oneof: command / backpressure / relay / time_sync / config).
 struct GenericHubMsg
 {
-    bool has_command = false;                 ///< command is present.
-    common::Command command;                  ///< Control command for the spoke.
-    bool has_backpressure = false;            ///< backpressure is present.
-    common::Backpressure backpressure;        ///< HQ backpressure signal.
-    bool has_relay = false;                   ///< relay is present.
-    common::RelayedData relay;                ///< Data relayed from HQ.
-    bool has_time_sync = false;               ///< time_sync is present.
-    common::TimeStamp time_sync;              ///< HQ wall-clock correction.
-    bool has_config = false;                  ///< config is present.
-    common::ConfigDelivery config;            ///< Configuration push for the spoke.
+    bool has_command = false; ///< command is present.
+    common::Command command; ///< Control command for the spoke.
+    bool has_backpressure = false; ///< backpressure is present.
+    common::Backpressure backpressure; ///< HQ backpressure signal.
+    bool has_relay = false; ///< relay is present.
+    common::RelayedData relay; ///< Data relayed from HQ.
+    bool has_time_sync = false; ///< time_sync is present.
+    common::TimeStamp time_sync; ///< HQ wall-clock correction.
+    bool has_config = false; ///< config is present.
+    common::ConfigDelivery config; ///< Configuration push for the spoke.
 };
 
 /// @brief Spoke-side gRPC bidi channel to istate: registration, streaming, config delivery and liveness.
@@ -102,13 +102,13 @@ template <typename StubOuter, typename SpokeFrame, typename HubFrame> class Spok
     /// @brief Channel parameters.
     struct Options
     {
-        std::string target;                      ///< "unix:/run/instrumentation/<daemon>.sock".
-        std::string daemon;                      ///< Spoke identity used in the handshake.
-        std::string build_version;               ///< Build version reported at registration.
-        uint32_t proto_version = kProtoSchemaVersion;   ///< Proto schema version to advertise.
-        std::vector<std::string> capabilities;    ///< Capabilities advertised at registration.
-        double backoff_base_s = 1.0;             ///< Reconnect backoff base.
-        double backoff_max_s = 30.0;             ///< Reconnect backoff cap.
+        std::string target; ///< "unix:/run/instrumentation/<daemon>.sock".
+        std::string daemon; ///< Spoke identity used in the handshake.
+        std::string build_version; ///< Build version reported at registration.
+        uint32_t proto_version = kProtoSchemaVersion; ///< Proto schema version to advertise.
+        std::vector<std::string> capabilities; ///< Capabilities advertised at registration.
+        double backoff_base_s = 1.0; ///< Reconnect backoff base.
+        double backoff_max_s = 30.0; ///< Reconnect backoff cap.
     };
 
     /// @brief Construct a channel with @p opts logging to @p log.
@@ -363,20 +363,20 @@ template <typename StubOuter, typename SpokeFrame, typename HubFrame> class Spok
         return true;
     }
 
-    Options opts_;               ///< Channel parameters.
-    Logger& log_;                 ///< Logger for reconnect and rejection events.
-    HubHandler hub_handler_;     ///< Hub-frame callback (domain layer).
-    JitteredBackoff backoff_;    ///< Reconnect backoff sequence.
-    std::thread thread_;         ///< Thread running run_loop().
-    std::mutex mu_;              ///< Guards the outbound queue.
+    Options opts_; ///< Channel parameters.
+    Logger& log_; ///< Logger for reconnect and rejection events.
+    HubHandler hub_handler_; ///< Hub-frame callback (domain layer).
+    JitteredBackoff backoff_; ///< Reconnect backoff sequence.
+    std::thread thread_; ///< Thread running run_loop().
+    std::mutex mu_; ///< Guards the outbound queue.
     std::condition_variable cv_; ///< Signals queue producers/consumers.
-    std::deque<SpokeFrame> queue_;      ///< Outbound frames awaiting the writer.
-    std::atomic<bool> running_{false};  ///< Lifecycle flag.
-    std::atomic<bool> registered_{false};   ///< True between accepted registration and session end.
-    ConfigHandler config_handler_;      ///< Config-delivery callback.
-    std::atomic<uint64_t> config_revision_{0};   ///< Last successfully applied config revision.
-    std::mutex ctx_mu_;                 ///< Guards active_ctx_.
-    grpc::ClientContext* active_ctx_ = nullptr;   ///< In-flight stream context (guarded by ctx_mu_); stop() cancels it.
+    std::deque<SpokeFrame> queue_; ///< Outbound frames awaiting the writer.
+    std::atomic<bool> running_{false}; ///< Lifecycle flag.
+    std::atomic<bool> registered_{false}; ///< True between accepted registration and session end.
+    ConfigHandler config_handler_; ///< Config-delivery callback.
+    std::atomic<uint64_t> config_revision_{0}; ///< Last successfully applied config revision.
+    std::mutex ctx_mu_; ///< Guards active_ctx_.
+    grpc::ClientContext* active_ctx_ = nullptr; ///< In-flight stream context (guarded by ctx_mu_); stop() cancels it.
 };
 
 /// @brief istate-side hub service base: registration handshake plus one bidi stream per spoke.
@@ -518,16 +518,16 @@ template <typename Service, typename SpokeFrame, typename HubFrame> class HubSer
     /// @brief Apply a generic hub message onto a typed hub frame.
     virtual void apply(HubFrame& f, const GenericHubMsg& m) = 0;
 
-    std::string daemon_;          ///< Accepted spoke identity.
-    std::string build_version_;   ///< istate build version returned in the handshake.
-    FrameIn ingest_;              ///< Inbound frame consumer.
-    FrameOut outbound_;           ///< Outbound frame source.
-    std::mutex mu_;               ///< Guards the outbound queue.
-    std::condition_variable cv_;  ///< Signals queue producers/consumers.
-    std::deque<GenericHubMsg> out_;      ///< Outbound messages awaiting the writer.
-    std::atomic<bool> registered_{false};   ///< Current registration state.
-    std::atomic<bool> refused_{false};      ///< Latched on a proto-version refusal.
-    RegistrationFn on_register_;    ///< Registration-reporting callback.
+    std::string daemon_; ///< Accepted spoke identity.
+    std::string build_version_; ///< istate build version returned in the handshake.
+    FrameIn ingest_; ///< Inbound frame consumer.
+    FrameOut outbound_; ///< Outbound frame source.
+    std::mutex mu_; ///< Guards the outbound queue.
+    std::condition_variable cv_; ///< Signals queue producers/consumers.
+    std::deque<GenericHubMsg> out_; ///< Outbound messages awaiting the writer.
+    std::atomic<bool> registered_{false}; ///< Current registration state.
+    std::atomic<bool> refused_{false}; ///< Latched on a proto-version refusal.
+    RegistrationFn on_register_; ///< Registration-reporting callback.
 };
 
 // ---- istate ↔ HQ session client (HqPeer) ----

@@ -91,11 +91,11 @@ class JitteredBackoff
         double u = rng01_ ? double(rng01_()) : uniform_(rng_);
         return 1.0 + jitter_ * (2.0 * u - 1.0); // 1 ± jitter
     }
-    double base_, max_, jitter_;   ///< Configured base delay, cap and jitter fraction (seconds).
-    uint64_t attempt_ = 0;         ///< Doubling exponent; also the attempts-since-reset counter.
-    std::mt19937 rng_{std::random_device{}()};                        ///< Internal random engine.
-    std::uniform_real_distribution<double> uniform_{0.0, 1.0};        ///< Uniform [0,1) sampler over rng_.
-    std::function<double()> rng01_;                                    ///< Optional injected sampler (tests).
+    double base_, max_, jitter_; ///< Configured base delay, cap and jitter fraction (seconds).
+    uint64_t attempt_ = 0; ///< Doubling exponent; also the attempts-since-reset counter.
+    std::mt19937 rng_{std::random_device{}()}; ///< Internal random engine.
+    std::uniform_real_distribution<double> uniform_{0.0, 1.0}; ///< Uniform [0,1) sampler over rng_.
+    std::function<double()> rng01_; ///< Optional injected sampler (tests).
 };
 
 } // namespace instr

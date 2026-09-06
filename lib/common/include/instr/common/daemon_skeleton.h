@@ -43,16 +43,16 @@ namespace instr
 /// @brief Shared daemon command-line arguments.
 struct DaemonArgs
 {
-    std::string name;              ///< Daemon identity (from argv or the caller).
-    std::string socket_override;   ///< --socket PATH (ctrl socket override).
-    std::string hub_socket;        ///< --hub PATH: istate registration socket.
-    std::string root;              ///< --root PATH: relocate /pst and /run for tests.
+    std::string name; ///< Daemon identity (from argv or the caller).
+    std::string socket_override; ///< --socket PATH (ctrl socket override).
+    std::string hub_socket; ///< --hub PATH: istate registration socket.
+    std::string root; ///< --root PATH: relocate /pst and /run for tests.
     ///< --platform native|simulated (or INSTR_PLATFORM). The simulated platform
     /// must be able to run the entire suite on a build host with no hardware
     /// (REQ §5), which means the daemons themselves have to be able to select
     /// it — not only the unit tests.
     std::string platform = "native";
-    bool help = false;             ///< Set when --help was requested.
+    bool help = false; ///< Set when --help was requested.
 };
 
 /// @brief True when the daemon was asked for the simulated platform.

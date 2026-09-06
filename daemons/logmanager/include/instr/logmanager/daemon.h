@@ -63,12 +63,12 @@ class LogCore
     /// @brief Configuration delivered by istate (§7.7, §9).
     struct Config
     {
-        bool enabled = true;                       ///< Master switch for collection.
-        uint64_t budget_bytes = 128ull * 1024 * 1024;   ///< Storage budget for this resource class.
-        double prune_interval_s = 300.0;           ///< Retention pass cadence.
-        uint32_t tail_max_rate_per_s = 50;         ///< Live-tail rate cap.
-        uint64_t coredump_max_bytes = 32ull * 1024 * 1024;   ///< Coredump capture cap.
-        std::vector<SourceSpec> sources;            ///< Configured log sources.
+        bool enabled = true; ///< Master switch for collection.
+        uint64_t budget_bytes = 128ull * 1024 * 1024; ///< Storage budget for this resource class.
+        double prune_interval_s = 300.0; ///< Retention pass cadence.
+        uint32_t tail_max_rate_per_s = 50; ///< Live-tail rate cap.
+        uint64_t coredump_max_bytes = 32ull * 1024 * 1024; ///< Coredump capture cap.
+        std::vector<SourceSpec> sources; ///< Configured log sources.
     };
     /// @brief Current configuration.
     const Config& config() const
@@ -150,16 +150,16 @@ class LogCore
     }
 
   private:
-    LogStore store_;                        ///< Per-source log files.
-    BundleStore bundles_;                   ///< Support bundles.
-    CrashForensics forensics_;              ///< Crash captures.
-    TimeSource& ts_;                         ///< Clock for timestamps.
-    std::function<void(const LogLine&)> sink_;   ///< Live line sink (guarded by mu_).
-    std::function<std::string(const std::string&)> coredump_resolver_;   ///< Platform resolver (guarded by mu_).
-    std::mutex mu_;                         ///< Guards sink_ and coredump_resolver_.
-    Config cfg_;                            ///< Current configuration.
-    std::function<void(const Config&)> on_config_;   ///< Config-accepted listener.
-    std::string bulk_socket_path_ = "/run/instrumentation/logmanager-bulk.sock";   ///< Bulk socket advertised by bundle-fetch.
+    LogStore store_; ///< Per-source log files.
+    BundleStore bundles_; ///< Support bundles.
+    CrashForensics forensics_; ///< Crash captures.
+    TimeSource& ts_; ///< Clock for timestamps.
+    std::function<void(const LogLine&)> sink_; ///< Live line sink (guarded by mu_).
+    std::function<std::string(const std::string&)> coredump_resolver_; ///< Platform resolver (guarded by mu_).
+    std::mutex mu_; ///< Guards sink_ and coredump_resolver_.
+    Config cfg_; ///< Current configuration.
+    std::function<void(const Config&)> on_config_; ///< Config-accepted listener.
+    std::string bulk_socket_path_ = "/run/instrumentation/logmanager-bulk.sock"; ///< Bulk socket advertised by bundle-fetch.
 };
 
 /// @brief Periodic collection pass over every configured source (§7.7).
@@ -215,18 +215,18 @@ class LogCollector
     // offset and restarts at 0 when the file shrinks (rotation or truncation).
     struct Cursor
     {
-        std::string last_line;   ///< Journal: last line seen (dedup key).
-        uint64_t offset = 0;     ///< File: byte offset (restarts at 0 on shrink).
+        std::string last_line; ///< Journal: last line seen (dedup key).
+        uint64_t offset = 0; ///< File: byte offset (restarts at 0 on shrink).
     };
-    std::map<std::string, Cursor> cursors_;   ///< Follow positions per source.
+    std::map<std::string, Cursor> cursors_; ///< Follow positions per source.
 
-    LogCore* core_;                 ///< Domain core (not owned).
-    platform::IPlatform* plat_;     ///< Journal/kmsg access (not owned).
-    IFileSystem* fs_;               ///< File-sink access (not owned).
-    TimeSource* ts_;                ///< Clock (not owned).
-    Logger* log_;                   ///< Logger (not owned).
-    std::atomic<uint64_t> lines_{0};     ///< Lifetime lines collected.
-    PeriodicWorker worker_;         ///< Polling scheduler.
+    LogCore* core_; ///< Domain core (not owned).
+    platform::IPlatform* plat_; ///< Journal/kmsg access (not owned).
+    IFileSystem* fs_; ///< File-sink access (not owned).
+    TimeSource* ts_; ///< Clock (not owned).
+    Logger* log_; ///< Logger (not owned).
+    std::atomic<uint64_t> lines_{0}; ///< Lifetime lines collected.
+    PeriodicWorker worker_; ///< Polling scheduler.
 };
 
 /// @brief Build the logmanager ctrl command table (sources, tail, bundles, forensics).
@@ -266,11 +266,11 @@ class LogSpoke
     void send_crash(const std::string& daemon, const std::string& coredump, uint32_t tail_lines);
 
   private:
-    LogCore* core_;                        ///< Domain core (not owned).
-    Logger* log_;                          ///< Logger (not owned).
-    const CommandTable* table_;            ///< Command table (not owned).
-    std::unique_ptr<ConfigSink> config_sink_;    ///< Validates and applies config deliveries.
-    std::unique_ptr<SpokeChannel<logmanager::LogHub, logmanager::LogSpokeFrame, logmanager::LogHubFrame>> channel_;   ///< gRPC channel to istate.
+    LogCore* core_; ///< Domain core (not owned).
+    Logger* log_; ///< Logger (not owned).
+    const CommandTable* table_; ///< Command table (not owned).
+    std::unique_ptr<ConfigSink> config_sink_; ///< Validates and applies config deliveries.
+    std::unique_ptr<SpokeChannel<logmanager::LogHub, logmanager::LogSpokeFrame, logmanager::LogHubFrame>> channel_; ///< gRPC channel to istate.
 };
 
 } // namespace logmanager

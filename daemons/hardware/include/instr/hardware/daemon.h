@@ -44,25 +44,29 @@ namespace hardware
 using namespace domain;
 using namespace instr::transport;
 
+/// @brief Hardware domain core: device manager, config and check-result routing.
 class HardwareCore
 {
   public:
+    /// @brief Bind the core to the platform, a clock and the board descriptor.
     HardwareCore(platform::IPlatform& plat, TimeSource& ts, const platform::DeviceDescriptor& desc) : mgr_(plat, ts, desc)
     {
     }
 
-    // Configuration delivered by istate (§7.4, §9).
+    /// @brief Configuration delivered by istate (§7.4, §9).
     struct Config
     {
-        bool enabled = true;
-        double periodic_check_interval_s = 300.0; // 0 disables scheduled checks
-        double check_timeout_s = 5.0;
+        bool enabled = true;                       ///< Master switch.
+        double periodic_check_interval_s = 300.0;  ///< 0 disables scheduled checks.
+        double check_timeout_s = 5.0;              ///< Per-check timeout.
     };
+    /// @brief Current configuration (thread-safe).
     Config config() const
     {
         std::lock_guard<std::mutex> lk(mu_);
         return cfg_;
     }
+    /// @brief Apply an istate-delivered config document (rejects invalid values).
     Error apply_config(const ConfigDocument& doc)
     {
         Config c;
@@ -79,63 +83,75 @@ class HardwareCore
         if (listener) listener(c);
         return Error::none();
     }
+    /// @brief Install a callback fired when a new config is accepted.
     void set_config_listener(std::function<void(const Config&)> f)
     {
         std::lock_guard<std::mutex> lk(mu_);
         on_config_ = std::move(f);
     }
 
+    /// @brief Device manager access.
     DeviceManager& manager()
     {
         return mgr_;
     }
+    /// @brief Install the check-result sink (spoke emission).
     void set_result_sink(std::function<void(const CheckResult&)> f)
     {
         std::lock_guard<std::mutex> lk(mu_);
         sink_ = std::move(f);
     }
+    /// @brief Emit one check result to the installed sink.
     void emit(const CheckResult& r)
     {
         std::lock_guard<std::mutex> lk(mu_);
         if (sink_) sink_(r);
     }
+    /// @brief Render the board's device inventory as JSON (ctrl "devices").
     std::string descriptor_summary_json() const;
 
   private:
-    DeviceManager mgr_;
-    std::function<void(const CheckResult&)> sink_;
-    mutable std::mutex mu_;
-    Config cfg_;
-    std::function<void(const Config&)> on_config_;
+    DeviceManager mgr_;                        ///< Device controls and checks.
+    std::function<void(const CheckResult&)> sink_;   ///< Check-result sink (guarded by mu_).
+    mutable std::mutex mu_;                    ///< Guards cfg_, on_config_ and sink_.
+    Config cfg_;                               ///< Current configuration.
+    std::function<void(const Config&)> on_config_;   ///< Config-accepted listener.
 };
 
+/// @brief Build the hardware ctrl command table (devices, control, checks).
 CommandTable build_hardware_table(HardwareCore* core);
 
+/// @brief Spoke: transport to istate plus the schema-validated config sink.
 class HardwareSpoke
 {
   public:
+    /// @brief Wire the channel, config sink and handlers together.
     HardwareSpoke(HardwareCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version);
+    /// @brief Start the channel.
     void start();
+    /// @brief Stop the channel.
     void stop();
+    /// @brief True while registered with istate.
     bool registered() const
     {
         return channel_->registered();
     }
-    // Configuration is delivered by istate over the channel and validated
-    // against this schema before it can change behaviour (R4, §9).
+    /// @brief Install the schema every config delivery must satisfy (R4, §9).
     void set_schema(JValue schema);
+    /// @brief Revision of the last config applied.
     uint64_t config_revision() const
     {
         return channel_->config_revision();
     }
+    /// @brief Queue a check result to istate.
     void send_result(const CheckResult& r);
 
   private:
-    HardwareCore* core_;
-    Logger* log_;
-    const CommandTable* table_;
-    std::unique_ptr<ConfigSink> config_sink_;
-    std::unique_ptr<SpokeChannel<hardware::HardwareHub, hardware::HardwareSpokeFrame, hardware::HardwareHubFrame>> channel_;
+    HardwareCore* core_;                      ///< Domain core (not owned).
+    Logger* log_;                             ///< Logger (not owned).
+    const CommandTable* table_;               ///< Command table (not owned).
+    std::unique_ptr<ConfigSink> config_sink_;      ///< Validates and applies config deliveries.
+    std::unique_ptr<SpokeChannel<hardware::HardwareHub, hardware::HardwareSpokeFrame, hardware::HardwareHubFrame>> channel_;   ///< gRPC channel to istate.
 };
 
 } // namespace hardware

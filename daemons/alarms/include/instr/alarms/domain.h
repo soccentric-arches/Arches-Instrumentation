@@ -54,52 +54,52 @@ namespace domain
 /// @brief One alarm as tracked by the alarms daemon (X.733-flavoured record).
 struct AlarmRecord
 {
-    uint32_t alarm_id = 0;                    ///< Packed 32-bit alarm identity.
-    std::string symbolic_name;                ///< Catalog name.
-    common::Severity severity = common::SEV_INFO;   ///< Current severity.
-    std::string owner;                        ///< Who raised it (daemon or application).
-    std::string additional_text;              ///< Free-text detail.
-    std::string specific_problem;             ///< Specific problem code/text.
-    std::string probable_cause;               ///< Probable cause code/text.
-    Stamp first_seen;                         ///< First occurrence.
-    Stamp last_seen;                          ///< Most recent occurrence.
-    uint32_t count = 0;                       ///< Occurrence count.
-    bool acknowledged = false;                ///< Operator acknowledgement state.
-    std::vector<uint32_t> correlated;          ///< Correlated alarm ids.
+    uint32_t alarm_id = 0; ///< Packed 32-bit alarm identity.
+    std::string symbolic_name; ///< Catalog name.
+    common::Severity severity = common::SEV_INFO; ///< Current severity.
+    std::string owner; ///< Who raised it (daemon or application).
+    std::string additional_text; ///< Free-text detail.
+    std::string specific_problem; ///< Specific problem code/text.
+    std::string probable_cause; ///< Probable cause code/text.
+    Stamp first_seen; ///< First occurrence.
+    Stamp last_seen; ///< Most recent occurrence.
+    uint32_t count = 0; ///< Occurrence count.
+    bool acknowledged = false; ///< Operator acknowledgement state.
+    std::vector<uint32_t> correlated; ///< Correlated alarm ids.
 };
 
 /// @brief X.733-flavoured event emitted to istate directly — never through telemetry batching (escalation must not be delayed).
 struct AlarmStateEvent
 {
-    std::string action;      ///< raise / clear / ack / severity_change / snapshot_request.
-    AlarmRecord record;      ///< The alarm in its new state.
-    bool needs_snapshot = false;   ///< True when a diagnostic capture is requested.
+    std::string action; ///< raise / clear / ack / severity_change / snapshot_request.
+    AlarmRecord record; ///< The alarm in its new state.
+    bool needs_snapshot = false; ///< True when a diagnostic capture is requested.
 };
 
 /// @brief Time-based escalation rule for an alarm (or the default when id is 0).
 struct EscalationRule
 {
     ///< Applies to an alarm id or (when alarm_id == 0) as the default policy.
-    uint32_t alarm_id = 0;                    ///< Alarm id the rule applies to; 0 = default policy.
-    uint64_t promote_after_s = 3600;          ///< Seconds unacknowledged before promotion.
-    common::Severity promote_to = common::SEV_CRITICAL;   ///< Severity promoted to.
+    uint32_t alarm_id = 0; ///< Alarm id the rule applies to; 0 = default policy.
+    uint64_t promote_after_s = 3600; ///< Seconds unacknowledged before promotion.
+    common::Severity promote_to = common::SEV_CRITICAL; ///< Severity promoted to.
 };
 
 /// @brief One catalog entry (alarm definition) with operator-edit tracking.
 struct CatalogEntry
 {
-    uint32_t id = 0;                          ///< Packed alarm identity.
-    std::string name;                         ///< Symbolic name.
-    common::Severity severity = common::SEV_INFO;   ///< Default severity.
-    std::string probable_cause;               ///< Probable cause text.
-    std::string specific_problem;             ///< Specific problem text.
-    std::string description;                  ///< Human description.
-    std::string escalation;                   ///< Escalation policy name.
-    std::string auto_clear;                   ///< Auto-clear policy name.
-    bool hq_reportable = true;                ///< False to keep the alarm local-only.
+    uint32_t id = 0; ///< Packed alarm identity.
+    std::string name; ///< Symbolic name.
+    common::Severity severity = common::SEV_INFO; ///< Default severity.
+    std::string probable_cause; ///< Probable cause text.
+    std::string specific_problem; ///< Specific problem text.
+    std::string description; ///< Human description.
+    std::string escalation; ///< Escalation policy name.
+    std::string auto_clear; ///< Auto-clear policy name.
+    bool hq_reportable = true; ///< False to keep the alarm local-only.
     // operator edit marker: severity overridden by a local operator is
     // preserved when the catalog is regenerated (§7.6).
-    bool operator_edited = false;             ///< Severity overridden locally (preserved on regeneration).
+    bool operator_edited = false; ///< Severity overridden locally (preserved on regeneration).
 };
 
 /// @brief Alarm state machine, escalation, persistence and catalog merge for the daemon.
@@ -190,9 +190,9 @@ class AlarmManager
     /// @return Counts of what was added, updated and preserved.
     struct MergeStats
     {
-        size_t added = 0;                      ///< New entries appended.
-        size_t updated = 0;                    ///< Existing entries refreshed.
-        size_t preserved_operator_edits = 0;   ///< Operator edits kept through the merge.
+        size_t added = 0; ///< New entries appended.
+        size_t updated = 0; ///< Existing entries refreshed.
+        size_t preserved_operator_edits = 0; ///< Operator edits kept through the merge.
     };
     /// @brief Perform the catalog merge.
     MergeStats merge_catalog(const std::vector<CatalogEntry>& incoming);
@@ -217,15 +217,15 @@ class AlarmManager
   private:
     /// @brief Serialise the active table for persistence.
     std::string active_json() const;
-    IFileSystem& fs_;                      ///< Storage backend.
-    std::string db_path_;                  ///< Active-alarm database path.
-    TimeSource& ts_;                        ///< Clock for stamps.
-    std::vector<AlarmRecord> active_;       ///< Active alarm table.
-    std::vector<EscalationRule> escalation_;   ///< Escalation rules.
-    std::vector<CatalogEntry> catalog_;     ///< Loaded catalog.
-    std::function<void(uint32_t)> snapshot_sink_;   ///< Diagnostic-capture request sink.
-    bool snapshot_on_critical_ = true;     ///< Configurable capture switch.
-    std::function<void(const AlarmStateEvent&)> event_sink_;   ///< Event sink (spoke emission).
+    IFileSystem& fs_; ///< Storage backend.
+    std::string db_path_; ///< Active-alarm database path.
+    TimeSource& ts_; ///< Clock for stamps.
+    std::vector<AlarmRecord> active_; ///< Active alarm table.
+    std::vector<EscalationRule> escalation_; ///< Escalation rules.
+    std::vector<CatalogEntry> catalog_; ///< Loaded catalog.
+    std::function<void(uint32_t)> snapshot_sink_; ///< Diagnostic-capture request sink.
+    bool snapshot_on_critical_ = true; ///< Configurable capture switch.
+    std::function<void(const AlarmStateEvent&)> event_sink_; ///< Event sink (spoke emission).
 };
 
 /// @brief Catalog YAML parsing (shared shape with the codegen catalog).

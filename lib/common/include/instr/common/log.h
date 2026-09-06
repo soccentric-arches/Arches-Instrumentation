@@ -44,12 +44,12 @@ namespace instr
 /// @brief Severity levels for structured log records.
 enum class LogLevel
 {
-    Trace = 0,     ///< Very verbose flow detail; normally disabled.
-    Debug = 1,     ///< Diagnostic detail for development.
-    Info = 2,      ///< Normal operational messages (default level).
-    Warning = 3,   ///< Recoverable problem worth attention.
-    Error = 4,     ///< Operation failed but the daemon keeps running.
-    Critical = 5   ///< Severe failure threatening service continuity.
+    Trace = 0, ///< Very verbose flow detail; normally disabled.
+    Debug = 1, ///< Diagnostic detail for development.
+    Info = 2, ///< Normal operational messages (default level).
+    Warning = 3, ///< Recoverable problem worth attention.
+    Error = 4, ///< Operation failed but the daemon keeps running.
+    Critical = 5 ///< Severe failure threatening service continuity.
 };
 
 /// @brief Canonical uppercase name of a level ("INFO", "ERROR", ...).
@@ -65,13 +65,13 @@ LogLevel log_level_from_name(const std::string&);
 /// @brief One structured log event with timestamps and arbitrary key=value fields.
 struct LogRecord
 {
-    LogLevel level = LogLevel::Info;                  ///< Severity of the event.
-    std::string source;                               ///< Emitting component, e.g. "telemetry.metrics".
-    std::string message;                              ///< Human-readable event text (may contain redacted values only).
-    std::map<std::string, std::string> fields;         ///< Structured key=value pairs (secret keys redacted).
-    uint64_t mono_ns = 0;                             ///< Monotonic timestamp of the event.
-    int64_t wall_ns = 0;                              ///< Wall timestamp of the event.
-    bool wall_valid = false;                          ///< True when wall_ns is trustworthy.
+    LogLevel level = LogLevel::Info; ///< Severity of the event.
+    std::string source; ///< Emitting component, e.g. "telemetry.metrics".
+    std::string message; ///< Human-readable event text (may contain redacted values only).
+    std::map<std::string, std::string> fields; ///< Structured key=value pairs (secret keys redacted).
+    uint64_t mono_ns = 0; ///< Monotonic timestamp of the event.
+    int64_t wall_ns = 0; ///< Wall timestamp of the event.
+    bool wall_valid = false; ///< True when wall_ns is trustworthy.
 };
 
 /// @brief Interface for log record consumers; Logger writes accepted records here.
@@ -120,8 +120,8 @@ class MemorySink : public ISink
     }
 
   private:
-    size_t cap_;                    ///< Maximum retained records.
-    std::deque<LogRecord> buf_;     ///< Ring buffer, oldest first.
+    size_t cap_; ///< Maximum retained records.
+    std::deque<LogRecord> buf_; ///< Ring buffer, oldest first.
 };
 
 /// @brief Secret hygiene guard (REQ §10, §12).
@@ -234,20 +234,20 @@ class Logger
     }
 
   private:
-    ISink* sink_;                                    ///< Destination for accepted records.
-    TimeSource* ts_;                                 ///< Clock for record timestamps.
-    LogLevel level_ = LogLevel::Info;                ///< Global level threshold.
-    std::map<std::string, LogLevel> source_levels_;  ///< Per-source level overrides.
+    ISink* sink_; ///< Destination for accepted records.
+    TimeSource* ts_; ///< Clock for record timestamps.
+    LogLevel level_ = LogLevel::Info; ///< Global level threshold.
+    std::map<std::string, LogLevel> source_levels_; ///< Per-source level overrides.
     /// @brief Per-source token-bucket state backing set_rate_limit().
     struct RateBucket
     {
-        double tokens;   ///< Current token count.
-        double last_s;   ///< Monotonic time of the last refill, seconds.
-        double rate;     ///< Allowed messages per second.
+        double tokens; ///< Current token count.
+        double last_s; ///< Monotonic time of the last refill, seconds.
+        double rate; ///< Allowed messages per second.
     };
-    std::map<std::string, RateBucket> rate_limits_;   ///< Active per-source rate limits.
-    std::map<std::string, uint64_t> suppressed_;      ///< Suppressed-count summary state per source.
-    uint64_t dropped_ = 0;                           ///< Lifetime count of messages dropped by rate limiting.
+    std::map<std::string, RateBucket> rate_limits_; ///< Active per-source rate limits.
+    std::map<std::string, uint64_t> suppressed_; ///< Suppressed-count summary state per source.
+    uint64_t dropped_ = 0; ///< Lifetime count of messages dropped by rate limiting.
     /// @brief Monotonic seconds used for rate-limit bookkeeping.
     double now_s();
 };

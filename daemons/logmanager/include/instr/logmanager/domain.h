@@ -50,33 +50,33 @@ namespace domain
 /// @brief One configured log source (journal unit or file) with rotation/retention policy.
 struct SourceSpec
 {
-    std::string name;                    ///< Logical source name.
-    std::string kind;                    ///< journal | file.
-    std::string path;                    ///< File path (or journal unit).
-    std::string level;                   ///< Runtime level: TRACE..CRITICAL.
-    uint64_t rotate_size_bytes = 8 * 1024 * 1024;   ///< Rotate when the active file exceeds this.
-    uint32_t retention_files = 5;        ///< Rotated files kept per source.
-    uint64_t max_age_s = 7 * 24 * 3600;  ///< Age-based retention cutoff.
-    bool compress = true;                ///< Compress rotated files.
+    std::string name; ///< Logical source name.
+    std::string kind; ///< journal | file.
+    std::string path; ///< File path (or journal unit).
+    std::string level; ///< Runtime level: TRACE..CRITICAL.
+    uint64_t rotate_size_bytes = 8 * 1024 * 1024; ///< Rotate when the active file exceeds this.
+    uint32_t retention_files = 5; ///< Rotated files kept per source.
+    uint64_t max_age_s = 7 * 24 * 3600; ///< Age-based retention cutoff.
+    bool compress = true; ///< Compress rotated files.
 };
 
 /// @brief Filter parameters for a live tail session.
 struct TailFilter
 {
-    std::vector<std::string> sources;   ///< Sources to follow (empty = all).
-    std::string min_level;             ///< Minimum level; "" = all.
-    uint64_t since_mono_ns = 0;        ///< Only lines at/after this monotonic time.
-    uint32_t max_rate_per_s = 50;      ///< Emission rate cap.
-    uint32_t timeout_s = 30;           ///< Auto-stop after this many seconds.
+    std::vector<std::string> sources; ///< Sources to follow (empty = all).
+    std::string min_level; ///< Minimum level; "" = all.
+    uint64_t since_mono_ns = 0; ///< Only lines at/after this monotonic time.
+    uint32_t max_rate_per_s = 50; ///< Emission rate cap.
+    uint32_t timeout_s = 30; ///< Auto-stop after this many seconds.
 };
 
 /// @brief One log line as stored or tailed.
 struct LogLine
 {
-    uint64_t mono_ns = 0;    ///< Monotonic timestamp.
-    std::string source;      ///< Emitting source name.
-    std::string level;       ///< Level name.
-    std::string message;     ///< Line text.
+    uint64_t mono_ns = 0; ///< Monotonic timestamp.
+    std::string source; ///< Emitting source name.
+    std::string level; ///< Level name.
+    std::string message; ///< Line text.
 };
 
 /// @brief Per-source log files with rotation by size, retention by count and age, optional compression.
@@ -112,8 +112,8 @@ class LogStore
     /// @brief Retention prune statistics.
     struct PruneStats
     {
-        size_t files_removed = 0;    ///< Files deleted by this pass.
-        uint64_t bytes_freed = 0;    ///< Bytes reclaimed by this pass.
+        size_t files_removed = 0; ///< Files deleted by this pass.
+        uint64_t bytes_freed = 0; ///< Bytes reclaimed by this pass.
     };
     /// @brief Enforce retention (count + age) and the per-class storage budget.
     /// @param now_mono_ns Current monotonic time for age checks.
@@ -149,11 +149,11 @@ class LogStore
     {
         return fs_.join(base_, source + ".log");
     }
-    IFileSystem& fs_;                               ///< Storage backend.
-    std::string base_;                             ///< Base directory for log files.
-    std::vector<SourceSpec> sources_;               ///< Configured sources.
-    std::map<std::string, std::string> runtime_levels_;   ///< Runtime level overrides.
-    uint64_t budget_bytes_ = 128ull * 1024 * 1024;       ///< Per-class storage budget.
+    IFileSystem& fs_; ///< Storage backend.
+    std::string base_; ///< Base directory for log files.
+    std::vector<SourceSpec> sources_; ///< Configured sources.
+    std::map<std::string, std::string> runtime_levels_; ///< Runtime level overrides.
+    uint64_t budget_bytes_ = 128ull * 1024 * 1024; ///< Per-class storage budget.
 };
 
 /// @brief Live tail session: bounded, filtered, rate-limited, auto-stop.
@@ -188,22 +188,22 @@ class TailSession
     }
 
   private:
-    TailFilter filter_;             ///< Line selection and rate parameters.
-    uint64_t started_mono_ns_;      ///< Monotonic session start.
-    uint64_t window_start_ns_ = 0;  ///< Start of the current rate-limit window.
-    uint32_t window_emitted_ = 0;   ///< Emissions in the current window.
-    bool have_window_ = false;      ///< True once a window is open.
-    uint64_t emitted_ = 0;          ///< Total emitted.
-    uint64_t dropped_ = 0;          ///< Total dropped by rate limiting.
+    TailFilter filter_; ///< Line selection and rate parameters.
+    uint64_t started_mono_ns_; ///< Monotonic session start.
+    uint64_t window_start_ns_ = 0; ///< Start of the current rate-limit window.
+    uint32_t window_emitted_ = 0; ///< Emissions in the current window.
+    bool have_window_ = false; ///< True once a window is open.
+    uint64_t emitted_ = 0; ///< Total emitted.
+    uint64_t dropped_ = 0; ///< Total dropped by rate limiting.
 };
 
 /// @brief Metadata of a built support bundle (bulk transfer by handle).
 struct BundleMeta
 {
-    std::string handle;         ///< Opaque handle named by the control response.
-    uint64_t size_bytes = 0;    ///< Payload size.
-    std::string sha256;         ///< Payload integrity checksum.
-    std::string window_json;    ///< Window, sources and manifest summary.
+    std::string handle; ///< Opaque handle named by the control response.
+    uint64_t size_bytes = 0; ///< Payload size.
+    std::string sha256; ///< Payload integrity checksum.
+    std::string window_json; ///< Window, sources and manifest summary.
 };
 
 /// @brief Support-archive store: tars log windows for retrieval on the bulk socket.
@@ -250,9 +250,9 @@ class BundleStore
     {
         return fs_.join(dir_, "bundle-" + handle + ".json");
     }
-    IFileSystem& fs_;       ///< Storage backend.
-    std::string dir_;       ///< Bundle directory.
-    std::string log_base_;  ///< LogStore base directory.
+    IFileSystem& fs_; ///< Storage backend.
+    std::string dir_; ///< Bundle directory.
+    std::string log_base_; ///< LogStore base directory.
 };
 
 /// @brief Crash forensics: bounded coredump capture + last-N lines on abnormal daemon exit.
@@ -266,11 +266,11 @@ class CrashForensics
     /// @brief Record of one capture.
     struct Capture
     {
-        std::string daemon;             ///< Daemon that crashed.
-        std::string coredump_file;      ///< Stored (truncated) coredump path.
-        uint32_t tail_lines = 0;        ///< Log-tail lines folded in.
-        uint64_t coredump_bytes = 0;    ///< Stored coredump size.
-        bool ok = false;                ///< False when nothing could be captured.
+        std::string daemon; ///< Daemon that crashed.
+        std::string coredump_file; ///< Stored (truncated) coredump path.
+        uint32_t tail_lines = 0; ///< Log-tail lines folded in.
+        uint64_t coredump_bytes = 0; ///< Stored coredump size.
+        bool ok = false; ///< False when nothing could be captured.
     };
     /// @brief Capture a crash.
     ///
@@ -287,8 +287,8 @@ class CrashForensics
     std::vector<std::string> captured_files() const;
 
   private:
-    IFileSystem& fs_;    ///< Storage backend.
-    std::string dir_;    ///< Forensics directory.
+    IFileSystem& fs_; ///< Storage backend.
+    std::string dir_; ///< Forensics directory.
 };
 
 } // namespace domain
