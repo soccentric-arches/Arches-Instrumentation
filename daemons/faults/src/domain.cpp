@@ -148,33 +148,39 @@ std::vector<FaultRecord> FaultProcessor::feed(const std::vector<std::string>& li
     auto m = engine_.match(line);
     if (!m) continue;
     const FaultRule* rule = *m;
-    // Per-rule rate limiting (hard): a stuck driver emitting 10k lines/s must
-    // not drown the system. Suppressed streaks produce a summary record.
-    auto bit = buckets_.find(rule->name);
-    if (bit == buckets_.end())
-      bit = buckets_.emplace(rule->name, TokenBucket(rule->rate_limit_per_s,
-                                                     std::max(rule->rate_limit_per_s, 1.0)))
-                .first;
-    bool acquired = bit->second.try_acquire();
-    auto summary = summarizer_.on_attempt(acquired, bit->second);
-    if (summary) {
+    // Per-rule rate limiting (hard), driven by the feed's monotonic
+    // timestamps so the limiter is deterministic and testable.
+    double burst = std::max(rule->rate_limit_per_s, 1.0);
+    double last = bucket_last_mono_.count(rule->name)
+                      ? double(bucket_last_mono_[rule->name])
+                      : double(mono_ns);
+    double dt_s = std::max(0.0, (double(mono_ns) - last) / 1e9);
+    bucket_tokens_[rule->name] = std::min(burst, bucket_tokens_[rule->name] + dt_s * rule->rate_limit_per_s);
+    bucket_last_mono_[rule->name] = mono_ns;
+    bool acquired = bucket_tokens_[rule->name] >= 1.0;
+    if (acquired) bucket_tokens_[rule->name] -= 1.0;
+    if (!acquired) {
+      ++suppressed_streak_[rule->name];
+      continue;
+    }
+    // Streak ended: exactly one summary when the suppressed batch is large
+    // enough to matter ("suppressed N events", REQ §7.5).
+    if (suppressed_streak_[rule->name] >= FaultProcessor::kSuppressionSummaryThreshold) {
       FaultRecord s;
       s.fault_id = rule->fault_id;
       s.rule = rule->name;
       s.severity = rule->severity;
       s.x733_type = rule->x733_type;
       s.probable_cause = rule->probable_cause;
-      s.raw_line = *summary;  // "suppressed N events"
+      s.raw_line = "suppressed " + std::to_string(suppressed_streak_[rule->name]) + " events";
       s.occurrences = 0;
       s.backfill = backfill;
       s.mono_ns = mono_ns;
+      s.device_key = rule->name + ":suppressed";
       out.push_back(s);
-      stats_.suppressed_events += 0;  // count tracked in bucket
+      stats_.suppressed_events += suppressed_streak_[rule->name];
     }
-    if (!acquired) {
-      ++stats_.suppressed_events;
-      continue;
-    }
+    suppressed_streak_[rule->name] = 0;
     std::string key = RuleEngine::render_dedup_key(rule->dedup_key, line);
     auto occ = dedup_.observe(key, mono_ns, rule->dedup_window_s);
     if (!occ.second) {

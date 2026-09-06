@@ -116,13 +116,15 @@ TEST(FaultProcessor, RateLimitSuppressesFloodWithSummary) {
   for (int i = 0; i < 1000; ++i) flood.push_back("AER: Bus Error on 0000:01:00.0");
   uint64_t t = 1'000'000'000ull;
   auto recs = proc.feed(flood, t, false);
-  // 2 pass, rest suppressed; records well below 1000.
+  // 2 pass (burst), 998 suppressed; the summary lands on the next acquire.
   uint64_t real = 0;
   for (const auto& r : recs)
     if (r.occurrences > 0) ++real;
   EXPECT_LE(real, 3u);
-  EXPECT_LE(recs.size(), 5u);
-  EXPECT_NE(recs.back().raw_line.find("suppressed "), std::string::npos);
+  auto later = proc.feed({"AER: Bus Error on 0000:01:00.0"}, t + 2'000'000'000ull, false);
+  ASSERT_FALSE(later.empty());
+  EXPECT_NE(later[0].raw_line.find("suppressed "), std::string::npos);
+  EXPECT_EQ(later[0].raw_line, "suppressed 998 events");
   EXPECT_GT(proc.stats().faults_raised, 0u);
 }
 

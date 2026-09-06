@@ -81,8 +81,10 @@ class Deduplicator {
 // The full passive processor: scan lines → faults with dedup + suppression.
 class FaultProcessor {
  public:
-  FaultProcessor(std::vector<FaultRule> rules)
-      : engine_(std::move(rules)), summarizer_(1) {}
+  // A suppressed streak must reach this before a summary is emitted.
+  static constexpr uint64_t kSuppressionSummaryThreshold = 10;
+
+  FaultProcessor(std::vector<FaultRule> rules) : engine_(std::move(rules)) {}
 
   struct Stats {
     uint64_t lines_scanned = 0;
@@ -102,8 +104,9 @@ class FaultProcessor {
  private:
   RuleEngine engine_;
   Deduplicator dedup_;
-  SuppressionSummarizer summarizer_;
-  std::map<std::string, TokenBucket> buckets_;
+  std::map<std::string, double> bucket_tokens_;
+  std::map<std::string, uint64_t> bucket_last_mono_;
+  std::map<std::string, uint64_t> suppressed_streak_;
   Stats stats_;
 };
 

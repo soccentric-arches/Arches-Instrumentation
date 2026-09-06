@@ -98,8 +98,7 @@ Result<AlarmStateEvent> AlarmManager::raise(uint32_t alarm_id, const std::string
   AlarmStateEvent ev;
   if (existing) {
     existing->count++;
-    existing->last_seen = make_stamp(ts_);
-    existing->last_seen.seq = ts_.next_seq();
+    existing->last_seen = make_stamp(ts_);  // seq assigned once in make_stamp
     existing->owner = owner.empty() ? existing->owner : owner;
     if (!additional_text.empty()) existing->additional_text = additional_text;
     if (!correlated.empty()) existing->correlated = correlated;
