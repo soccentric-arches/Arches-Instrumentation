@@ -39,6 +39,7 @@ namespace instr
 
 // ---------------- serialiser ----------------
 
+/// @brief Append @p s to @p out as a quoted, escaped JSON string.
 static void dump_string(const std::string& s, std::string* out)
 {
     out->push_back('"');
@@ -64,6 +65,7 @@ static void dump_string(const std::string& s, std::string* out)
     out->push_back('"');
 }
 
+/// @brief Recursively serialise @p v into @p out with the given indent.
 static void dump_value(const JValue& v, int indent, int depth, std::string* out)
 {
     const std::string pad(depth * indent, ' ');
@@ -118,6 +120,7 @@ static void dump_value(const JValue& v, int indent, int depth, std::string* out)
     }
 }
 
+/// @brief Serialise this value to JSON text.
 std::string JValue::dump(int indent) const
 {
     std::string out;
@@ -310,6 +313,7 @@ struct Parser
 
 } // namespace
 
+/// @brief Strict JSON parser; the error carries the byte offset of the failure.
 Result<JValue> json_parse(const std::string& text)
 {
     try
@@ -328,6 +332,7 @@ Result<JValue> json_parse(const std::string& text)
 
 // ---------------- YAML → JSON ----------------
 
+/// @brief Convert one YAML scalar node to the equivalent JValue.
 static JValue yaml_scalar_to_json(const YAML::Node& n)
 {
     if (n.IsNull()) return JValue();
@@ -370,6 +375,7 @@ static JValue yaml_scalar_to_json(const YAML::Node& n)
     }
 }
 
+/// @brief Project YAML text (scalars, maps, sequences) to an equivalent JSON value.
 Result<JValue> json_from_yaml_text(const std::string& yaml_text)
 {
     try
@@ -388,6 +394,7 @@ Result<JValue> json_from_yaml_text(const std::string& yaml_text)
 namespace
 {
 
+/// @brief Decide whether a value matches a schema "type" keyword value.
 bool type_matches(const std::string& t, const JValue& v)
 {
     if (t == "object") return v.is_object();
@@ -400,13 +407,16 @@ bool type_matches(const std::string& t, const JValue& v)
     return true;
 }
 
+/// @brief Recursive validator worker; declared before use, defined below.
 void check(const JValue& schema, const JValue& v, const std::string& path, std::vector<JsonValidator::Issue>* issues);
 
+/// @brief Append one validation issue for @p path to @p issues.
 void add_issue(std::vector<JsonValidator::Issue>* issues, const std::string& path, const std::string& msg)
 {
     issues->push_back(JsonValidator::Issue{path, msg});
 }
 
+/// @brief Check scalar keywords (enum, minLength/maxLength, minimum/maximum, pattern).
 void check_scalar_keywords(const JValue& schema, const JValue& v, const std::string& path, std::vector<JsonValidator::Issue>* issues)
 {
     if (const JValue* e = schema.find("enum"))
@@ -454,6 +464,7 @@ void check_scalar_keywords(const JValue& schema, const JValue& v, const std::str
     }
 }
 
+/// @brief Recursively validate @p v against @p schema, recording pointer-style issues.
 void check(const JValue& schema, const JValue& v, const std::string& path, std::vector<JsonValidator::Issue>* issues)
 {
     // type: string or list
@@ -526,6 +537,7 @@ void check(const JValue& schema, const JValue& v, const std::string& path, std::
 
 } // namespace
 
+/// @brief Validate @p instance against @p schema (see header for supported keywords).
 bool JsonValidator::validate(const JValue& schema, const JValue& instance, std::vector<Issue>* issues)
 {
     std::vector<Issue> local;
