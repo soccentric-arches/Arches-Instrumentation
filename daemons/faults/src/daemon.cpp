@@ -29,10 +29,13 @@
 
 namespace instr
 {
+/// @brief Faults daemon: passive kernel-log fault detection (§7.5, R6).
 namespace faults
 {
 
 /// @brief Render a fault record as JSON for control responses.
+/// @param r Fault record to render.
+/// @return The record as JSON.
 static JValue record_json(const FaultRecord& r)
 {
     JValue o = JValue::object();
@@ -49,6 +52,8 @@ static JValue record_json(const FaultRecord& r)
 }
 
 /// @brief Build the faults ctrl command table.
+/// @param core Domain core the table reads from.
+/// @return The command table.
 CommandTable build_faults_table(FaultsCore* core)
 {
     CommandTable t;
@@ -93,6 +98,11 @@ CommandTable build_faults_table(FaultsCore* core)
 }
 
 /// @brief Wire the channel, config sink and handlers together.
+/// @param core Domain core.
+/// @param log Logger.
+/// @param table Command table.
+/// @param hub_target istate gRPC target.
+/// @param build_version Build version to advertise.
 FaultsSpoke::FaultsSpoke(FaultsCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version) : core_(core), log_(log), table_(table)
 {
     using ChannelT = SpokeChannel<faults::FaultHub, faults::FaultSpokeFrame, faults::FaultHubFrame>;
@@ -161,6 +171,7 @@ void FaultFollower::stop()
 }
 
 /// @brief Install the schema every config delivery must satisfy.
+/// @param schema Schema every config delivery must satisfy.
 void FaultsSpoke::set_schema(JValue schema)
 {
     // Configuration is delivered by istate and validated here before it can
@@ -181,6 +192,7 @@ void FaultsSpoke::stop()
 }
 
 /// @brief Queue a fault record to istate.
+/// @param r Fault record to queue.
 void FaultsSpoke::send_fault(const FaultRecord& r)
 {
     channel_->enqueue([&r](faults::FaultSpokeFrame& f) {

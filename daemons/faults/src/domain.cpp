@@ -33,13 +33,17 @@
 
 namespace instr
 {
+/// @brief Faults daemon: passive kernel-log fault detection (§7.5, R6).
 namespace faults
 {
+/// @brief Pure domain logic for this daemon: no transport, no sockets, fully unit-testable.
 namespace domain
 {
 
 // Fault ids arrive as "0x5_05_1_0001"-style text.
 /// @brief Parse a canonical "0x5_05_1_0001"-form fault id.
+/// @param text Canonical id text.
+/// @return The packed id, or an InvalidArgument error.
 Result<uint32_t> parse_fault_id_text(const std::string& text)
 {
     if (text.rfind("0x", 0) != 0) return Result<uint32_t>::fail(Errc::InvalidArgument, "fault id must start with 0x", text);
@@ -57,6 +61,8 @@ Result<uint32_t> parse_fault_id_text(const std::string& text)
 }
 
 /// @brief Parse and validate a fault-rules.yaml document.
+/// @param yaml_text Rules source text.
+/// @return Parsed rules, or a diagnosable parse error.
 Result<std::vector<FaultRule>> load_rules(const std::string& yaml_text)
 {
     try
@@ -120,6 +126,8 @@ Result<std::vector<FaultRule>> load_rules(const std::string& yaml_text)
 }
 
 /// @brief First rule matching a kernel line.
+/// @param line Kernel line to match.
+/// @return The first matching rule, or std::nullopt.
 std::optional<const FaultRule*> RuleEngine::match(const std::string& line) const
 {
     for (const auto& r : rules_)
@@ -137,6 +145,9 @@ std::optional<const FaultRule*> RuleEngine::match(const std::string& line) const
 }
 
 /// @brief Render a dedup template, extracting $device tokens from the line.
+/// @param tmpl Dedup template from the rule.
+/// @param line Kernel line providing the tokens.
+/// @return The rendered dedup key.
 std::string RuleEngine::render_dedup_key(const std::string& tmpl, const std::string& line)
 {
     if (tmpl.find("$device") == std::string::npos && tmpl.find("$zone") == std::string::npos && tmpl.find("$process") == std::string::npos) return tmpl;
@@ -173,6 +184,10 @@ std::string RuleEngine::render_dedup_key(const std::string& tmpl, const std::str
 }
 
 /// @brief Observe one key occurrence; merges counts inside the window.
+/// @param key Rendered dedup key.
+/// @param mono_ns Current monotonic time.
+/// @param window_s Merge window in seconds.
+/// @return (Occurrence count, first-in-window flag).
 std::pair<uint32_t, bool> Deduplicator::observe(const std::string& key, uint64_t mono_ns, uint32_t window_s)
 {
     Entry& e = map_[key];
@@ -190,6 +205,8 @@ std::pair<uint32_t, bool> Deduplicator::observe(const std::string& key, uint64_t
 }
 
 /// @brief Token-bucket check of the daemon-wide emission ceiling.
+/// @param mono_ns Current monotonic time.
+/// @return True when the ceiling allows an emission.
 bool FaultProcessor::global_allow(uint64_t mono_ns)
 {
     if (global_rate_per_s_ <= 0) return true; // disabled
@@ -212,6 +229,10 @@ bool FaultProcessor::global_allow(uint64_t mono_ns)
 }
 
 /// @brief Scan lines, dedup, rate-limit and emit fault records.
+/// @param lines Kernel lines to scan.
+/// @param mono_ns Current monotonic time.
+/// @param backfill True for boot-ring backfill records.
+/// @return The fault records produced by this batch.
 std::vector<FaultRecord> FaultProcessor::feed(const std::vector<std::string>& lines, uint64_t mono_ns, bool backfill)
 {
     std::vector<FaultRecord> out;

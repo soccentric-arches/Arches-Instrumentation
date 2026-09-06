@@ -38,6 +38,7 @@
 
 namespace instr
 {
+/// @brief Faults daemon: passive kernel-log fault detection (§7.5, R6).
 namespace faults
 {
 using namespace domain;
@@ -63,11 +64,14 @@ class FaultsCore
     }
 
     /// @brief Current configuration.
+/// @return Current configuration.
     const FaultsConfig& config() const
     {
         return cfg_;
     }
     /// @brief Apply an istate-delivered config document (§7.5, §9; rejects invalid values).
+/// @param doc Parsed, schema-validated document.
+/// @return ok(), or an error describing why the values were refused.
     Error apply_config(const ConfigDocument& doc)
     {
         FaultsConfig c;
@@ -83,6 +87,7 @@ class FaultsCore
         return Error::none();
     }
     /// @brief Install a callback fired when a new config is accepted.
+/// @param f Config-accepted listener.
     void set_config_listener(std::function<void(const FaultsConfig&)> f)
     {
         on_config_ = std::move(f);
@@ -100,12 +105,17 @@ class FaultsCore
         return Error::none();
     }
     /// @brief Raw text of the loaded rules (surfaced by ctrl "rules").
+/// @return Raw text of the loaded rules (surfaced by ctrl "rules").
     const std::string& rules_text() const
     {
         return rules_text_;
     }
 
     /// @brief Feed kernel lines through the processor and route records to the sink.
+/// @param lines Kernel lines to scan.
+/// @param mono_ns Current monotonic time.
+/// @param backfill True for records recovered from the boot ring.
+/// @return The fault records produced by this batch.
     std::vector<FaultRecord> feed(const std::vector<std::string>& lines, uint64_t mono_ns, bool backfill)
     {
         auto out = (*processor_).feed(lines, mono_ns, backfill);
@@ -116,16 +126,19 @@ class FaultsCore
         return out;
     }
     /// @brief Install the fault-record sink (spoke emission).
+/// @param f Fault-record sink (spoke emission).
     void set_sink(std::function<void(const FaultRecord&)> f)
     {
         sink_ = std::move(f);
     }
     /// @brief Lifetime processor statistics.
+/// @return Lifetime processor statistics.
     const FaultProcessor::Stats& stats() const
     {
         return (*processor_).stats();
     }
     /// @brief The active rule set (empty until rules are loaded).
+/// @return The active rule set (empty until rules are loaded).
     const std::vector<FaultRule>& rules() const
     {
         return processor_ ? (*processor_).engine_rules() : empty_rules_;
@@ -141,6 +154,8 @@ class FaultsCore
 };
 
 /// @brief Build the faults ctrl command table (rules, stats, feed).
+/// @param core Domain core the table reads from.
+/// @return The command table.
 CommandTable build_faults_table(FaultsCore* core);
 
 /// @brief Spoke: transport to istate plus the schema-validated config sink.
@@ -148,6 +163,11 @@ class FaultsSpoke
 {
   public:
     /// @brief Wire the channel, config sink and handlers together.
+/// @param core Domain core.
+/// @param log Logger.
+/// @param table Command table.
+/// @param hub_target istate gRPC target.
+/// @param build_version Build version to advertise.
     FaultsSpoke(FaultsCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version);
     /// @brief Start the channel.
     void start();
@@ -159,10 +179,12 @@ class FaultsSpoke
         return channel_->registered();
     }
     /// @brief Queue a fault record to istate.
+/// @param r Fault record to queue.
     void send_fault(const FaultRecord& r);
     /// @brief Queue a processor-statistics report to istate.
     void send_stats();
     /// @brief Install the schema every config delivery must satisfy (§9; "" = accepted).
+/// @param schema Schema every config delivery must satisfy.
     void set_schema(JValue schema);
     /// @brief Revision of the last config applied.
     uint64_t config_revision() const
@@ -187,6 +209,10 @@ class FaultFollower
 {
   public:
     /// @brief Construct the follower over a core, platform, clock and logger.
+/// @param core Domain core.
+/// @param plat Kernel-log source.
+/// @param ts Clock.
+/// @param log Logger.
     FaultFollower(FaultsCore* core, platform::IPlatform* plat, TimeSource* ts, Logger* log);
     /// @brief Read the ring from the start and feed it as backfill. Call once.
     size_t backfill();
@@ -197,6 +223,7 @@ class FaultFollower
     /// @brief Stop the periodic worker.
     void stop();
     /// @brief Override the follow interval.
+/// @param s New follow interval in seconds.
     void set_interval_s(double s)
     {
         worker_.set_interval_s(s);

@@ -193,6 +193,8 @@ namespace
 {
 
 /// @brief Read a fixture file from the test fixtures directory.
+/// @param name Fixture file name.
+/// @return The fixture file contents.
 std::string slurp_fixture(const std::string& name)
 {
     std::ifstream f(std::string(REPO_ROOT) + "/test/fixtures/" + name);
@@ -201,6 +203,8 @@ std::string slurp_fixture(const std::string& name)
     return ss.str();
 }
 /// @brief Split a fixture file into lines for feeding the processor.
+/// @param name Fixture file name.
+/// @return The fixture file split into lines.
 std::vector<std::string> fixture_lines(const std::string& name)
 {
     std::vector<std::string> out;
