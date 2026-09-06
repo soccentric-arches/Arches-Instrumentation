@@ -34,6 +34,7 @@ namespace instr
 namespace istate
 {
 
+/// @brief Build the istate ctrl command table.
 CommandTable build_istate_table(IstateCore* core)
 {
     CommandTable t;

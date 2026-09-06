@@ -49,31 +49,36 @@ namespace instr
 namespace istate
 {
 
+/// @brief istate runtime options.
 struct IstateOptions
 {
-    std::string pst_root; // /pst (or test root)
-    std::string run_dir; // /run/instrumentation
-    std::string build_version;
-    double liveness_hang_timeout_s = 30;
-    uint64_t spool_max_bytes = 64ull * 1024 * 1024;
-    double budget_spool = 64ull * 1024 * 1024;
-    double budget_logs = 128ull * 1024 * 1024;
-    double budget_ota = 512ull * 1024 * 1024;
-    double budget_backup = 256ull * 1024 * 1024;
+    std::string pst_root;         ///< /pst (or test root).
+    std::string run_dir;          ///< /run/instrumentation.
+    std::string build_version;    ///< Build version.
+    double liveness_hang_timeout_s = 30;       ///< Liveness hang threshold.
+    uint64_t spool_max_bytes = 64ull * 1024 * 1024;   ///< Northbound spool budget.
+    double budget_spool = 64ull * 1024 * 1024;    ///< Spool consumer budget.
+    double budget_logs = 128ull * 1024 * 1024;    ///< Logs consumer budget.
+    double budget_ota = 512ull * 1024 * 1024;     ///< OTA staging budget.
+    double budget_backup = 256ull * 1024 * 1024;  ///< Backup budget.
 };
 
+/// @brief istate core: owns /pst, orchestration, northbound transport and policy.
 class IstateCore
 {
   public:
+    /// @brief Construct the core over storage, platform, clock, logger and options.
     IstateCore(IstateOptions opts, IFileSystem& fs, platform::IPlatform& plat, TimeSource& ts, Logger& log);
 
-    // ---- lifecycle ----
-    // Mount /pst, validate, seed defaults on virgin; provisioning; start the
-    // spokes in order. Returns false only when the platform is unusable.
+    /// @brief Mount /pst, validate, seed defaults on virgin; provisioning; start the spokes in order.
+    ///
+    /// Returns false only when the platform is unusable.
     bool boot(const std::map<std::string, std::string>& default_yaml);
+    /// @brief Graceful shutdown: stop spokes, persist state, write the clean marker.
     void shutdown();
 
-    // ---- subsystems (wired into the hub server) ----
+    /// @brief Subsystems (wired into the hub server).
+    /// @{
     PstStore& pst()
     {
         return pst_;
@@ -114,198 +119,228 @@ class IstateCore
     {
         return audit_;
     }
+    /// @brief Logger access.
     Logger& log()
     {
         return log_;
     }
+    /// @}
+    /// @brief Clock access.
     TimeSource& clock()
     {
         return ts_;
     }
+    /// @brief Platform access.
     platform::IPlatform& platform()
     {
         return plat_;
     }
+    /// @brief Runtime options.
     const IstateOptions& options() const
     {
         return opts_;
     }
 
-    // ---- time policy (istate owns policy; networkd applies, §R8) ----
+    /// @brief Time policy (istate owns policy; networkd applies, §R8).
+    /// @{
     struct TimePolicyState
     {
-        std::vector<std::string> source_priority = {"gnss", "ptp", "ntp"};
-        std::string current_source = "unsynced";
-        double offset_ms = 0;
-        double lock_quality = 0;
-        bool locked = false;
+        std::vector<std::string> source_priority = {"gnss", "ptp", "ntp"};   ///< Locked preference order.
+        std::string current_source = "unsynced";   ///< Source currently in use.
+        double offset_ms = 0;         ///< Reported offset.
+        double lock_quality = 0;      ///< 0..1 confidence.
+        bool locked = false;          ///< Any source disciplined.
     };
+    /// @brief Time-policy state access.
     TimePolicyState& time_policy()
     {
         return time_policy_;
     }
-    // Called when a time source acquires lock: re-stamp spooled data (§4).
+    /// @brief Called when a time source acquires lock: re-stamp spooled data (§4).
     size_t on_time_lock(const std::string& source, int64_t offset_ns);
+    /// @brief Wall-clock reconciler access.
     TimeReconciler& reconciler()
     {
         return reconciler_;
     }
 
-    // ---- northbound ingest from spokes ----
-    // Each spoke's typed frames arrive as GenericSpokeMsg; istate routes them:
-    // telemetry → northbound spool (SPOOL_TELEMETRY), faults → protected,
-    // alarms → protected + timeline, samples → relay to telemetry, logs → tail
-    // fanout + spool refs, ota/backup events → timeline.
+    /// @brief Northbound ingest from spokes.
+    ///
+    /// Each spoke's typed frames arrive as GenericSpokeMsg; istate routes them:
+    /// telemetry → northbound spool (SPOOL_TELEMETRY), faults → protected,
+    /// alarms → protected + timeline, samples → relay to telemetry, logs → tail
+    /// fanout + spool refs, ota/backup events → timeline.
     void on_spoke_msg(const transport::GenericSpokeMsg& msg);
 
-    // Spoke command relay (Configuration → spoke, §3.3): correlated acks.
+    /// @brief Spoke command relay (Configuration → spoke, §3.3): correlated acks.
     struct PendingRelay
     {
-        std::promise<std::string> promise;
+        std::promise<std::string> promise;   ///< Fulfilled by the spoke's ack.
     };
+    /// @brief Relay a command to a spoke; resolves when its ack arrives.
     std::future<std::string> relay_command(const std::string& daemon, const common::Command& cmd);
+    /// @brief Complete a pending relay with a spoke's ack.
     void on_spoke_ack(const std::string& daemon, const common::Ack& ack);
 
-    // HQ session client hooks (implemented in hubs.cpp against HqPeer stub).
+    /// @brief Install the HQ send hook (implemented in hubs.cpp against the HqPeer stub).
     void set_hq_send(std::function<bool(const std::string& type, const std::string& json)> f)
     {
         hq_send_ = std::move(f);
     }
-    // Wiring: forward hub messages to a spoke's session (per-daemon sessions
-    // register themselves with the core).
+    /// @brief Wiring: forward hub messages to a spoke's session (per-daemon sessions register themselves with the core).
     using RelayFn = std::function<bool(const std::string& daemon, const transport::GenericHubMsg&)>;
     void set_relay_fn(RelayFn f)
     {
         relay_to_spoke_ = std::move(f);
     }
-    // Image default YAML provider (used for seeding + system reset).
+    /// @brief Image default YAML provider (used for seeding + system reset).
     void set_default_provider(std::function<std::map<std::string, std::string>()> f)
     {
         default_provider_ = std::move(f);
     }
-    // Enrollment secret (factory-provisioned) for signature verification.
+    /// @brief Enrollment secret (factory-provisioned) for signature verification.
     void set_enrollment_secret(std::string s)
     {
         enrollment_secret_ = std::move(s);
     }
+    /// @brief Enrollment secret accessor.
     const std::string& enrollment_secret() const
     {
         return enrollment_secret_;
     }
+    /// @brief Apply or release HQ backpressure.
     void set_hq_backpressure(bool pause);
+    /// @brief True while HQ asked us to pause.
     bool hq_backpressured() const
     {
         return hq_backpressured_;
     }
-    // Drain the northbound spool toward HQ (called when connected).
+    /// @brief Drain the northbound spool toward HQ (called when connected).
     NorthboundSpool::DrainReport drain_northbound(size_t max_batch = 50);
 
-    // A spoke completed (or failed) the registration handshake (§3.1). The
-    // orchestrator records build version, proto version and capabilities, and
-    // a mismatch raises an alarm — refusing quietly would leave a partially
-    // updated fleet looking healthy.
+    /// @brief A spoke completed (or failed) the registration handshake (§3.1).
+    ///
+    /// The orchestrator records build version, proto version and capabilities,
+    /// and a mismatch raises an alarm — refusing quietly would leave a
+    /// partially updated fleet looking healthy.
     void on_spoke_registration(const common::RegistrationRequest& req, bool accepted);
 
-    // ---- alarms istate declares (R5, §6, §11) ----
-    // R5: alarms are declared, never inferred — only an application sets one.
-    // istate is the application that owns storage budgets, /pst integrity, the
-    // registration handshake and the clock, so these are its to declare. It
-    // does so by asking the Alarms daemon through the same relay everything
-    // else uses (R1); it never writes the alarm table itself.
+    /// @brief Alarms istate declares (R5, §6, §11).
+    ///
+    /// R5: alarms are declared, never inferred — only an application sets one.
+    /// istate is the application that owns storage budgets, /pst integrity, the
+    /// registration handshake and the clock, so these are its to declare. It
+    /// does so by asking the Alarms daemon through the same relay everything
+    /// else uses (R1); it never writes the alarm table itself.
+    /// @{
     void raise_alarm(uint32_t alarm_id, const std::string& text);
     void clear_alarm(uint32_t alarm_id);
+    /// @}
 
-    // ---- capability manifest (§5.1) ----
-    // Loaded from the board's descriptor. istate must report what this board
-    // actually has: a hardcoded list claims GNSS and CAN on every target and
-    // turns "honest reporting" into "fails the call later".
+    /// @brief Capability manifest (§5.1), loaded from the board's descriptor.
+    ///
+    /// istate must report what this board actually has: a hardcoded list claims
+    /// GNSS and CAN on every target and turns "honest reporting" into "fails
+    /// the call later".
     void set_capabilities(std::vector<std::string> caps)
     {
         capabilities_ = std::move(caps);
     }
+    /// @brief Reported capabilities.
     const std::vector<std::string>& capabilities() const
     {
         return capabilities_;
     }
 
-    // ---- configuration delivery to spokes (R4, §7, §9) ----
-    // istate is the sole reader of /pst: a spoke asks on registration and is
-    // pushed a new delivery whenever its config changes. Returns false when
-    // the spoke has no session to push into (it will ask again on reconnect).
+    /// @brief Configuration delivery to spokes (R4, §7, §9).
+    ///
+    /// istate is the sole reader of /pst: a spoke asks on registration and is
+    /// pushed a new delivery whenever its config changes.
+    /// @{
+    /// @brief Push a daemon's config; false when it has no open session (it will ask again on reconnect).
     bool deliver_config(const std::string& daemon);
-    // Push the current config to every spoke with an open session.
+    /// @brief Push the current config to every spoke with an open session.
     void deliver_config_all();
-    // Revision of the config last delivered to a daemon (0 = never).
+    /// @brief Revision of the config last delivered to a daemon (0 = never).
     uint64_t config_revision(const std::string& daemon) const;
-    // Last delivery outcome reported by a spoke (§9: a rejected push is loud).
+    /// @brief Last delivery outcome reported by a spoke (§9: a rejected push is loud).
     struct ConfigAckState
     {
-        uint64_t revision = 0;
-        bool applied = false;
-        std::string reason;
+        uint64_t revision = 0;       ///< Revision the ack refers to.
+        bool applied = false;        ///< Whether the spoke accepted it.
+        std::string reason;          ///< Rejection reason when not applied.
     };
+    /// @brief Ack state for a daemon.
     ConfigAckState config_ack_state(const std::string& daemon) const;
+    /// @}
 
-    // ---- system info (Configuration API) ----
+    /// @brief System info for the Configuration API.
     std::string system_info_json() const;
+    /// @brief Budget usage report.
     std::string budgets_json() const;
 
-    // ---- reset (§6.1, §3.3 Configuration API) ----
+    /// @brief System reset (§6.1, §3.3 Configuration API).
     Result<bool> system_reset(const std::string& actor);
+    /// @brief Factory reset (manufacturing operation, explicitly gated).
     Result<bool> factory_reset(const std::string& actor, const std::string& confirmation);
 
-    // Unclean shutdown detection (§11): clean-shutdown marker under
-    // /pst/state (persistent — /run is tmpfs and would look unclean every
-    // boot). boot() observes the previous run's marker, reports an unclean
-    // shutdown northbound, then clears it; shutdown() writes it again.
+    /// @brief Unclean-shutdown detection (§11).
+    ///
+    /// The clean-shutdown marker lives under /pst/state (persistent — /run is
+    /// tmpfs and would look unclean every boot). boot() observes the previous
+    /// run's marker, reports an unclean shutdown northbound, then clears it;
+    /// shutdown() writes it again.
     void write_clean_shutdown_marker();
+    /// @brief Marker file path.
     std::string clean_shutdown_marker_path() const;
+    /// @brief True when the previous shutdown was clean.
     bool last_shutdown_clean() const
     {
         return observed_clean_shutdown_;
     }
 
+    /// @brief Queue a timeline event into the northbound spool.
     void push_event_to_spool(const std::string& payload_json)
     {
         northbound_spool_.enqueue(SpoolPriority::Event, payload_json, ts_.mono_ns());
     }
 
   private:
-    IstateOptions opts_;
-    IFileSystem& fs_;
-    platform::IPlatform& plat_;
-    TimeSource& ts_;
-    Logger& log_;
+    IstateOptions opts_;              ///< Runtime options.
+    IFileSystem& fs_;                  ///< Storage backend.
+    platform::IPlatform& plat_;        ///< Platform (not owned).
+    TimeSource& ts_;                   ///< Clock (not owned).
+    Logger& log_;                      ///< Logger (not owned).
 
-    BudgetManager budgets_;
-    PstStore pst_;
-    Provisioner provisioner_;
-    Orchestrator orchestrator_;
-    EventTimeline timeline_;
-    TailFanout tail_fanout_;
-    NorthboundSpool northbound_spool_;
-    HqSession hq_session_;
-    ConfigService config_service_;
-    AuditLog audit_;
-    TimeReconciler reconciler_;
-    TimePolicyState time_policy_;
+    BudgetManager budgets_;            ///< Per-consumer budgets.
+    PstStore pst_;                     ///< /pst store.
+    Provisioner provisioner_;          ///< First-boot provisioning.
+    Orchestrator orchestrator_;        ///< Spoke lifecycle.
+    EventTimeline timeline_;           ///< Ordered event stream.
+    TailFanout tail_fanout_;           ///< Live tail subscribers.
+    NorthboundSpool northbound_spool_;    ///< Queue toward HQ.
+    HqSession hq_session_;             ///< HQ session state machine.
+    ConfigService config_service_;     ///< Config get/set/verify.
+    AuditLog audit_;                   ///< Audit trail.
+    TimeReconciler reconciler_;        ///< Wall-clock reconciliation.
+    TimePolicyState time_policy_;      ///< Current time policy.
 
-    mutable std::mutex config_mu_;
-    std::map<std::string, uint64_t> config_revisions_;
-    std::map<std::string, ConfigAckState> config_acks_;
+    mutable std::mutex config_mu_;     ///< Guards config_revisions_/config_acks_.
+    std::map<std::string, uint64_t> config_revisions_;    ///< Delivered revision per daemon.
+    std::map<std::string, ConfigAckState> config_acks_;   ///< Last ack per daemon.
 
-    std::map<uint64_t, std::shared_ptr<PendingRelay>> pending_relays_;
-    std::mutex relay_mu_;
-    uint64_t next_relay_id_ = 1;
-    std::atomic<bool> hq_backpressured_{false};
-    std::function<bool(const std::string&, const std::string&)> hq_send_;
-    std::string enrollment_secret_;
-    std::vector<std::string> capabilities_;
-    // Conditions found during boot, before the Alarms daemon has attached.
+    std::map<uint64_t, std::shared_ptr<PendingRelay>> pending_relays_;   ///< In-flight command relays.
+    std::mutex relay_mu_;              ///< Guards pending_relays_.
+    uint64_t next_relay_id_ = 1;       ///< Relay id generator.
+    std::atomic<bool> hq_backpressured_{false};   ///< HQ backpressure flag.
+    std::function<bool(const std::string&, const std::string&)> hq_send_;   ///< HQ send hook.
+    std::string enrollment_secret_;    ///< Factory-provisioned secret.
+    std::vector<std::string> capabilities_;       ///< Board capability manifest.
+    ///< Conditions found during boot, before the Alarms daemon has attached.
     std::vector<std::pair<uint32_t, std::string>> pending_alarms_;
-    bool observed_clean_shutdown_ = false;
-    RelayFn relay_to_spoke_;
-    std::function<std::map<std::string, std::string>()> default_provider_;
+    bool observed_clean_shutdown_ = false;   ///< Result of the marker check at boot.
+    RelayFn relay_to_spoke_;           ///< Hub-message relay into spoke sessions.
+    std::function<std::map<std::string, std::string>()> default_provider_;   ///< Image defaults provider.
 };
 
 } // namespace istate

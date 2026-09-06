@@ -33,6 +33,7 @@ namespace instr
 {
 namespace istate
 {
+/// @brief Build the istate ctrl command table (config, spokes, spool, audit, resets).
 CommandTable build_istate_table(IstateCore* core);
 } // namespace istate
 } // namespace instr

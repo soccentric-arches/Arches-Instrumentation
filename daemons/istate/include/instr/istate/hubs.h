@@ -50,36 +50,48 @@ namespace instr
 namespace istate
 {
 
-// Hub impls derive from the generated nested `<X>Hub::Service` classes.
-// Builds and runs the full gRPC server for istate. Socket paths are
-// /run/instrumentation/<daemon>.sock (created by istate, §3.1) plus
-// configuration.sock. Returns the server (BuildAndStart) or nullptr.
+/// @brief Builds and runs the full gRPC server for istate (all hub services).
+///
+/// Hub impls derive from the generated nested `<X>Hub::Service` classes.
+/// Socket paths are /run/instrumentation/<daemon>.sock (created by istate, §3.1)
+/// plus configuration.sock.
+///
+/// @param core istate core the hubs ingest into.
+/// @param run_dir Directory holding the sockets.
+/// @param services Receives the built hub services (for the server's lifetime).
+/// @return The started server, or nullptr when startup failed.
 std::unique_ptr<grpc::Server> build_hub_server(IstateCore& core, const std::string& run_dir, std::vector<std::unique_ptr<grpc::Service>>* services);
 
-// HQ session client: dials HqPeer over the tunnel, pushes spooled data,
-// receives config pushes / OTA commands / backpressure.
+/// @brief HQ session client: dials HqPeer over the tunnel, pushes spooled data,
+/// receives config pushes / OTA commands / backpressure.
 class HqClient
 {
   public:
+    /// @brief Construct the client over @p hq_target.
     HqClient(IstateCore& core, Logger& log, const std::string& hq_target);
+    /// @brief Start the session loop.
     void start();
+    /// @brief Stop the session loop.
     void stop();
+    /// @brief True while a session is established.
     bool connected() const
     {
         return connected_;
     }
 
   private:
+    /// @brief Reconnect loop with jittered backoff.
     void run_loop();
+    /// @brief One session attempt.
     bool try_session();
 
-    IstateCore& core_;
-    Logger& log_;
-    std::string target_;
-    std::thread thread_;
-    std::atomic<bool> running_{false};
-    std::atomic<bool> connected_{false};
-    JitteredBackoff backoff_{2.0, 60.0};
+    IstateCore& core_;               ///< istate core (not owned).
+    Logger& log_;                     ///< Logger (not owned).
+    std::string target_;              ///< HQ tunnel target.
+    std::thread thread_;              ///< Thread running run_loop().
+    std::atomic<bool> running_{false};      ///< Lifecycle flag.
+    std::atomic<bool> connected_{false};    ///< Session state.
+    JitteredBackoff backoff_{2.0, 60.0};   ///< Reconnect backoff.
 };
 
 } // namespace istate

@@ -38,6 +38,7 @@ namespace instr
 namespace istate
 {
 
+/// @brief Construct the core and all subsystems.
 IstateCore::IstateCore(IstateOptions opts, IFileSystem& fs, platform::IPlatform& plat, TimeSource& ts, Logger& log)
     : opts_(std::move(opts)), fs_(fs), plat_(plat), ts_(ts), log_(log), budgets_(fs, opts_.pst_root), pst_(fs, opts_.pst_root, budgets_), provisioner_(pst_, plat, fs), orchestrator_(plat, ts), timeline_(5000), northbound_spool_(
                                                                                                                                                                                                                       fs,
@@ -57,6 +58,7 @@ IstateCore::IstateCore(IstateOptions opts, IFileSystem& fs, platform::IPlatform&
     budgets_.set_budget("backup", uint64_t(opts_.budget_backup));
 }
 
+/// @brief Mount, provision, seed and start the fleet in dependency order.
 bool IstateCore::boot(const std::map<std::string, std::string>& default_yaml)
 {
     // 1. Mount and validate /pst; corrupt → redundant copy; both fail → boot
@@ -178,12 +180,14 @@ bool IstateCore::boot(const std::map<std::string, std::string>& default_yaml)
     return true;
 }
 
+/// @brief Stop spokes, persist, write the clean-shutdown marker.
 void IstateCore::shutdown()
 {
     write_clean_shutdown_marker();
     orchestrator_.stop_all();
 }
 
+/// @brief Re-stamp spooled data when a time source acquires lock.
 size_t IstateCore::on_time_lock(const std::string& source, int64_t offset_ns)
 {
     time_policy_.locked = true;
@@ -195,6 +199,7 @@ size_t IstateCore::on_time_lock(const std::string& source, int64_t offset_ns)
     return n;
 }
 
+/// @brief Route a spoke frame by type (telemetry/faults/alarms/logs/events).
 void IstateCore::on_spoke_msg(const transport::GenericSpokeMsg& msg)
 {
     // First message from a spoke ⇒ it is alive and attached.
@@ -318,6 +323,7 @@ void IstateCore::on_spoke_msg(const transport::GenericSpokeMsg& msg)
     }
 }
 
+/// @brief Relay a command to a spoke, correlating the ack.
 std::future<std::string> IstateCore::relay_command(const std::string& daemon, const common::Command& cmd)
 {
     auto pending = std::make_shared<PendingRelay>();
@@ -342,6 +348,7 @@ std::future<std::string> IstateCore::relay_command(const std::string& daemon, co
     return fut;
 }
 
+/// @brief Complete a pending relay with a spoke's ack.
 void IstateCore::on_spoke_ack(const std::string& daemon, const common::Ack& ack)
 {
     (void)daemon;
@@ -366,6 +373,7 @@ void IstateCore::on_spoke_ack(const std::string& daemon, const common::Ack& ack)
     }
 }
 
+/// @brief Drain the northbound spool toward HQ.
 NorthboundSpool::DrainReport IstateCore::drain_northbound(size_t max_batch)
 {
     if (hq_backpressured_.load())
@@ -391,6 +399,7 @@ NorthboundSpool::DrainReport IstateCore::drain_northbound(size_t max_batch)
         max_batch);
 }
 
+/// @brief Apply or release HQ backpressure.
 void IstateCore::set_hq_backpressure(bool pause)
 {
     hq_backpressured_.store(pause);
@@ -402,6 +411,7 @@ void IstateCore::set_hq_backpressure(bool pause)
     else { hq_session_.on_backpressure(false); }
 }
 
+/// @brief Record a registration handshake result.
 void IstateCore::on_spoke_registration(const common::RegistrationRequest& req, bool accepted)
 {
     std::vector<std::string> caps(req.capabilities().begin(), req.capabilities().end());
@@ -419,6 +429,7 @@ void IstateCore::on_spoke_registration(const common::RegistrationRequest& req, b
     timeline_.append("registration", req.daemon(), "{\"accepted\":true,\"build\":\"" + req.build_version() + "\"}", ts_);
 }
 
+/// @brief Declare an alarm through the Alarms relay (never writes the table directly).
 void IstateCore::raise_alarm(uint32_t alarm_id, const std::string& text)
 {
     if (!relay_to_spoke_) return; // alarms not attached yet; nothing to do
@@ -434,6 +445,7 @@ void IstateCore::raise_alarm(uint32_t alarm_id, const std::string& text)
     (void)relay_to_spoke_("alarms", m);
 }
 
+/// @brief Clear an istate-declared alarm through the relay.
 void IstateCore::clear_alarm(uint32_t alarm_id)
 {
     if (!relay_to_spoke_) return;
@@ -448,6 +460,7 @@ void IstateCore::clear_alarm(uint32_t alarm_id)
     (void)relay_to_spoke_("alarms", m);
 }
 
+/// @brief Push a daemon's current config over its session.
 bool IstateCore::deliver_config(const std::string& daemon)
 {
     auto doc = pst_.load_config(daemon);
@@ -485,11 +498,13 @@ bool IstateCore::deliver_config(const std::string& daemon)
     return relay_to_spoke_(daemon, m);
 }
 
+/// @brief Push config to every spoke with an open session.
 void IstateCore::deliver_config_all()
 {
     for (const auto& name : startup_order()) (void)deliver_config(name);
 }
 
+/// @brief Last config revision delivered to a daemon.
 uint64_t IstateCore::config_revision(const std::string& daemon) const
 {
     std::lock_guard<std::mutex> lk(config_mu_);
@@ -497,6 +512,7 @@ uint64_t IstateCore::config_revision(const std::string& daemon) const
     return it == config_revisions_.end() ? 0 : it->second;
 }
 
+/// @brief Last delivery ack state for a daemon.
 IstateCore::ConfigAckState IstateCore::config_ack_state(const std::string& daemon) const
 {
     std::lock_guard<std::mutex> lk(config_mu_);
@@ -504,6 +520,7 @@ IstateCore::ConfigAckState IstateCore::config_ack_state(const std::string& daemo
     return it == config_acks_.end() ? ConfigAckState{} : it->second;
 }
 
+/// @brief Render system info for the Configuration API.
 std::string IstateCore::system_info_json() const
 {
     auto fid = plat_.read_factory_identity();
@@ -557,6 +574,7 @@ std::string IstateCore::system_info_json() const
     return o.dump();
 }
 
+/// @brief Render the budget usage report.
 std::string IstateCore::budgets_json() const
 {
     JValue arr = JValue::array();
@@ -572,6 +590,7 @@ std::string IstateCore::budgets_json() const
     return arr.dump();
 }
 
+/// @brief System reset: audit, wipe and reseed, then restart spokes.
 Result<bool> IstateCore::system_reset(const std::string& actor)
 {
     // System reset: wipes system/ and state/, keeps factory/ and backup/,
@@ -588,6 +607,7 @@ Result<bool> IstateCore::system_reset(const std::string& actor)
     return Result<bool>::good(true);
 }
 
+/// @brief Factory reset: audit and wipe everything (explicitly gated).
 Result<bool> IstateCore::factory_reset(const std::string& actor, const std::string& confirmation)
 {
     // Manufacturing operation only, explicitly gated (§6.1).
@@ -600,11 +620,13 @@ Result<bool> IstateCore::factory_reset(const std::string& actor, const std::stri
     return Result<bool>::good(true);
 }
 
+/// @brief Marker file path.
 std::string IstateCore::clean_shutdown_marker_path() const
 {
     return opts_.pst_root + "/state/clean-shutdown";
 }
 
+/// @brief Write the clean-shutdown marker.
 void IstateCore::write_clean_shutdown_marker()
 {
     fs_.mkdirs(opts_.pst_root + "/state");

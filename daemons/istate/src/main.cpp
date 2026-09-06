@@ -67,6 +67,7 @@ inline bool server_up(const std::unique_ptr<grpc::Server>& s)
 }
 } // namespace
 
+/// @brief istate entry: parse args, boot the core, serve until stopped.
 int main(int argc, char** argv)
 {
     auto args = instr::parse_daemon_args(argc, argv, "istate");

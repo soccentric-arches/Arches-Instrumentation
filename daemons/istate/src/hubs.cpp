@@ -1166,6 +1166,7 @@ class ApplicationApiImpl final : public istate::ApplicationApi::Service
 
 // ---- server builder ----
 
+/// @brief Build and start the gRPC server hosting every hub service.
 std::unique_ptr<grpc::Server> build_hub_server(IstateCore& core, const std::string& run_dir, std::vector<std::unique_ptr<grpc::Service>>* services)
 {
     grpc::ServerBuilder builder;
@@ -1267,22 +1268,26 @@ std::unique_ptr<grpc::Server> build_hub_server(IstateCore& core, const std::stri
 
 // ---- HQ session client ----
 
+/// @brief Construct the HQ client over the tunnel target.
 HqClient::HqClient(IstateCore& core, Logger& log, const std::string& hq_target) : core_(core), log_(log), target_(hq_target)
 {
 }
 
+/// @brief Start the session loop.
 void HqClient::start()
 {
     running_ = true;
     thread_ = std::thread([this] { run_loop(); });
 }
 
+/// @brief Stop the session loop.
 void HqClient::stop()
 {
     running_ = false;
     if (thread_.joinable()) thread_.join();
 }
 
+/// @brief Session loop with jittered backoff between attempts.
 void HqClient::run_loop()
 {
     // The HQ session is last in the startup order and never a precondition
@@ -1309,6 +1314,7 @@ void HqClient::run_loop()
     }
 }
 
+/// @brief One HQ session: stream spooled data, receive pushes and commands.
 bool HqClient::try_session()
 {
     auto channel = grpc::CreateCustomChannel(target_, grpc::InsecureChannelCredentials(), grpc::ChannelArguments());
