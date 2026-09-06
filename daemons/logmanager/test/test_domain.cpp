@@ -63,6 +63,10 @@ struct Fixture
 };
 
 /// @brief Build a LogLine helper for tail/collector tests.
+/// @param mono Monotonic timestamp.
+/// @param lvl Level name.
+/// @param msg Line text.
+/// @return The constructed LogLine.
 static LogLine line(uint64_t mono, const std::string& lvl, const std::string& msg)
 {
     LogLine l;

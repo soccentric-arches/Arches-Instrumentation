@@ -36,13 +36,17 @@
 
 namespace instr
 {
+/// @brief LogManager daemon: collection, retention, tailing and support bundles (§7.7).
 namespace logmanager
 {
+/// @brief Pure domain logic for this daemon: no transport, no sockets, fully unit-testable.
 namespace domain
 {
 
 static const char* kLevels[] = {"TRACE", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"};
 /// @brief Rank a level name (TRACE=0 .. CRITICAL=5) for filtering.
+/// @param l Level name to rank.
+/// @return The level index.
 static int level_index(const std::string& l)
 {
     for (int i = 0; i < 6; ++i)
@@ -51,6 +55,8 @@ static int level_index(const std::string& l)
 }
 
 /// @brief Look up a configured source by name.
+/// @param name Source name to look up.
+/// @return Pointer to the spec, or NotFound.
 Result<const SourceSpec*> LogStore::find(const std::string& name) const
 {
     for (const auto& s : sources_)
@@ -59,6 +65,8 @@ Result<const SourceSpec*> LogStore::find(const std::string& name) const
 }
 
 /// @brief Append one line, rotating the active file when oversized.
+/// @param source Source to append to.
+/// @param line Line to store.
 Error LogStore::append(const std::string& source, const LogLine& line)
 {
     const SourceSpec* spec = nullptr;
@@ -95,6 +103,8 @@ Error LogStore::append(const std::string& source, const LogLine& line)
 }
 
 /// @brief File names belonging to a source, active first.
+/// @param source Source to inspect.
+/// @return File names for the source, active first.
 std::vector<std::string> LogStore::files_for(const std::string& source) const
 {
     std::vector<std::string> out;
@@ -123,6 +133,8 @@ uint64_t LogStore::total_bytes() const
 }
 
 /// @brief Enforce retention (count + age) and the storage budget.
+/// @param now_mono_ns Current monotonic time.
+/// @return Counts of what this pass removed.
 LogStore::PruneStats LogStore::enforce_retention(uint64_t now_mono_ns)
 {
     PruneStats st;
@@ -203,6 +215,9 @@ LogStore::PruneStats LogStore::enforce_retention(uint64_t now_mono_ns)
 }
 
 /// @brief Read the bounded tail of a source's active file.
+/// @param source Source to read.
+/// @param max_lines Maximum lines returned.
+/// @return Oldest-first lines, or an error for unknown sources.
 Result<std::vector<LogLine>> LogStore::read_tail(const std::string& source, size_t max_lines) const
 {
     auto txt = fs_.read(active_path(source));
@@ -235,12 +250,16 @@ Result<std::vector<LogLine>> LogStore::read_tail(const std::string& source, size
 }
 
 /// @brief Set a runtime level override for a source.
+/// @param source Source to adjust.
+/// @param level New level name (TRACE..CRITICAL).
 void LogStore::set_runtime_level(const std::string& source, const std::string& level)
 {
     runtime_levels_[source] = level;
 }
 
 /// @brief Effective runtime level of a source.
+/// @param source Source to query.
+/// @return The effective runtime level.
 std::string LogStore::runtime_level(const std::string& source) const
 {
     auto it = runtime_levels_.find(source);
@@ -251,6 +270,8 @@ std::string LogStore::runtime_level(const std::string& source) const
 }
 
 /// @brief Decide whether a line passes the session filter.
+/// @param line Candidate line.
+/// @return True when it matches the filter.
 bool TailSession::matches(const LogLine& line) const
 {
     if (!filter_.sources.empty())
@@ -266,6 +287,9 @@ bool TailSession::matches(const LogLine& line) const
 }
 
 /// @brief Decide whether a line is emitted, enforcing the rate limit.
+/// @param line Candidate line.
+/// @param now_mono_ns Current monotonic time.
+/// @return True when it passes filter and rate limit.
 bool TailSession::accept(const LogLine& line, uint64_t now_mono_ns)
 {
     if (expired(now_mono_ns)) return false;
@@ -289,12 +313,18 @@ bool TailSession::accept(const LogLine& line, uint64_t now_mono_ns)
 }
 
 /// @brief True when the session timeout has elapsed.
+/// @param now_mono_ns Current monotonic time.
+/// @return True when the timeout has elapsed.
 bool TailSession::expired(uint64_t now_mono_ns) const
 {
     return now_mono_ns - started_mono_ns_ >= uint64_t(filter_.timeout_s) * 1'000'000'000ull;
 }
 
 /// @brief Tar the requested sources into a bundle with checksum metadata.
+/// @param store Log store to read from.
+/// @param sources Sources to include (empty = all).
+/// @param now_mono_ns Window end.
+/// @return Bundle metadata, or an error.
 Result<BundleMeta> BundleStore::create(LogStore& store, const std::vector<std::string>& sources, uint64_t now_mono_ns)
 {
     (void)now_mono_ns;
@@ -338,6 +368,8 @@ Result<BundleMeta> BundleStore::create(LogStore& store, const std::vector<std::s
 }
 
 /// @brief Load metadata for a handle.
+/// @param handle Bundle handle.
+/// @return The bundle metadata, or an error.
 Result<BundleMeta> BundleStore::meta(const std::string& handle) const
 {
     auto txt = fs_.read(meta_path(handle));
@@ -360,6 +392,8 @@ Result<BundleMeta> BundleStore::meta(const std::string& handle) const
 }
 
 /// @brief Read a bundle payload (used by the small-payload path).
+/// @param handle Bundle handle.
+/// @return The payload bytes, or an error.
 Result<std::string> BundleStore::payload(const std::string& handle) const
 {
     auto txt = fs_.read(handle_path(handle));
@@ -371,6 +405,8 @@ Result<std::string> BundleStore::payload(const std::string& handle) const
 }
 
 /// @brief Resolve a handle to its payload file path (bulk socket only).
+/// @param handle Bundle handle.
+/// @return The payload file path, or an error for unknown handles.
 Result<std::string> BundleStore::payload_path(const std::string& handle) const
 {
     // A handle is minted by this store and is hex, so it cannot contain path
@@ -383,6 +419,7 @@ Result<std::string> BundleStore::payload_path(const std::string& handle) const
 }
 
 /// @brief List all stored bundles.
+/// @return All bundles currently stored, oldest first.
 std::vector<BundleMeta> BundleStore::list() const
 {
     std::vector<BundleMeta> out;
@@ -401,6 +438,11 @@ std::vector<BundleMeta> BundleStore::list() const
 }
 
 /// @brief Truncate-store a coredump and fold in the daemon's last log lines.
+/// @param daemon Daemon that crashed.
+/// @param coredump_path Source coredump path (may be empty).
+/// @param last_lines Final log lines of the daemon.
+/// @param max_coredump_bytes Cap on the stored coredump size.
+/// @return The capture record, or an error when storage failed.
 Result<CrashForensics::Capture> CrashForensics::capture(const std::string& daemon, const std::string& coredump_path, const std::vector<std::string>& last_lines, uint64_t max_coredump_bytes)
 {
     Capture c;
@@ -433,6 +475,7 @@ Result<CrashForensics::Capture> CrashForensics::capture(const std::string& daemo
 }
 
 /// @brief Files stored so far.
+/// @return Files stored so far.
 std::vector<std::string> CrashForensics::captured_files() const
 {
     auto files = fs_.list_dir(dir_);

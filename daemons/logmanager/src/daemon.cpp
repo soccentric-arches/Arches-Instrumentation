@@ -31,10 +31,13 @@
 
 namespace instr
 {
+/// @brief LogManager daemon: collection, retention, tailing and support bundles (§7.7).
 namespace logmanager
 {
 
 /// @brief Render bundle metadata as JSON for control responses.
+/// @param m Bundle metadata to render.
+/// @return The metadata as JSON.
 static JValue bundle_json(const BundleMeta& m)
 {
     JValue o = JValue::object();
@@ -46,6 +49,8 @@ static JValue bundle_json(const BundleMeta& m)
 }
 
 /// @brief Apply an istate-delivered config document to the core.
+/// @param doc Parsed, schema-validated document.
+/// @return ok(), or an error describing why the values were refused.
 Error LogCore::apply_config(const ConfigDocument& doc)
 {
     Config c;
@@ -82,6 +87,8 @@ Error LogCore::apply_config(const ConfigDocument& doc)
 }
 
 /// @brief Build the logmanager ctrl command table.
+/// @param core Domain core the table reads from.
+/// @return The command table.
 CommandTable build_log_table(LogCore* core)
 {
     CommandTable t;
@@ -263,6 +270,8 @@ CommandTable build_log_table(LogCore* core)
 }
 
 /// @brief Public wrapper around the internal level ranking.
+/// @param l Level name to rank.
+/// @return The level index (TRACE=0 .. CRITICAL=5).
 int level_index_public(const std::string& l)
 {
     static const char* kLevels[] = {"TRACE", "DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"};
@@ -272,12 +281,19 @@ int level_index_public(const std::string& l)
 }
 
 /// @brief First configured source name, or a default when none are configured.
+/// @param core Domain core.
+/// @return The first configured source name, or a default.
 std::string first_source(LogCore* core)
 {
     return core->store().sources().empty() ? std::string() : core->store().sources()[0].name;
 }
 
 /// @brief Wire the channel, config sink and handlers together.
+/// @param core Domain core.
+/// @param log Logger.
+/// @param table Command table.
+/// @param hub_target istate gRPC target.
+/// @param build_version Build version to advertise.
 LogSpoke::LogSpoke(LogCore* core, Logger* log, const CommandTable* table, const std::string& hub_target, const std::string& build_version) : core_(core), log_(log), table_(table)
 {
     using ChannelT = SpokeChannel<logmanager::LogHub, logmanager::LogSpokeFrame, logmanager::LogHubFrame>;
@@ -301,6 +317,7 @@ LogSpoke::LogSpoke(LogCore* core, Logger* log, const CommandTable* table, const 
 }
 
 /// @brief Install the schema every config delivery must satisfy.
+/// @param schema Schema every config delivery must satisfy.
 void LogSpoke::set_schema(JValue schema)
 {
     config_sink_ = std::make_unique<ConfigSink>("logmanager", std::move(schema), [this](const ConfigDocument& doc) { return core_->apply_config(doc); });
@@ -319,6 +336,7 @@ void LogSpoke::stop()
 }
 
 /// @brief Queue a collected log line to istate.
+/// @param l Log line to queue.
 void LogSpoke::send_line(const LogLine& l)
 {
     channel_->enqueue([&l](logmanager::LogSpokeFrame& f) {
@@ -338,6 +356,7 @@ void LogSpoke::send_line(const LogLine& l)
 }
 
 /// @brief Queue a bundle announcement to istate.
+/// @param m Bundle metadata to queue.
 void LogSpoke::send_bundle(const BundleMeta& m)
 {
     channel_->enqueue([&m](logmanager::LogSpokeFrame& f) {
@@ -350,6 +369,9 @@ void LogSpoke::send_bundle(const BundleMeta& m)
 }
 
 /// @brief Queue a crash-forensics report to istate.
+/// @param daemon Daemon that crashed.
+/// @param coredump Stored coredump path.
+/// @param tail Log-tail lines folded in.
 void LogSpoke::send_crash(const std::string& daemon, const std::string& coredump, uint32_t tail)
 {
     channel_->enqueue([&](logmanager::LogSpokeFrame& f) {
@@ -383,6 +405,9 @@ void LogCollector::stop()
 // source's configured level. Journal "short" output and most application
 // sinks put the level in the first bracketed or bare token.
 /// @brief Best-effort level extraction from a raw log line.
+/// @param line Raw log line.
+/// @param dflt Level to use when none is detected.
+/// @return The detected level name.
 static std::string parse_level(const std::string& line, const std::string& dflt)
 {
     static const char* kLevels[] = {"CRITICAL", "ERROR", "WARNING", "WARN", "INFO", "DEBUG", "TRACE"};
@@ -399,6 +424,9 @@ static std::string parse_level(const std::string& line, const std::string& dflt)
 }
 
 /// @brief Split raw text into lines, filter and store them.
+/// @param spec Source the lines belong to.
+/// @param raw Raw collected text.
+/// @return Lines emitted and stored.
 size_t LogCollector::emit(const SourceSpec& spec, const std::string& raw)
 {
     if (raw.empty()) return 0;
@@ -421,6 +449,8 @@ size_t LogCollector::emit(const SourceSpec& spec, const std::string& raw)
 }
 
 /// @brief Collect one pass from a journal source.
+/// @param spec Journal source to collect.
+/// @return Lines appended.
 size_t LogCollector::collect_journal(const SourceSpec& spec)
 {
     if (!plat_) return 0;
@@ -453,6 +483,8 @@ size_t LogCollector::collect_journal(const SourceSpec& spec)
 }
 
 /// @brief Collect one pass from a file source.
+/// @param spec File source to collect.
+/// @return Lines appended.
 size_t LogCollector::collect_file(const SourceSpec& spec)
 {
     if (!fs_ || spec.path.empty()) return 0;
