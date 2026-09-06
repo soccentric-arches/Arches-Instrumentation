@@ -85,8 +85,10 @@ class AuditLog
         return entries_;
     }
     /// @brief Persist the log atomically.
+    /// @return ok(), or the write error.
     Error persist();
     /// @brief Load the log (tolerates a missing file).
+    /// @return ok(), or the load error.
     Error load();
 
   private:

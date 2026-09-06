@@ -79,6 +79,7 @@ class ConfigDocument
     static Result<ConfigDocument> parse(const std::string& yaml_text, const JValue& schema, const std::string& source_name);
 
     /// @brief Empty document (no schema validation) for programmatic construction.
+    /// @return An empty document.
     static ConfigDocument empty();
 
     /// @brief True when the dot-path exists in this document.

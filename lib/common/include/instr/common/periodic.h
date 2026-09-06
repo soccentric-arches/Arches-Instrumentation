@@ -65,6 +65,7 @@ class PeriodicWorker
     {
     }
     /// @brief Stop the worker and join its thread.
+/// @return Stop the worker and join its thread.
     ~PeriodicWorker()
     {
         stop();

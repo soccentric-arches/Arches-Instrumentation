@@ -135,6 +135,7 @@ class Orchestrator
 /// @param build_version Reported build version.
 /// @param proto_version Reported proto schema version.
 /// @param capabilities Reported capabilities.
+    /// @return Process a registration handshake.
     Reg register_spoke(const std::string& name, const std::string& build_version, uint32_t proto_version, const std::vector<std::string>& capabilities, std::string* refusal_reason = nullptr);
     /// @brief Mark a spoke ready (channel established).
 /// @param name Spoke that became ready.
@@ -212,6 +213,7 @@ class Orchestrator
 /// @return Pointer to the info, or NotFound.
     Result<const SpokeInfo*> spoke(const std::string& name) const;
     /// @brief True when every declared spoke is Ready.
+    /// @return True when every declared spoke is Ready.
     bool all_ready() const;
     /// @brief True when any spoke is Degraded or Hung.
 /// @return All managed spokes.

@@ -50,6 +50,7 @@ class IFileSystem
 {
   public:
     /// @brief Default destructor.
+/// @return Default destructor.
     virtual ~IFileSystem() = default;
 
     /// @brief Test whether a path exists.
@@ -294,11 +295,13 @@ class SimulatedFileSystem : public IFileSystem
         return files_;
     }
     /// @brief Total bytes stored across all files (test introspection).
+    /// @return Total bytes stored.
     uint64_t used_bytes() const;
 
   private:
     /// @brief Internal helper deciding whether a key denotes a directory.
     /// @param p Path to test.
+    /// @return True when the path is a directory.
     bool is_dir(const std::string& p) const;
     std::map<std::string, std::string> files_; ///< Files only: path → contents.
     std::map<std::string, bool> dirs_; ///< Directories: path → recursive-creation flag.

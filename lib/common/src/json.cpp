@@ -155,7 +155,7 @@ struct Parser
 
     /// @brief Fail the parse with @p msg plus the byte offset.
     /// @param msg Description of the syntax error.
-/// @param msg Description of the syntax error.
+/// @return Fail the parse with @p msg plus the byte offset.
     [[noreturn]] void fail(const std::string& msg)
     {
         throw std::runtime_error(msg + " at byte " + std::to_string(i));

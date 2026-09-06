@@ -79,6 +79,7 @@ class ISink
 {
   public:
     /// @brief Default destructor.
+/// @return Default destructor.
     virtual ~ISink() = default;
     /// @brief Consume one accepted log record.
     /// @param r Record to write; the sink must not retain a reference past the call.
@@ -279,6 +280,7 @@ class Logger
     std::map<std::string, uint64_t> suppressed_; ///< Suppressed-count summary state per source.
     uint64_t dropped_ = 0; ///< Lifetime count of messages dropped by rate limiting.
     /// @brief Monotonic seconds used for rate-limit bookkeeping.
+    /// @return Monotonic seconds.
     double now_s();
 };
 

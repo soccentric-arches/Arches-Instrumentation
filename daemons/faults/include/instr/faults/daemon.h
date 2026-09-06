@@ -215,8 +215,10 @@ class FaultFollower
 /// @param log Logger.
     FaultFollower(FaultsCore* core, platform::IPlatform* plat, TimeSource* ts, Logger* log);
     /// @brief Read the ring from the start and feed it as backfill. Call once.
+    /// @return Lines fed as backfill.
     size_t backfill();
     /// @brief One follow pass: feeds only records not seen before.
+    /// @return Records collected this pass.
     size_t poll();
     /// @brief Start the periodic worker.
     void start();

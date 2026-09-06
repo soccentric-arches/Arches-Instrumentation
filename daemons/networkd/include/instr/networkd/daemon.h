@@ -103,6 +103,7 @@ class NetworkdCore
 
     /// @brief Load a plan as the current running state (without applying).
 /// @param plan Plan to make current without applying.
+    /// @return ok(), or an error when the plan is rejected.
     Error load_plan(const NetworkPlan& plan);
     /// @brief Current running plan.
 /// @return The current running plan.
@@ -118,6 +119,7 @@ class NetworkdCore
     }
 
     /// @brief Apply the current plan through the platform (recorded/dry-run on host).
+    /// @return ok(), or the platform error.
     Error apply();
     /// @brief Tunnel-loss-guarded apply of a new plan (mandatory §7.2).
 /// @param next Candidate plan.
@@ -157,6 +159,7 @@ class NetworkdCore
 
     /// @brief Apply the time policy passed down from istate; renders daemon configs.
 /// @param policy Time policy from istate.
+    /// @return ok(), or the render/apply error.
     Error apply_time_policy(const TimePolicy& policy);
     /// @brief Rendered time-daemon configuration.
 /// @return The rendered time-daemon configuration.

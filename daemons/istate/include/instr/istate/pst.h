@@ -151,6 +151,7 @@ class PstStore
     MountReport mount();
     /// @brief Seed system/ from the shipped default YAML set (first boot / system reset).
 /// @param daemon_default_yaml Image default YAML per daemon.
+    /// @return ok(), or the write error.
     Error seed_defaults(const std::map<std::string, std::string>& daemon_default_yaml);
 
     /// @brief Load a daemon's configuration (sole reader).
@@ -161,6 +162,7 @@ class PstStore
     /// @brief Persist a daemon's configuration atomically with checksum+backup.
 /// @param daemon Daemon whose config to write.
 /// @param doc Document to persist.
+    /// @return ok(), or the write error.
     Error save_config(const std::string& daemon, const ConfigDocument& doc);
     /// @brief Read a checksum-protected file with fallback to its .bak copy.
 /// @param rel_path Protected file to read.
@@ -169,6 +171,7 @@ class PstStore
     /// @brief Write a checksum-protected file atomically.
 /// @param rel_path Protected file to write.
 /// @param data Complete contents to write.
+    /// @return ok(), or the write error.
     Error write_protected(const std::string& rel_path, const std::string& data);
 
     /// @brief Test whether a path exists under the root.
@@ -184,6 +187,7 @@ class PstStore
     std::string schema_version() const;
     /// @brief Record a new schema version.
 /// @param v Schema version to record.
+    /// @return ok(), or the write error.
     Error set_schema_version(const std::string& v);
     /// @brief Merge a new release's defaults: adds missing keys, preserves existing values by origin.
     ///
@@ -193,8 +197,10 @@ class PstStore
 
     /// @brief System reset (§6.1): wipes system/ and state/; keeps factory/ and backup/; reseeds system/ from image defaults after.
 /// @param defaults Image defaults for reseeding system/.
+    /// @return ok(), or the reset error.
     Error system_reset(const std::map<std::string, std::string>& defaults);
     /// @brief Factory reset: everything; manufacturing operation only, explicitly gated.
+    /// @return ok(), or the reset error.
     Error factory_reset();
 
     /// @brief Absolute path of a relative path under the root.

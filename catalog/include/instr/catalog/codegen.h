@@ -55,7 +55,7 @@ enum class Severity
 /// @brief Canonical lowercase name of a severity.
 /// @param s Severity to name.
 /// @return Canonical lowercase name.
-const char* severity_name(Severity);
+const char* severity_name(Severity s);
 
 /// @brief Parse a severity name (case-insensitive).
 /// @param s Name to parse.

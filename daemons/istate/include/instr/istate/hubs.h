@@ -87,6 +87,7 @@ class HqClient
     /// @brief Reconnect loop with jittered backoff.
     void run_loop();
     /// @brief One session attempt.
+    /// @return True when the condition holds; false otherwise.
     bool try_session();
 
     IstateCore& core_;               ///< istate core (not owned).

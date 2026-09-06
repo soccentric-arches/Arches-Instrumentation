@@ -63,9 +63,22 @@ class SimulatedPlatform : public IPlatform
     {
         entropy_ = v;
     }
+    /// @brief Inject a storage device into the enumeration.
+    /// @param d Storage device to inject.
     void inject_storage_device(const StorageDevice& d);
+    /// @brief Script a thermal zone reading.
+    /// @param id Zone id.
+    /// @param label Zone label.
+    /// @param c Temperature in Celsius.
     void set_thermal(const std::string& id, const std::string& label, double c);
+    /// @brief Script a power source reading.
+    /// @param id Source id.
+    /// @param kind ac or battery.
+    /// @param pct Charge percentage.
+    /// @param charging True when charging.
     void set_power(const std::string& id, const std::string& kind, double pct, bool charging);
+    /// @brief Inject a network interface into the enumeration.
+    /// @param i Interface to inject.
     void inject_iface(const IfaceInfo& i);
     void set_time_locked(bool v)
     {
@@ -229,6 +242,7 @@ class SimulatedPlatform : public IPlatform
 /// @return The factory identity, or an error when the board carries none.
     Result<FactoryIdentity> read_factory_identity() override;
 /// @brief True when the CSPRNG is seeded and safe for key generation.
+    /// @return True when the CSPRNG is seeded.
     bool entropy_available() override;
 /// @brief All storage devices with wear/health data.
 /// @return Storage devices with wear/health data.
@@ -237,18 +251,25 @@ class SimulatedPlatform : public IPlatform
 /// @return Partition topology.
     std::vector<Partition> partitions() override;
 /// @brief Memory pressure snapshot.
+    /// @return The memory snapshot.
     MemInfo memory_info() override;
 /// @brief CPU utilisation and frequency snapshot.
+    /// @return The CPU snapshot.
     CpuSnapshot cpu_snapshot() override;
 /// @brief One-minute load average.
+    /// @return One-minute load average.
     double load_average_1m() override;
 /// @brief Total process count.
+    /// @return Total process count.
     uint32_t process_count() override;
 /// @brief Uptime in seconds.
+    /// @return Uptime in seconds.
     uint64_t uptime_s() override;
 /// @brief Number of boots recorded.
+    /// @return Recorded boot count.
     uint32_t boot_count() override;
 /// @brief True when the previous shutdown was clean.
+    /// @return True when the previous shutdown was clean.
     bool last_shutdown_clean() override;
 /// @brief Thermal zone readings.
 /// @return Thermal zone readings.
@@ -258,10 +279,13 @@ class SimulatedPlatform : public IPlatform
     std::vector<PowerSource> power_sources() override;
 /// @brief Configure the hardware watchdog timeout (0 disarms where supported).
 /// @param seconds Watchdog timeout in seconds (0 disarms where supported).
+    /// @return ok(), or the device error.
     Error watchdog_set_timeout_s(int seconds) override;
 /// @brief Pet the hardware watchdog.
+    /// @return ok(), or the device error.
     Error watchdog_pet() override;
 /// @brief True when a time source is currently disciplined.
+    /// @return True when a source is disciplined.
     bool time_locked() override;
 /// @brief Which time sources this board has, and their state (§5, §7.1).
 /// @return Time-source inventory with state.
@@ -275,12 +299,15 @@ class SimulatedPlatform : public IPlatform
 /// @brief Select a boot slot; @p trial marks it pending confirmation.
 /// @param slot Slot to select ("A"/"B").
 /// @param trial Mark the slot pending confirmation when true.
+    /// @return ok(), or the error encountered.
     Error set_boot_slot(const std::string& slot, bool trial) override;
 /// @brief Confirm the currently pending slot as good.
+    /// @return ok(), or the error encountered.
     Error confirm_boot_slot() override;
 /// @brief Drive a GPIO line (Hardware daemon only, R7).
 /// @param line GPIO line number.
 /// @param value Value to drive.
+    /// @return ok(), or the error encountered.
     Error gpio_set(int line, bool value) override;
 /// @brief Read a GPIO line.
 /// @param line GPIO line number.
@@ -289,15 +316,18 @@ class SimulatedPlatform : public IPlatform
 /// @brief Set an LED steady on/off.
 /// @param name LED name.
 /// @param on True to light the LED.
+    /// @return ok(), or the error encountered.
     Error led_set(const std::string& name, bool on) override;
 /// @brief Blink an LED with the given duty cycle.
 /// @param name LED name.
 /// @param on_ms On duration in ms.
 /// @param off_ms Off duration in ms.
 /// @param repeats Number of blinks.
+    /// @return ok(), or the error encountered.
     Error led_blink(const std::string& name, int on_ms, int off_ms, int repeats) override;
 /// @brief Power-cycle a USB port.
 /// @param port USB port to power-cycle.
+    /// @return ok(), or the error encountered.
     Error usb_reset(const std::string& port) override;
 /// @brief Run a CAN loopback health check on @p iface.
 /// @param iface CAN interface to test.
@@ -306,6 +336,7 @@ class SimulatedPlatform : public IPlatform
 /// @brief Send one CAN frame on @p iface.
 /// @param iface CAN interface.
 /// @param frame Frame to send.
+    /// @return ok(), or the error encountered.
     Error can_send(const std::string& iface, const CanFrame& frame) override;
 /// @brief Drain up to @p max_frames frames buffered since the previous call.
 /// @param iface CAN interface.
@@ -315,23 +346,30 @@ class SimulatedPlatform : public IPlatform
 /// @brief Send a control command to a display.
 /// @param cmd Display command.
 /// @param arg Command argument.
+    /// @return ok(), or the error encountered.
     Error display_control(const std::string& cmd, const std::string& arg) override;
 /// @brief Probe display presence/capability.
 /// @return Probe result text, or an error.
     Result<std::string> display_probe() override;
 /// @brief Start a systemd unit (istate requests, REQ §7.1).
 /// @param unit systemd unit to start.
+    /// @return ok(), or the error encountered.
     Error unit_start(const std::string& unit) override;
 /// @brief Stop a systemd unit.
 /// @param unit systemd unit to stop.
+    /// @return ok(), or the error encountered.
     Error unit_stop(const std::string& unit) override;
 /// @brief Restart a systemd unit.
 /// @param unit systemd unit to restart.
+    /// @return ok(), or the error encountered.
     Error unit_restart(const std::string& unit) override;
 /// @brief Query whether a unit is active.
 /// @param unit systemd unit to query.
 /// @return True when active, or an error.
     Result<bool> unit_active(const std::string& unit) override;
+    /// @brief Kernel log source.
+    /// @param from_start True to read from the beginning; false to follow with new lines only.
+    /// @return The scripted kernel log lines.
     Result<std::vector<std::string>> kernel_log_lines(bool from_start) override;
 /// @brief Application log sink / journal access for LogManager.
 /// @param unit Unit whose journal to read.
@@ -343,10 +381,13 @@ class SimulatedPlatform : public IPlatform
 /// The simulated platform records the plan; native shells out only when
 /// INSTR_APPLY_NETWORK=1 (never silently mutates a host).
 /// @param plan_json Rendered network plan (interfaces, firewall, ssh windows, wg, time).
+    /// @return ok(), or the error encountered.
     Error apply_network_plan(const std::string& plan_json) override;
 /// @brief True when HQ is currently reachable.
+    /// @return True when HQ is currently reachable.
     bool hq_reachable() override;
 /// @brief Measured-boot attestation state (§10).
+    /// @return Measured-boot attestation state (§10).
     MeasuredBootState measured_boot() override;
 /// @brief Directory coredumps are written to.
 /// @return The coredump directory path.

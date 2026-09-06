@@ -47,6 +47,7 @@ class NativePlatform : public IPlatform
 {
   public:
     /// @brief Tear down open descriptors (watchdog, kmsg follow).
+/// @return Tear down open descriptors (watchdog, kmsg follow).
     ~NativePlatform() override;
     /// @brief Construct the platform rooted at @p sysroot ("/" on a device).
     explicit NativePlatform(std::string sysroot = "/");
@@ -62,6 +63,7 @@ class NativePlatform : public IPlatform
 /// @return The factory identity, or an error when the board carries none.
     Result<FactoryIdentity> read_factory_identity() override;
     /// @brief True when the CSPRNG is seeded and safe for key generation.
+    /// @return True when the CSPRNG is seeded.
     bool entropy_available() override;
 /// @brief All storage devices with wear/health data.
 /// @return Storage devices with wear/health data.
@@ -70,18 +72,25 @@ class NativePlatform : public IPlatform
 /// @return Partition topology.
     std::vector<Partition> partitions() override;
     /// @brief Memory pressure snapshot.
+    /// @return The memory snapshot.
     MemInfo memory_info() override;
     /// @brief CPU utilisation and frequency snapshot.
+    /// @return The CPU snapshot.
     CpuSnapshot cpu_snapshot() override;
     /// @brief One-minute load average.
+    /// @return One-minute load average.
     double load_average_1m() override;
     /// @brief Total process count.
+    /// @return Total process count.
     uint32_t process_count() override;
     /// @brief Uptime in seconds.
+    /// @return Uptime in seconds.
     uint64_t uptime_s() override;
     /// @brief Number of boots recorded.
+    /// @return Recorded boot count.
     uint32_t boot_count() override;
     /// @brief True when the previous shutdown was clean.
+    /// @return True when the previous shutdown was clean.
     bool last_shutdown_clean() override;
 /// @brief Thermal zone readings.
 /// @return Thermal zone readings.
@@ -91,10 +100,13 @@ class NativePlatform : public IPlatform
     std::vector<PowerSource> power_sources() override;
 /// @brief Configure the hardware watchdog timeout (0 disarms where supported).
 /// @param seconds Watchdog timeout in seconds (0 disarms where supported).
+    /// @return ok(), or the device error.
     Error watchdog_set_timeout_s(int seconds) override;
     /// @brief Pet the hardware watchdog.
+    /// @return ok(), or the device error.
     Error watchdog_pet() override;
     /// @brief True when a time source is currently disciplined.
+    /// @return True when a source is disciplined.
     bool time_locked() override;
 /// @brief Which time sources this board has, and their state (§5, §7.1).
 /// @return Time-source inventory with state.
@@ -108,12 +120,15 @@ class NativePlatform : public IPlatform
 /// @brief Select a boot slot; @p trial marks it pending confirmation.
 /// @param slot Slot to select ("A"/"B").
 /// @param trial Mark the slot pending confirmation when true.
+    /// @return ok(), or the error encountered.
     Error set_boot_slot(const std::string& slot, bool trial) override;
     /// @brief Confirm the currently pending slot as good.
+    /// @return ok(), or the error encountered.
     Error confirm_boot_slot() override;
 /// @brief Drive a GPIO line (Hardware daemon only, R7).
 /// @param line GPIO line number.
 /// @param value Value to drive.
+    /// @return ok(), or the error encountered.
     Error gpio_set(int line, bool value) override;
 /// @brief Read a GPIO line.
 /// @param line GPIO line number.
@@ -122,15 +137,18 @@ class NativePlatform : public IPlatform
 /// @brief Set an LED steady on/off.
 /// @param name LED name.
 /// @param on True to light the LED.
+    /// @return ok(), or the error encountered.
     Error led_set(const std::string& name, bool on) override;
 /// @brief Blink an LED with the given duty cycle.
 /// @param name LED name.
 /// @param on_ms On duration in ms.
 /// @param off_ms Off duration in ms.
 /// @param repeats Number of blinks.
+    /// @return ok(), or the error encountered.
     Error led_blink(const std::string& name, int on_ms, int off_ms, int repeats) override;
 /// @brief Power-cycle a USB port.
 /// @param port USB port to power-cycle.
+    /// @return ok(), or the error encountered.
     Error usb_reset(const std::string& port) override;
 /// @brief Run a CAN loopback health check on @p iface.
 /// @param iface CAN interface to test.
@@ -139,6 +157,7 @@ class NativePlatform : public IPlatform
 /// @brief Send one CAN frame on @p iface.
 /// @param iface CAN interface.
 /// @param frame Frame to send.
+    /// @return ok(), or the error encountered.
     Error can_send(const std::string& iface, const CanFrame& frame) override;
 /// @brief Drain up to @p max_frames frames buffered since the previous call.
 /// @param iface CAN interface.
@@ -148,18 +167,22 @@ class NativePlatform : public IPlatform
 /// @brief Send a control command to a display.
 /// @param cmd Display command.
 /// @param arg Command argument.
+    /// @return ok(), or the error encountered.
     Error display_control(const std::string& cmd, const std::string& arg) override;
 /// @brief Probe display presence/capability.
 /// @return Probe result text, or an error.
     Result<std::string> display_probe() override;
 /// @brief Start a systemd unit (istate requests, REQ §7.1).
 /// @param unit systemd unit to start.
+    /// @return ok(), or the error encountered.
     Error unit_start(const std::string& unit) override;
 /// @brief Stop a systemd unit.
 /// @param unit systemd unit to stop.
+    /// @return ok(), or the error encountered.
     Error unit_stop(const std::string& unit) override;
 /// @brief Restart a systemd unit.
 /// @param unit systemd unit to restart.
+    /// @return ok(), or the error encountered.
     Error unit_restart(const std::string& unit) override;
 /// @brief Query whether a unit is active.
 /// @param unit systemd unit to query.
@@ -179,10 +202,13 @@ class NativePlatform : public IPlatform
 /// The simulated platform records the plan; native shells out only when
 /// INSTR_APPLY_NETWORK=1 (never silently mutates a host).
 /// @param plan_json Rendered network plan (interfaces, firewall, ssh windows, wg, time).
+    /// @return ok(), or the error encountered.
     Error apply_network_plan(const std::string& plan_json) override;
     /// @brief True when HQ is currently reachable.
+    /// @return True when HQ is currently reachable.
     bool hq_reachable() override;
     /// @brief Measured-boot attestation state (§10).
+    /// @return Measured-boot attestation state (§10).
     MeasuredBootState measured_boot() override;
     /// @brief Write the rendered supplicant / hostapd configuration for a plan.
     ///
@@ -191,6 +217,7 @@ class NativePlatform : public IPlatform
     /// @param mode "sta" or "ap".
     /// @param iface Interface the configuration applies to.
     /// @param text Rendered configuration text.
+    /// @return ok(), or the error encountered.
     Error write_wireless_conf(const std::string& mode, const std::string& iface, const std::string& text);
     /// @brief What the last apply_network_plan did (or would have done on a host).
 /// @return Log of executed or intended network commands.
@@ -215,6 +242,7 @@ class NativePlatform : public IPlatform
     // Kernel-log follow state: one long-lived /dev/kmsg descriptor so that
     // polling returns only new records (see kernel_log_lines).
     /// @brief Open the long-lived /dev/kmsg follow descriptor.
+    /// @return True when the condition holds; false otherwise.
     bool open_follow_fd();
     /// @brief Read up to @p max_lines kernel messages from @p fd into @p out.
 /// @param fd Descriptor to read from.
@@ -233,12 +261,15 @@ class NativePlatform : public IPlatform
     /// @brief Write a U-Boot environment variable.
 /// @param var U-Boot variable to write.
 /// @param value Value to write.
+    /// @return ok(), or the error encountered.
     Error fw_setenv(const std::string& var, const std::string& value);
     /// @brief Probe (once) whether the board has a U-Boot environment.
+    /// @return True when the condition holds; false otherwise.
     bool have_fw_env();
     /// @brief Flag-file fallback for boards without U-Boot env.
 /// @param rel Flag-file relative path.
 /// @param value Value to record.
+    /// @return ok(), or the error encountered.
     Error write_boot_file(const std::string& rel, const std::string& value);
     bool fw_env_checked_ = false; ///< True after the first U-Boot env probe.
     bool fw_env_present_ = false; ///< Cached U-Boot env availability.
@@ -248,10 +279,12 @@ class NativePlatform : public IPlatform
     // INSTR_APPLY_NETWORK=1 — so a build host is never reconfigured.
     /// @brief Record (and conditionally execute) a network command.
 /// @param cmd Command to record (and conditionally execute).
+    /// @return ok(), or the error encountered.
     Error run_cmd(const std::string& cmd);
     /// @brief Record (and conditionally execute) a config-file write.
 /// @param path Config file to write.
 /// @param text Configuration text.
+    /// @return ok(), or the error encountered.
     Error write_conf(const std::string& path, const std::string& text);
 
     /// @brief Enrich a device with SMART / NVMe health where it is exposed.
@@ -267,6 +300,7 @@ class NativePlatform : public IPlatform
 /// @return Entry names.
     std::vector<std::string> list_dir(const std::string& path);
     /// @brief True when INSTR_APPLY_NETWORK=1 (mutations allowed).
+    /// @return True when INSTR_APPLY_NETWORK=1 (mutations allowed).
     bool apply_enabled() const;
 
     std::vector<std::string> applied_commands_; ///< Log of executed/intended network commands.

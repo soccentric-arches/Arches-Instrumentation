@@ -183,6 +183,7 @@ class IPlatform
 /// @return The factory identity, or an error when the board carries none.
     virtual Result<FactoryIdentity> read_factory_identity() = 0;
     /// @brief True when the CSPRNG is seeded and safe for key generation.
+    /// @return True when the CSPRNG is seeded.
     virtual bool entropy_available() = 0;
 
     /// @brief All storage devices with wear/health data.
@@ -192,18 +193,25 @@ class IPlatform
 /// @return Partition topology.
     virtual std::vector<Partition> partitions() = 0;
     /// @brief Memory pressure snapshot.
+    /// @return The memory snapshot.
     virtual MemInfo memory_info() = 0;
     /// @brief CPU utilisation and frequency snapshot.
+    /// @return The CPU snapshot.
     virtual CpuSnapshot cpu_snapshot() = 0;
     /// @brief One-minute load average.
+    /// @return One-minute load average.
     virtual double load_average_1m() = 0;
     /// @brief Total process count.
+    /// @return Total process count.
     virtual uint32_t process_count() = 0;
     /// @brief Uptime in seconds.
+    /// @return Uptime in seconds.
     virtual uint64_t uptime_s() = 0;
     /// @brief Number of boots recorded.
+    /// @return Recorded boot count.
     virtual uint32_t boot_count() = 0;
     /// @brief True when the previous shutdown was clean.
+    /// @return True when the previous shutdown was clean.
     virtual bool last_shutdown_clean() = 0;
 
     /// @brief Thermal zone readings.
@@ -215,11 +223,14 @@ class IPlatform
 
     /// @brief Configure the hardware watchdog timeout (0 disarms where supported).
 /// @param seconds Watchdog timeout in seconds (0 disarms where supported).
+    /// @return ok(), or the device error.
     virtual Error watchdog_set_timeout_s(int seconds) = 0;
     /// @brief Pet the hardware watchdog.
+    /// @return ok(), or the device error.
     virtual Error watchdog_pet() = 0;
 
     /// @brief True when a time source is currently disciplined.
+    /// @return True when a source is disciplined.
     virtual bool time_locked() = 0;
     /// @brief Which time sources this board has, and their state (§5, §7.1).
 /// @return Time-source inventory with state.
@@ -235,13 +246,16 @@ class IPlatform
     /// @brief Select a boot slot; @p trial marks it pending confirmation.
 /// @param slot Slot to select ("A"/"B").
 /// @param trial Mark the slot pending confirmation when true.
+    /// @return ok(), or the error encountered.
     virtual Error set_boot_slot(const std::string& slot, bool trial) = 0;
     /// @brief Confirm the currently pending slot as good.
+    /// @return ok(), or the error encountered.
     virtual Error confirm_boot_slot() = 0;
 
     /// @brief Drive a GPIO line (Hardware daemon only, R7).
 /// @param line GPIO line number.
 /// @param value Value to drive.
+    /// @return ok(), or the error encountered.
     virtual Error gpio_set(int line, bool value) = 0;
     /// @brief Read a GPIO line.
 /// @param line GPIO line number.
@@ -250,15 +264,18 @@ class IPlatform
     /// @brief Set an LED steady on/off.
 /// @param name LED name.
 /// @param on True to light the LED.
+    /// @return ok(), or the error encountered.
     virtual Error led_set(const std::string& name, bool on) = 0;
     /// @brief Blink an LED with the given duty cycle.
 /// @param name LED name.
 /// @param on_ms On duration in ms.
 /// @param off_ms Off duration in ms.
 /// @param repeats Number of blinks.
+    /// @return ok(), or the error encountered.
     virtual Error led_blink(const std::string& name, int on_ms, int off_ms, int repeats) = 0;
     /// @brief Power-cycle a USB port.
 /// @param port USB port to power-cycle.
+    /// @return ok(), or the error encountered.
     virtual Error usb_reset(const std::string& port) = 0;
     /// @brief Run a CAN loopback health check on @p iface.
 /// @param iface CAN interface to test.
@@ -276,6 +293,7 @@ class IPlatform
     /// @brief Send one CAN frame on @p iface.
 /// @param iface CAN interface.
 /// @param frame Frame to send.
+    /// @return ok(), or the error encountered.
     virtual Error can_send(const std::string& iface, const CanFrame& frame) = 0;
     /// @brief Drain up to @p max_frames frames buffered since the previous call.
 /// @param iface CAN interface.
@@ -285,6 +303,7 @@ class IPlatform
     /// @brief Send a control command to a display.
 /// @param cmd Display command.
 /// @param arg Command argument.
+    /// @return ok(), or the error encountered.
     virtual Error display_control(const std::string& cmd, const std::string& arg) = 0;
     /// @brief Probe display presence/capability.
 /// @return Probe result text, or an error.
@@ -292,12 +311,15 @@ class IPlatform
 
     /// @brief Start a systemd unit (istate requests, REQ §7.1).
 /// @param unit systemd unit to start.
+    /// @return ok(), or the error encountered.
     virtual Error unit_start(const std::string& unit) = 0;
     /// @brief Stop a systemd unit.
 /// @param unit systemd unit to stop.
+    /// @return ok(), or the error encountered.
     virtual Error unit_stop(const std::string& unit) = 0;
     /// @brief Restart a systemd unit.
 /// @param unit systemd unit to restart.
+    /// @return ok(), or the error encountered.
     virtual Error unit_restart(const std::string& unit) = 0;
     /// @brief Query whether a unit is active.
 /// @param unit systemd unit to query.
@@ -324,11 +346,14 @@ class IPlatform
     /// The simulated platform records the plan; native shells out only when
     /// INSTR_APPLY_NETWORK=1 (never silently mutates a host).
 /// @param plan_json Rendered network plan (interfaces, firewall, ssh windows, wg, time).
+    /// @return ok(), or the error encountered.
     virtual Error apply_network_plan(const std::string& plan_json) = 0;
     /// @brief True when HQ is currently reachable.
+    /// @return True when HQ is currently reachable.
     virtual bool hq_reachable() = 0;
 
     /// @brief Measured-boot attestation state (§10).
+    /// @return Measured-boot attestation state (§10).
     virtual MeasuredBootState measured_boot() = 0;
 
     /// @brief Directory coredumps are written to.

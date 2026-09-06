@@ -139,6 +139,7 @@ class NorthboundSpool
     NorthboundSpool(IFileSystem& fs, const SpoolConfig& cfg, BudgetManager* budgets);
 
     /// @brief Open/create the backing store.
+    /// @return ok(), or the open error.
     Error open();
     /// @brief Enqueue with the spool class; protected classes never drop.
 /// @param prio Eviction class.

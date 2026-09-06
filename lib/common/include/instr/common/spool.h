@@ -81,6 +81,7 @@ class DiskSpool
     }
 
     /// @brief Open/create the spool directory and rebuild the index from segment files (survives restart).
+    /// @return ok(), or the open error.
     Error open();
 
     /// @brief One stored record as returned by peek().
@@ -152,10 +153,13 @@ class DiskSpool
         uint32_t len; ///< Payload length in bytes.
     };
     /// @brief Start a new segment file (rolls when segment_bytes is reached).
+    /// @return ok(), or the write error.
     Error append_segment();
     /// @brief Rescan segment files and rebuild the in-memory index.
+    /// @return ok(), or the read error.
     Error load_index();
     /// @brief Evict the oldest droppable record (never protected classes).
+    /// @return ok() when one was dropped; an error when nothing was droppable.
     Error drop_one_oldest_droppable();
     /// @brief Remove index entry @p victim and its bytes from segment storage.
     /// @param victim Index position to erase.

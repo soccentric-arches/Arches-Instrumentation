@@ -57,6 +57,7 @@ class TimeSource
 {
   public:
     /// @brief Default destructor.
+/// @return Default destructor.
     virtual ~TimeSource() = default;
     /// @brief Monotonic clock reading in nanoseconds (resets per boot).
     /// @return Nanoseconds on the monotonic timeline.
@@ -77,13 +78,16 @@ class SystemTimeSource : public TimeSource
 {
   public:
     /// @brief Monotonic clock reading in nanoseconds (resets per boot).
+    /// @return Nanoseconds on the monotonic timeline.
     uint64_t mono_ns() override;
     /// @brief Wall-clock reading in nanoseconds since the epoch; may be wrong before a lock.
+    /// @return Nanoseconds since the epoch.
     int64_t wall_ns() override;
     /// @brief Boot identifier distinguishing monotonic timelines across reboots.
 /// @return The boot id string.
     std::string boot_id() override;
     /// @brief Next process-wide arrival-order sequence number (strictly increasing).
+    /// @return The next sequence number.
     uint64_t next_seq() override;
 };
 

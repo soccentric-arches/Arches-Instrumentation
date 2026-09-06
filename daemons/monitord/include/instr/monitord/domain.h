@@ -176,6 +176,7 @@ class WearProjector
     /// @brief Project remaining life for one device.
     /// @param d Device with wear indicators.
     /// @param age_days Age of the device so far.
+    /// @return The wear projection.
     static Projection project(const platform::StorageDevice& d, uint64_t age_days);
 };
 

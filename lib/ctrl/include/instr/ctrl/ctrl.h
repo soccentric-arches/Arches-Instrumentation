@@ -85,6 +85,7 @@ class CtrlServer
     /// @param socket_path Unix socket to bind.
     CtrlServer(const CommandTable* table, std::string socket_path);
     /// @brief Stop the server and join all worker threads.
+/// @return Stop the server and join all worker threads.
     ~CtrlServer();
 
     /// @brief Bind and listen; starts the accept thread.
@@ -160,6 +161,7 @@ class CtrlClient
 /// @param socket_path Control socket path to connect to.
     explicit CtrlClient(std::string socket_path);
     /// @brief Close any open connection.
+/// @return Close any open connection.
     ~CtrlClient();
 
     /// @brief Connect to the control socket.
@@ -230,9 +232,11 @@ class BulkServer
     {
     }
     /// @brief Stop the server and join the accept thread.
+/// @return Stop the server and join the accept thread.
     ~BulkServer();
 
     /// @brief Bind, listen and start the accept thread.
+    /// @return ok(), or a bind/listen error.
     Error start();
     /// @brief Stop accepting and close the socket.
     void stop();

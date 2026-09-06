@@ -235,8 +235,10 @@ class OtaEngine
 /// @param m Parsed manifest.
 /// @param enrollment_secret Secret for the legacy HMAC path.
 /// @param running_version Currently running version (anti-rollback floor).
+    /// @return ok(), or the verification error.
     Error stage(const ArtifactManifest& m, const std::string& enrollment_secret, const std::string& running_version);
     /// @brief Run the installer for the staged artifact and switch boot slots.
+    /// @return ok(), or the platform error.
     Error apply();
 
     /// @brief Confirm the pending trial slot after a successful boot (§11).
@@ -247,6 +249,7 @@ class OtaEngine
     Error confirm();
     /// @brief Roll back to the previous slot with a reason.
 /// @param reason Why the rollback happened.
+    /// @return ok(), or the platform error.
     Error rollback(const std::string& reason);
     /// @brief Periodic call: fires the automatic rollback when the deadline is overdue.
 /// @param now_mono_ns Current monotonic time.
@@ -299,6 +302,7 @@ class OtaEngine
 /// @param stage Stage name.
 /// @param progress 0..1 progress.
 /// @param message Human-readable detail.
+    /// @return ok(), or an error when the sink rejects.
     Error emit(const std::string& stage, double progress, const std::string& message);
     /// @brief Run the install engine (SWUpdate by default, install_fn_ when set).
 /// @param artifact Staged artifact path.

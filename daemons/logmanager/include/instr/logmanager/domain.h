@@ -136,6 +136,7 @@ class LogStore
 /// @return File names for the source, active first.
     std::vector<std::string> files_for(const std::string& source) const;
     /// @brief Total bytes stored across all sources.
+    /// @return Total bytes stored.
     uint64_t total_bytes() const;
 
     /// @brief Read the active file tail for a source (bounded).

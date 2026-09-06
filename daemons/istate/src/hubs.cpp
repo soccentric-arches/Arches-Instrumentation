@@ -103,6 +103,98 @@ template <typename Service, typename SpokeFrame, typename HubFrame> class TypedH
     /// @brief Construct a hub for @p daemon wiring ingest into the istate core.
     /// @param core istate core the hub ingests into.
     /// @param daemon Spoke identity this hub accepts.
+/// @param ' '..
+/// @param S S..
+/// @param e E..
+/// @param r R..
+/// @param v V..
+/// @param i I..
+/// @param c C..
+/// @param e E..
+/// @param ' '..
+/// @param , ,..
+/// @param    ..
+/// @param ' '..
+/// @param S S..
+/// @param p P..
+/// @param o O..
+/// @param k K..
+/// @param e E..
+/// @param F F..
+/// @param r R..
+/// @param a A..
+/// @param m M..
+/// @param e E..
+/// @param ' '..
+/// @param ' '..
+/// @param S S..
+/// @param e E..
+/// @param r R..
+/// @param v V..
+/// @param i I..
+/// @param c C..
+/// @param e E..
+/// @param ' '..
+/// @param , ,..
+/// @param    ..
+/// @param ' '..
+/// @param S S..
+/// @param p P..
+/// @param o O..
+/// @param k K..
+/// @param e E..
+/// @param F F..
+/// @param r R..
+/// @param a A..
+/// @param m M..
+/// @param e E..
+/// @param ' '..
+/// @param ' '..
+/// @param S S..
+/// @param e E..
+/// @param r R..
+/// @param v V..
+/// @param i I..
+/// @param c C..
+/// @param e E..
+/// @param ' '..
+/// @param , ,..
+/// @param    ..
+/// @param ' '..
+/// @param S S..
+/// @param p P..
+/// @param o O..
+/// @param k K..
+/// @param e E..
+/// @param F F..
+/// @param r R..
+/// @param a A..
+/// @param m M..
+/// @param e E..
+/// @param ' '..
+/// @param ' '..
+/// @param S S..
+/// @param e E..
+/// @param r R..
+/// @param v V..
+/// @param i I..
+/// @param c C..
+/// @param e E..
+/// @param ' '..
+/// @param , ,..
+/// @param    ..
+/// @param ' '..
+/// @param S S..
+/// @param p P..
+/// @param o O..
+/// @param k K..
+/// @param e E..
+/// @param F F..
+/// @param r R..
+/// @param a A..
+/// @param m M..
+/// @param e E..
+/// @param ' '..
     TypedHub(IstateCore& core, std::string daemon) : HubServiceBase<Service, SpokeFrame, HubFrame>(daemon, INSTR_VERSION), core_(core)
     {
         this->set_ingest([this, &core](const GenericSpokeMsg& m) { core.on_spoke_msg(m); });

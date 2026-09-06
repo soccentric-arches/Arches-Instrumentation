@@ -515,6 +515,7 @@ template <typename Service, typename SpokeFrame, typename HubFrame> class HubSer
     }
 
     /// @brief Queue a hub message for the spoke.
+/// @param m Hub message to queue.
     void push(const GenericHubMsg& m)
     {
         std::lock_guard<std::mutex> lk(mu_);
@@ -534,8 +535,12 @@ template <typename Service, typename SpokeFrame, typename HubFrame> class HubSer
 
   protected:
     /// @brief Convert a typed spoke frame into the generic transport message.
+/// @param f Typed spoke frame to convert.
+/// @return The generic transport message.
     virtual GenericSpokeMsg to_generic(const SpokeFrame& f) = 0;
     /// @brief Apply a generic hub message onto a typed hub frame.
+/// @param f Typed hub frame to fill.
+/// @param m Generic hub message.
     virtual void apply(HubFrame& f, const GenericHubMsg& m) = 0;
 
     std::string daemon_; ///< Accepted spoke identity.
@@ -555,6 +560,8 @@ template <typename Service, typename SpokeFrame, typename HubFrame> class HubSer
 // helpers live here.
 
 /// @brief UDS target helper: "unix:<path>".
+/// @param path Socket path.
+/// @return "unix:<path>".
 inline std::string uds_target(const std::string& path)
 {
     return "unix:" + path;
@@ -563,6 +570,9 @@ inline std::string uds_target(const std::string& path)
 /// @brief Shared command handling for every spoke: dispatch through the daemon's command table.
 ///
 /// Produces an Ack frame (same table as _ctrl, §3.2).
+/// @param table Command table to dispatch through (may be null).
+/// @param cmd Command to run.
+/// @return The ack frame carrying the result.
 inline common::Ack dispatch_to_ack(const CommandTable* table, const common::Command& cmd)
 {
     CommandResult r = table ? table->dispatch(cmd.op(), cmd.json_args()) : CommandResult::err(Errc::Unavailable, "no table");
@@ -579,6 +589,8 @@ inline common::Ack dispatch_to_ack(const CommandTable* table, const common::Comm
 }
 
 /// @brief Copy a Stamp into a proto TimeStamp.
+/// @param ts TimeStamp to populate.
+/// @param s Stamp to copy from.
 inline void set_ts(common::TimeStamp* ts, const Stamp& s)
 {
     ts->set_mono_ns(s.mono_ns);

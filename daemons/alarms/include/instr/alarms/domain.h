@@ -165,8 +165,10 @@ class AlarmManager
     std::vector<AlarmStateEvent> escalation_sweep(uint64_t now_mono_ns);
 
     /// @brief Persist active alarms to state/alarms/active.db (survives restart).
+    /// @return ok(), or the persistence error.
     Error save();
     /// @brief Load the active-alarm database from disk.
+    /// @return ok(), or the load error.
     Error load();
 
     /// @brief Snapshot-on-fault: request a bounded diagnostic capture when a CRITICAL alarm fires.
@@ -226,9 +228,11 @@ class AlarmManager
     }
     /// @brief Save the catalog to @p path.
 /// @param path Catalog file to write.
+    /// @return ok(), or the write error.
     Error save_catalog(const std::string& path);
     /// @brief Load the catalog from @p path.
 /// @param path Catalog file to read.
+    /// @return ok(), or the read error.
     Error load_catalog(const std::string& path);
 
     /// @brief Render the active table as JSON (ctrl "list" response).
