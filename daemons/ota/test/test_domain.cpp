@@ -62,6 +62,7 @@ struct Fixture
     std::vector<InstallCall> installs;
     bool install_should_fail = false;
 
+    /// @brief Provisions a temp store, simulated platform and stub installer for OTA tests.
     Fixture()
     {
         cfg.confirm_timeout_s = 600;

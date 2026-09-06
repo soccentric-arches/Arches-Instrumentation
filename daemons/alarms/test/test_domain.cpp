@@ -91,6 +91,7 @@ struct Fixture
     SimulatedFileSystem fs;
     CountingTs ts;
     AlarmManager mgr{fs, "/pst/state/alarms/active.db", ts};
+    /// @brief Provisions a temp /pst-like store and a manual clock for alarm tests.
     Fixture()
     {
         auto entries = load_catalog_entries(kCatalog);

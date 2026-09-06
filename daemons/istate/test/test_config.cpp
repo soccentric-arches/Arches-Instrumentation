@@ -195,6 +195,9 @@ struct HqSigner
         EVP_PKEY_free(key);
     }
 
+    /// @brief Sign a message with the test signing key.
+    /// @param message Exact bytes to sign.
+    /// @return The 64-byte signature.
     std::string sign(const std::string& message) const
     {
         EVP_MD_CTX* ctx = EVP_MD_CTX_new();

@@ -60,7 +60,7 @@ enum class CheckState
 /// @brief Canonical name of a check state ("pass", "fail", ...).
 /// @param s Check state to name.
 /// @return Canonical lowercase name.
-const char* check_state_name(CheckState);
+const char* check_state_name(CheckState s);
 
 /// @brief One executed device check.
 struct CheckResult

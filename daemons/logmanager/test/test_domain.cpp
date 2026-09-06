@@ -46,6 +46,7 @@ struct Fixture
     ManualTimeSource ts;
     std::string base = "/pst/state/logs";
     LogCore core{fs, base, ts}; // NOLINT
+    /// @brief Provisions a temp log store, bundle dir and manual clock.
     Fixture()
     {
         fs.mkdirs(base);
@@ -295,6 +296,7 @@ struct CollectFixture
     std::string base = "/pst/state/logs";
     LogCore core{fs, base, ts};
 
+    /// @brief Provisions collector fixtures: store, sink file and platform.
     CollectFixture()
     {
         fs.mkdirs(base);

@@ -44,6 +44,7 @@ struct PstFixture
     BudgetManager budgets{fs, "/pst"};
     PstStore pst{fs, "/pst", budgets};
     std::map<std::string, std::string> defaults;
+    /// @brief Provisions a temp /pst root on an in-memory filesystem.
     PstFixture()
     {
         defaults["istate"] = "a: 1\n";
@@ -177,6 +178,7 @@ struct BootFixture
     MemorySink log_sink;
     Logger log{log_sink, ts};
     IstateOptions opts;
+    /// @brief Provisions a store at the current schema version for boot-migration tests.
     BootFixture()
     {
         opts.pst_root = "/pst";

@@ -42,6 +42,7 @@ struct Fixture
     SimulatedFileSystem fs;
     BackupOptions opts;
     std::unique_ptr<BackupEngine> eng;
+    /// @brief Provisions a temp store with identity options for backup tests.
     Fixture()
     {
         // Populate /pst/system.
