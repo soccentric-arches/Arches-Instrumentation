@@ -67,8 +67,10 @@ TEST(TelemetryRetention, DropsOldestTelemetryFirst) {
   // bound temporarily — alarms and faults must not be shed.
   MetricBatch prot;
   for (int i = 0; i < 4; ++i) buf.push(prot, RetentionBuffer::Class::Protected);
-  EXPECT_EQ(buf.dropped(), 2u);   // telemetry drops only
-  EXPECT_EQ(buf.size(), 7u);      // 1 telemetry + 6 protected retained
+  // Each protected push sheds one more old telemetry record; once only
+  // protected remain the buffer may exceed the bound (never drop them).
+  EXPECT_EQ(buf.dropped(), 5u);   // telemetry drops only (2 + 3)
+  EXPECT_EQ(buf.size(), 4u);      // 4 protected retained, telemetry shed
 }
 
 TEST(TelemetryHealthScore, MonotonicPenaltiesWithFactors) {

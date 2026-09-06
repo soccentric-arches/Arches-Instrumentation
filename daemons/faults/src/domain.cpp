@@ -150,7 +150,9 @@ std::vector<FaultRecord> FaultProcessor::feed(const std::vector<std::string>& li
     const FaultRule* rule = *m;
     // Per-rule rate limiting (hard), driven by the feed's monotonic
     // timestamps so the limiter is deterministic and testable.
+    // Bucket starts full (burst), refills at rate with the feed's clock.
     double burst = std::max(rule->rate_limit_per_s, 1.0);
+    if (!bucket_last_mono_.count(rule->name)) bucket_tokens_[rule->name] = burst;
     double last = bucket_last_mono_.count(rule->name)
                       ? double(bucket_last_mono_[rule->name])
                       : double(mono_ns);

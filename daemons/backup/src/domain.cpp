@@ -78,9 +78,13 @@ static void collect(IFileSystem& fs, const std::string& root, const std::string&
 }
 
 std::string BackupEngine::key_for_archive() const {
-  // Local archives: key derived from device identity (HKDF-SHA256).
-  return crypto::hkdf_sha256(opts_.identity_secret + "|" + opts_.device_serial,
-                             "arches-backup-v1", "local-archive-key", 32);
+  // Local archives: key derived from the factory-provisioned identity secret
+  // (HKDF-SHA256). The secret is device-class identity, NOT the per-board
+  // serial — so a replacement board can decrypt a config backup (the
+  // manifest serial then forces fresh enrollment); the WireGuard keys and
+  // factory/ are excluded unconditionally, so identity itself is never
+  // portable through a backup (REQ §7.10).
+  return crypto::hkdf_sha256(opts_.identity_secret, "arches-backup-v1", "local-archive-key", 32);
 }
 
 std::string BackupEngine::encrypt_archive(const std::string& tar_bytes) const {

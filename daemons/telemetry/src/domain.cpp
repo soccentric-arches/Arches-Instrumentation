@@ -75,7 +75,9 @@ std::vector<AggWindow> Aggregator::close(uint64_t window_end_mono_ns) {
 
 void RetentionBuffer::push(const MetricBatch& b, Class cls) {
   buf_.push_back(Item{b, cls});
-  // Drop policy: oldest-first, never protected classes (§7.8/§11).
+  // Drop policy: oldest-first, never protected classes (§7.8/§11). Protected
+  // batches may exceed the bound temporarily — they are small and acked by
+  // HQ quickly; telemetry is what the bound exists to shed.
   while (buf_.size() > max_records_) {
     bool dropped_one = false;
     for (auto it = buf_.begin(); it != buf_.end(); ++it) {
@@ -86,11 +88,7 @@ void RetentionBuffer::push(const MetricBatch& b, Class cls) {
         break;
       }
     }
-    if (!dropped_one) {
-      // Only protected remain: drop the oldest anyway but count separately —
-      // in practice protected batches are small and acknowledged quickly.
-      buf_.pop_front();
-    }
+    if (!dropped_one) break;  // only protected remain — never drop them
   }
 }
 

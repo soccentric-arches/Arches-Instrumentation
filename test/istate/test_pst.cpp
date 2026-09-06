@@ -59,10 +59,12 @@ TEST(PstStore, SchemaVersionAndMigration) {
   EXPECT_EQ(added[0], "monitord/disk_warn_pct");  // new keys added...
   auto doc = f.pst.load_config("monitord");
   ASSERT_TRUE(doc.ok());
-  // ...existing operator values preserved...
-  ConfigDocument d;
-  d.set("interval", "42", Origin::Local);
-  f.pst.save_config("monitord", d);
+  // ...existing operator values preserved (load-modify-save keeps the keys
+  // the release added)...
+  auto op = f.pst.load_config("monitord");
+  ASSERT_TRUE(op.ok());
+  (*op).set("interval", "42", Origin::Local);
+  f.pst.save_config("monitord", *op);
   auto added2 = f.pst.migrate(new_release);
   EXPECT_TRUE(added2.empty());
   doc = f.pst.load_config("monitord");

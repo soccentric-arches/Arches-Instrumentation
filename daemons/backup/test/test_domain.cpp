@@ -67,6 +67,7 @@ TEST(BackupCrypto, ArchiveIsEncryptedNotPlainTar) {
 
 TEST(BackupPreview, ShowsAddReplaceDelete) {
   Fixture f;
+  f.fs.write("/pst/system/istate/keep.yaml", "keep: true\n");  // stays unchanged
   auto info = f.eng->create({"/pst/system"}, {}, "/pst/backup", 1'700'000'000);
   ASSERT_TRUE(info.ok());
   // Change one file, add another, remove one.
@@ -77,9 +78,10 @@ TEST(BackupPreview, ShowsAddReplaceDelete) {
   ASSERT_TRUE(p.ok());
   bool saw_replace = false, saw_add = false, saw_delete = false, saw_unchanged = false;
   for (const auto& e : p->entries) {
+    // Action = what the restore will do to the current state.
     if (e.action == "replace" && e.path == "istate/config.yaml") saw_replace = true;
-    if (e.action == "add" && e.path == "istate/extra.yaml") saw_add = true;
-    if (e.action == "delete" && e.path == "networkd/config.yaml") saw_delete = true;
+    if (e.action == "add" && e.path == "networkd/config.yaml") saw_add = true;
+    if (e.action == "delete" && e.path == "istate/extra.yaml") saw_delete = true;
     if (e.action == "unchanged") saw_unchanged = true;
   }
   EXPECT_TRUE(saw_replace);
