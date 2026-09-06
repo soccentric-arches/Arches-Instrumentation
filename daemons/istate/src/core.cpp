@@ -403,12 +403,39 @@ std::string IstateCore::system_info_json() const {
   o.set("boot_id", JValue(ts_.boot_id()));
   o.set("boot_count", JValue(double(plat_.boot_count())));
   o.set("clean_shutdown", JValue(last_shutdown_clean()));
+  // Capability manifest (§5.1): what this board actually has, from its
+  // descriptor — not a fixed list that claims every feature everywhere.
   JValue caps = JValue::array();
-  // Capability manifest (§5.1): istate reports honestly rather than failing
-  // calls on platforms lacking a feature.
-  for (const char* c : {"wifi", "wifi_ap", "can", "display", "gnss", "ptp", "watchdog"})
-    caps.push(JValue(c));
+  for (const auto& c : capabilities_) caps.push(JValue(c));
   o.set("capabilities", caps);
+
+  // Time sources: which exist on this board and what each is doing (§7.1).
+  JValue sources = JValue::array();
+  for (const auto& t : const_cast<platform::IPlatform&>(plat_).time_sources()) {
+    JValue s = JValue::object();
+    s.set("kind", JValue(t.kind));
+    s.set("present", JValue(t.present));
+    s.set("locked", JValue(t.locked));
+    s.set("offset_ms", JValue(t.offset_ms));
+    s.set("quality", JValue(t.quality));
+    sources.push(s);
+  }
+  o.set("time_sources", sources);
+  o.set("time_source", JValue(time_policy_.current_source));
+
+  // Measured boot state, where the platform supports it (§10). Absence is
+  // reported as absence rather than silently omitted, so HQ can tell an
+  // unattested board from one it simply has no data for.
+  auto mb = const_cast<platform::IPlatform&>(plat_).measured_boot();
+  JValue boot = JValue::object();
+  boot.set("available", JValue(mb.available));
+  boot.set("mechanism", JValue(mb.mechanism.empty() ? std::string("none") : mb.mechanism));
+  boot.set("secure_boot_enabled", JValue(mb.secure_boot_enabled));
+  JValue pcrs = JValue::object();
+  for (const auto& kv : mb.pcrs) pcrs.set(std::to_string(kv.first), JValue(kv.second));
+  boot.set("pcrs", pcrs);
+  o.set("measured_boot", boot);
+
   return o.dump();
 }
 

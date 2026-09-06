@@ -134,6 +134,13 @@ class IstateCore {
   // Drain the northbound spool toward HQ (called when connected).
   NorthboundSpool::DrainReport drain_northbound(size_t max_batch = 50);
 
+  // ---- capability manifest (§5.1) ----
+  // Loaded from the board's descriptor. istate must report what this board
+  // actually has: a hardcoded list claims GNSS and CAN on every target and
+  // turns "honest reporting" into "fails the call later".
+  void set_capabilities(std::vector<std::string> caps) { capabilities_ = std::move(caps); }
+  const std::vector<std::string>& capabilities() const { return capabilities_; }
+
   // ---- configuration delivery to spokes (R4, §7, §9) ----
   // istate is the sole reader of /pst: a spoke asks on registration and is
   // pushed a new delivery whenever its config changes. Returns false when
@@ -201,6 +208,7 @@ class IstateCore {
   std::atomic<bool> hq_backpressured_{false};
   std::function<bool(const std::string&, const std::string&)> hq_send_;
   std::string enrollment_secret_;
+  std::vector<std::string> capabilities_;
   bool observed_clean_shutdown_ = false;
   RelayFn relay_to_spoke_;
   std::function<std::map<std::string, std::string>()> default_provider_;
