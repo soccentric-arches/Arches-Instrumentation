@@ -36,22 +36,26 @@
 namespace instr
 {
 
+/** @brief Error codes shared across the suite (one result/error model, REQ §4). */
 enum class Errc
 {
-    Ok = 0,
-    InvalidArgument,
-    NotFound,
-    Io,
-    Corrupt,
-    BudgetExceeded,
-    SignatureInvalid,
-    VersionMismatch,
-    Busy,
-    Unavailable,
-    NotSupported,
-    Internal,
+    Ok = 0,               ///< Success; the zero value must stay the success value.
+    InvalidArgument,      ///< Caller-supplied input failed validation.
+    NotFound,             ///< Referenced entity (key, file, path) does not exist.
+    Io,                   ///< Filesystem/socket I/O failure.
+    Corrupt,              ///< Parsed artefact is malformed (JSON, frame, spool entry).
+    BudgetExceeded,       ///< Size/rate/disk budget exceeded; request refused, not truncated.
+    SignatureInvalid,     ///< Signature or checksum verification failed.
+    VersionMismatch,      ///< Artefact version not understood by this build.
+    Busy,                 ///< Transient contention (lock, spool, device); retry may succeed.
+    Unavailable,          ///< Backing service or device not reachable.
+    NotSupported,         ///< Operation valid in the model but not on this platform/build.
+    Internal,             ///< Unexpected internal error; always a bug or a broken environment.
 };
 
+/// @brief Stable lowercase, hyphenated name of an error code for logs and ctrl output.
+/// @param c Error code to name.
+/// @return Name such as "invalid-argument"; "unknown" if @p c is out of range.
 inline const char* errc_name(Errc c)
 {
     switch (c)
@@ -72,26 +76,38 @@ inline const char* errc_name(Errc c)
     return "unknown";
 }
 
+/// @brief A diagnosable failure: category code, message and origin context.
 struct Error
 {
-    Errc code = Errc::Ok;
-    std::string message;
-    std::string context; // file/line/operation that produced it
+    Errc code = Errc::Ok;      ///< Failure category; Errc::Ok means success.
+    std::string message;       ///< Human-readable, diagnosable description.
+    std::string context;       ///< File/line/operation that produced it.
 
+    /// @brief True when this represents success rather than a failure.
+    /// @return True if @c code is Errc::Ok.
     bool ok() const
     {
         return code == Errc::Ok;
     }
+    /// @brief Render as a single log-friendly line: "name: message (context)".
+    /// @return The rendered string; the context part is omitted when empty.
     std::string str() const
     {
         std::string s = std::string(errc_name(code)) + ": " + message;
         if (!context.empty()) s += " (" + context + ")";
         return s;
     }
+    /// @brief Construct a success (no-failure) value.
+    /// @return Error with code Errc::Ok and empty message/context.
     static Error none()
     {
         return Error{};
     }
+    /// @brief Construct a failure value.
+    /// @param c Failure category.
+    /// @param msg Human-readable description of what failed.
+    /// @param ctx Optional origin context (file/line/operation).
+    /// @return The populated Error.
     static Error make(Errc c, std::string msg, std::string ctx = "")
     {
         Error e;
@@ -102,63 +118,94 @@ struct Error
     }
 };
 
+/// @brief Value-or-error return type used at every internal boundary (no exceptions).
+/// @tparam T Payload type carried on success.
 template <typename T> struct Result
 {
-    T value{};
-    Error error;
+    T value{};      ///< Payload; valid only when ok() is true.
+    Error error;    ///< Failure details; ok() when success.
 
+    /// @brief True when the operation succeeded.
+    /// @return True if the embedded Error is ok().
     bool ok() const
     {
         return error.ok();
     }
+    /// @brief Access the payload (const overload); only valid when ok().
     const T& operator*() const
     {
         return value;
     }
+    /// @brief Access the payload; only valid when ok().
     T& operator*()
     {
         return value;
     }
+    /// @brief Member access to the payload (const overload); only valid when ok().
     const T* operator->() const
     {
         return &value;
     }
+    /// @brief Member access to the payload; only valid when ok().
     T* operator->()
     {
         return &value;
     }
 
+    /// @brief Construct a success result carrying @p v.
+    /// @param v Payload to wrap.
+    /// @return Result with empty error.
     static Result good(T v)
     {
         Result r;
         r.value = std::move(v);
         return r;
     }
+    /// @brief Construct a failure result carrying @p e.
+    /// @param e Failure details.
+    /// @return Result whose error() is @p e.
     static Result fail(Error e)
     {
         Result r;
         r.error = std::move(e);
         return r;
     }
+    /// @brief Construct a failure result from parts.
+    /// @param c Failure category.
+    /// @param msg Human-readable description.
+    /// @param ctx Optional origin context.
+    /// @return Result whose error() is built from @p c/@p msg/@p ctx.
     static Result fail(Errc c, std::string msg, std::string ctx = "")
     {
         return fail(Error::make(c, std::move(msg), std::move(ctx)));
     }
 };
 
-// Specialisation for void-like success.
+/// @brief Placeholder payload for void-like success; makes Result usable without a value type.
 struct Unit
 {
 };
+/// @brief Status-only result type (success/failure, no payload).
 using Status = Result<Unit>;
+
+/// @brief Construct a success Status.
+/// @return Status with an empty error.
 inline Status good()
 {
     return Status::good(Unit{});
 }
+/// @brief Construct a failure Status carrying @p e.
+/// @param e Failure details.
+/// @return Status whose error() is @p e.
 inline Status fail(Error e)
 {
     return Status::fail(std::move(e));
 }
+/// @brief Construct a failure Status from parts.
+/// @param c Failure category.
+/// @param msg Human-readable description.
+/// @param ctx Optional origin context.
+/// @return Status whose error() is built from the given parts.
 inline Status fail(Errc c, std::string msg, std::string ctx = "")
 {
     return Status::fail(Error::make(c, std::move(msg), std::move(ctx)));
