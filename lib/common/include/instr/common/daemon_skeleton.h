@@ -40,41 +40,60 @@
 namespace instr
 {
 
+/// @brief Shared daemon command-line arguments.
 struct DaemonArgs
 {
-    std::string name;
-    std::string socket_override; // --socket PATH (ctrl socket override)
-    std::string hub_socket; // --hub PATH: istate registration socket
-    std::string root; // --root PATH: relocate /pst and /run for tests
-    // --platform native|simulated (or INSTR_PLATFORM). The simulated platform
-    // must be able to run the entire suite on a build host with no hardware
-    // (REQ §5), which means the daemons themselves have to be able to select
-    // it — not only the unit tests.
+    std::string name;              ///< Daemon identity (from argv or the caller).
+    std::string socket_override;   ///< --socket PATH (ctrl socket override).
+    std::string hub_socket;        ///< --hub PATH: istate registration socket.
+    std::string root;              ///< --root PATH: relocate /pst and /run for tests.
+    ///< --platform native|simulated (or INSTR_PLATFORM). The simulated platform
+    /// must be able to run the entire suite on a build host with no hardware
+    /// (REQ §5), which means the daemons themselves have to be able to select
+    /// it — not only the unit tests.
     std::string platform = "native";
-    bool help = false;
+    bool help = false;             ///< Set when --help was requested.
 };
 
-// True when the daemon was asked for the simulated platform.
+/// @brief True when the daemon was asked for the simulated platform.
 inline bool use_simulated_platform(const DaemonArgs& a)
 {
     return a.platform == "simulated";
 }
 
+/// @brief Parse the shared daemon arguments (@p daemon_name fills DaemonArgs::name).
+/// @param argc Argc from main().
+/// @param argv Argv from main().
+/// @param daemon_name Identity used for the usage line.
+/// @return Parsed arguments; help=true when --help was present.
 DaemonArgs parse_daemon_args(int argc, char** argv, const std::string& daemon_name);
 
-// Installs SIGINT/SIGTERM handlers that set the stop flag (graceful
-// shutdown); SIGPIPE is ignored (write errors are handled via Result).
+/// @brief Install SIGINT/SIGTERM handlers that set @p stop_flag (graceful shutdown).
+///
+/// SIGPIPE is ignored (write errors are handled via Result).
+///
+/// @param stop_flag Atomic set on SIGINT/SIGTERM.
 void install_signal_handlers(std::atomic<bool>& stop_flag);
 
-// systemd readiness notification via NOTIFY_SOCKET (datagram, no libsystemd
-// dependency). Returns false when NOTIFY_SOCKET is unset (running unsupervised).
+/// @brief systemd readiness notification via NOTIFY_SOCKET (datagram, no libsystemd dependency).
+/// @param status e.g. "READY=1".
+/// @return False when NOTIFY_SOCKET is unset (running unsupervised).
 bool sd_notify(const std::string& status);
+
+/// @brief Notify READY=1 when supervised.
 inline bool sd_notify_ready()
 {
     return sd_notify("READY=1");
 }
 
-// Block until stop_flag is set or `heartbeat` returns false.
+/// @brief Block until @p stop_flag is set or @p heartbeat returns false.
+///
+/// The heartbeat runs every @p poll_ms and normally performs periodic work;
+/// returning false ends the loop early.
+///
+/// @param stop_flag Atomic watched for shutdown.
+/// @param heartbeat Periodic work callback.
+/// @param poll_ms Sleep between heartbeat invocations.
 void run_until_stop(const std::atomic<bool>& stop_flag, const std::function<bool()>& heartbeat, int poll_ms = 200);
 
 } // namespace instr
