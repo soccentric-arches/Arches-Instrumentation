@@ -25,7 +25,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include <gtest/gtest.h>
 
 #include "instr/common/config.h"
@@ -212,8 +211,7 @@ TEST(NativeNetworkApply, PlanBecomesSystemCommands) {
   EXPECT_NE(cmds.find("ip link add link eth0 name eth0.100 type vlan id 100"), std::string::npos)
       << cmds;
   // Routing and DNS.
-  EXPECT_NE(cmds.find("ip route replace default via 10.0.0.1 dev eth0"), std::string::npos)
-      << cmds;
+  EXPECT_NE(cmds.find("ip route replace default via 10.0.0.1 dev eth0"), std::string::npos) << cmds;
   EXPECT_NE(cmds.find("write /etc/resolv.conf"), std::string::npos) << cmds;
   // Firewall and NAT.
   EXPECT_NE(cmds.find("nft -f /etc/nftables.conf"), std::string::npos) << cmds;
@@ -235,10 +233,10 @@ TEST(NativeNetworkApply, MalformedPlanIsRefusedLoudly) {
 
 TEST(NativeNetworkApply, ApModeStartsHostapdAndStopsSupplicant) {
   platform::NativePlatform plat("/nonexistent-sysroot");
-  ASSERT_TRUE(plat
-                  .apply_network_plan(
-                      R"({"wireless":{"enabled":true,"mode":"ap","iface":"wlan0","ssid":"commission"}})")
-                  .ok());
+  ASSERT_TRUE(
+      plat.apply_network_plan(
+              R"({"wireless":{"enabled":true,"mode":"ap","iface":"wlan0","ssid":"commission"}})")
+          .ok());
   const std::string cmds = joined_commands(plat);
   EXPECT_NE(cmds.find("systemctl restart hostapd"), std::string::npos) << cmds;
   EXPECT_NE(cmds.find("systemctl stop wpa_supplicant@wlan0"), std::string::npos) << cmds;
@@ -248,9 +246,9 @@ TEST(NativeNetworkApply, ApModeStartsHostapdAndStopsSupplicant) {
 // remote-bricking scenario the tunnel-loss guard exists to catch (§7.2).
 TEST(NativeNetworkApply, GeneratedFirewallAlwaysAdmitsTheTunnel) {
   platform::NativePlatform plat("/nonexistent-sysroot");
-  ASSERT_TRUE(plat.apply_network_plan(
-                      R"({"firewall":[{"action":"deny","proto":"any","src":"any"}]})")
-                  .ok());
+  ASSERT_TRUE(
+      plat.apply_network_plan(R"({"firewall":[{"action":"deny","proto":"any","src":"any"}]})")
+          .ok());
   // The rules text is written before nft loads it; the write is recorded.
   EXPECT_NE(joined_commands(plat).find("write /etc/nftables.conf"), std::string::npos);
 }

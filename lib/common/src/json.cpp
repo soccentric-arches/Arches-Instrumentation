@@ -140,7 +140,10 @@ struct Parser {
   }
   bool consume(char c) {
     skip_ws();
-    if (i < s.size() && s[i] == c) { ++i; return true; }
+    if (i < s.size() && s[i] == c) {
+      ++i;
+      return true;
+    }
     return false;
   }
   void expect(char c) {
@@ -152,9 +155,18 @@ struct Parser {
     if (c == '{') return parse_object();
     if (c == '[') return parse_array();
     if (c == '"') return JValue(parse_string());
-    if (c == 't') { lit("true"); return JValue(true); }
-    if (c == 'f') { lit("false"); return JValue(false); }
-    if (c == 'n') { lit("null"); return JValue(); }
+    if (c == 't') {
+      lit("true");
+      return JValue(true);
+    }
+    if (c == 'f') {
+      lit("false");
+      return JValue(false);
+    }
+    if (c == 'n') {
+      lit("null");
+      return JValue();
+    }
     return parse_number();
   }
   void lit(const char* l) {
@@ -188,16 +200,27 @@ struct Parser {
             for (int k = 0; k < 4; ++k) {
               char h = s[i++];
               v <<= 4;
-              if (h >= '0' && h <= '9') v |= unsigned(h - '0');
-              else if (h >= 'a' && h <= 'f') v |= unsigned(h - 'a' + 10);
-              else if (h >= 'A' && h <= 'F') v |= unsigned(h - 'A' + 10);
-              else fail("bad hex digit");
+              if (h >= '0' && h <= '9')
+                v |= unsigned(h - '0');
+              else if (h >= 'a' && h <= 'f')
+                v |= unsigned(h - 'a' + 10);
+              else if (h >= 'A' && h <= 'F')
+                v |= unsigned(h - 'A' + 10);
+              else
+                fail("bad hex digit");
             }
             // UTF-8 encode (BMP only; surrogates rejected)
             if (v >= 0xD800 && v <= 0xDFFF) fail("surrogates unsupported");
-            if (v < 0x80) out += char(v);
-            else if (v < 0x800) { out += char(0xC0 | (v >> 6)); out += char(0x80 | (v & 0x3F)); }
-            else { out += char(0xE0 | (v >> 12)); out += char(0x80 | ((v >> 6) & 0x3F)); out += char(0x80 | (v & 0x3F)); }
+            if (v < 0x80)
+              out += char(v);
+            else if (v < 0x800) {
+              out += char(0xC0 | (v >> 6));
+              out += char(0x80 | (v & 0x3F));
+            } else {
+              out += char(0xE0 | (v >> 12));
+              out += char(0x80 | ((v >> 6) & 0x3F));
+              out += char(0x80 | (v & 0x3F));
+            }
             break;
           }
           default: fail("bad escape");
@@ -217,9 +240,7 @@ struct Parser {
     if (start == i) fail("expected number");
     try {
       return JValue(std::stod(s.substr(start, i - start)));
-    } catch (...) {
-      fail("bad number");
-    }
+    } catch (...) { fail("bad number"); }
   }
   JValue parse_array() {
     expect('[');
@@ -282,8 +303,7 @@ static JValue yaml_scalar_to_json(const YAML::Node& n) {
         }
         double d = std::stod(raw, &pos);
         if (pos == raw.size()) return JValue(d);
-      } catch (...) {
-      }
+      } catch (...) {}
       return JValue(raw);
     }
     case YAML::NodeType::Sequence: {
@@ -296,8 +316,7 @@ static JValue yaml_scalar_to_json(const YAML::Node& n) {
       for (const auto& kv : n) obj.set(kv.first.as<std::string>(), yaml_scalar_to_json(kv.second));
       return obj;
     }
-    default:
-      return JValue();
+    default: return JValue();
   }
 }
 
@@ -345,18 +364,18 @@ void check_scalar_keywords(const JValue& schema, const JValue& v, const std::str
   if (v.is_string()) {
     const std::string& s = v.as_string();
     if (const JValue* m = schema.find("minLength")) {
-      if (s.size() < static_cast<size_t>(m->as_number())) add_issue(issues, path, "string too short");
+      if (s.size() < static_cast<size_t>(m->as_number()))
+        add_issue(issues, path, "string too short");
     }
     if (const JValue* m = schema.find("maxLength")) {
-      if (s.size() > static_cast<size_t>(m->as_number())) add_issue(issues, path, "string too long");
+      if (s.size() > static_cast<size_t>(m->as_number()))
+        add_issue(issues, path, "string too long");
     }
     if (const JValue* p = schema.find("pattern")) {
       try {
         std::regex re(p->as_string());
         if (!std::regex_search(s, re)) add_issue(issues, path, "string does not match pattern");
-      } catch (const std::regex_error&) {
-        add_issue(issues, path, "invalid pattern in schema");
-      }
+      } catch (const std::regex_error&) { add_issue(issues, path, "invalid pattern in schema"); }
     }
   }
   if (v.is_number()) {
@@ -376,7 +395,8 @@ void check(const JValue& schema, const JValue& v, const std::string& path,
   if (const JValue* t = schema.find("type")) {
     if (t->is_string()) {
       if (!type_matches(t->as_string(), v))
-        add_issue(issues, path, "expected type " + t->as_string() + ", got instance of another type");
+        add_issue(issues, path,
+                  "expected type " + t->as_string() + ", got instance of another type");
     } else if (t->is_array()) {
       bool ok = false;
       for (const auto& tt : t->items())
@@ -418,10 +438,12 @@ void check(const JValue& schema, const JValue& v, const std::string& path,
   }
   if (v.is_array()) {
     if (const JValue* mi = schema.find("minItems")) {
-      if (v.items().size() < static_cast<size_t>(mi->as_number())) add_issue(issues, path, "too few items");
+      if (v.items().size() < static_cast<size_t>(mi->as_number()))
+        add_issue(issues, path, "too few items");
     }
     if (const JValue* ma = schema.find("maxItems")) {
-      if (v.items().size() > static_cast<size_t>(ma->as_number())) add_issue(issues, path, "too many items");
+      if (v.items().size() > static_cast<size_t>(ma->as_number()))
+        add_issue(issues, path, "too many items");
     }
     if (const JValue* items = schema.find("items")) {
       size_t idx = 0;

@@ -70,9 +70,7 @@ Result<std::vector<CatalogEntry>> load_catalog_entries(const std::string& yaml_t
         if (compact.rfind("0x", 0) == 0) compact = compact.substr(2);
         try {
           return Result<uint32_t>::good(uint32_t(std::stoul(compact, nullptr, 16)));
-        } catch (...) {
-          return Result<uint32_t>::fail(Errc::InvalidArgument, "bad id", t);
-        }
+        } catch (...) { return Result<uint32_t>::fail(Errc::InvalidArgument, "bad id", t); }
       }();
       if (!idr.ok()) return Result<std::vector<CatalogEntry>>::fail(idr.error);
       c.id = *idr;
@@ -88,15 +86,14 @@ Result<std::vector<CatalogEntry>> load_catalog_entries(const std::string& yaml_t
     }
     return Result<std::vector<CatalogEntry>>::good(std::move(out));
   } catch (const std::exception& e) {
-    return Result<std::vector<CatalogEntry>>::fail(Errc::InvalidArgument,
-                                                   std::string("catalog parse: ") + e.what(),
-                                                   "alarms.yaml");
+    return Result<std::vector<CatalogEntry>>::fail(
+        Errc::InvalidArgument, std::string("catalog parse: ") + e.what(), "alarms.yaml");
   }
 }
 
 Result<AlarmStateEvent> AlarmManager::raise(uint32_t alarm_id, const std::string& owner,
-                                       const std::string& additional_text,
-                                       const std::vector<uint32_t>& correlated) {
+                                            const std::string& additional_text,
+                                            const std::vector<uint32_t>& correlated) {
   // Catalog lookup supplies X.733 fields so applications declare ids only.
   std::string sym, probable, specific;
   common::Severity sev = common::SEV_MAJOR;
@@ -112,9 +109,9 @@ Result<AlarmStateEvent> AlarmManager::raise(uint32_t alarm_id, const std::string
     }
   if (!found_cat)
     return Result<AlarmStateEvent>::fail(Errc::NotFound,
-                                    "alarm id not in catalog: " + alarm_id_string(alarm_id) +
-                                        " — alarms are declared, never invented",
-                                    "raise");
+                                         "alarm id not in catalog: " + alarm_id_string(alarm_id) +
+                                             " — alarms are declared, never invented",
+                                         "raise");
 
   auto* existing = [&]() -> AlarmRecord* {
     for (auto& r : active_)
@@ -182,8 +179,8 @@ Result<AlarmStateEvent> AlarmManager::acknowledge(uint32_t alarm_id) {
       return Result<AlarmStateEvent>::good(ev);
     }
   }
-  return Result<AlarmStateEvent>::fail(Errc::NotFound, "alarm not active: " + alarm_id_string(alarm_id),
-                                  "acknowledge");
+  return Result<AlarmStateEvent>::fail(
+      Errc::NotFound, "alarm not active: " + alarm_id_string(alarm_id), "acknowledge");
 }
 
 Result<AlarmStateEvent> AlarmManager::clear(uint32_t alarm_id, const std::string& owner) {
@@ -191,10 +188,9 @@ Result<AlarmStateEvent> AlarmManager::clear(uint32_t alarm_id, const std::string
   for (auto it = active_.begin(); it != active_.end(); ++it) {
     if (it->alarm_id == alarm_id) {
       if (!owner.empty() && it->owner != owner && !it->owner.empty())
-        return Result<AlarmStateEvent>::fail(Errc::InvalidArgument,
-                                        "clear refused: owner mismatch (declared by " + it->owner +
-                                            ")",
-                                        "clear");
+        return Result<AlarmStateEvent>::fail(
+            Errc::InvalidArgument, "clear refused: owner mismatch (declared by " + it->owner + ")",
+            "clear");
       AlarmStateEvent ev;
       ev.action = "clear";
       ev.record = *it;
@@ -203,8 +199,8 @@ Result<AlarmStateEvent> AlarmManager::clear(uint32_t alarm_id, const std::string
       return Result<AlarmStateEvent>::good(ev);
     }
   }
-  return Result<AlarmStateEvent>::fail(Errc::NotFound, "alarm not active: " + alarm_id_string(alarm_id),
-                                  "clear");
+  return Result<AlarmStateEvent>::fail(Errc::NotFound,
+                                       "alarm not active: " + alarm_id_string(alarm_id), "clear");
 }
 
 Result<const AlarmRecord*> AlarmManager::find(uint32_t alarm_id) const {
@@ -249,22 +245,20 @@ std::string AlarmManager::active_json() const {
   for (const auto& r : active_) {
     if (!first) o << ",";
     first = false;
-    o << "{\"alarm_id\":" << r.alarm_id << ",\"name\":\"" << r.symbolic_name
-      << "\",\"severity\":\"" << sev_name(r.severity) << "\",\"owner\":\"" << r.owner
-      << "\",\"text\":\"" << r.additional_text << "\",\"count\":" << r.count
-      << ",\"probable_cause\":\"" << r.probable_cause << "\",\"specific_problem\":\""
-      << r.specific_problem << "\",\"acknowledged\":" << (r.acknowledged ? "true" : "false")
-      << ",\"first_mono_ns\":" << r.first_seen.mono_ns << ",\"last_mono_ns\":"
-      << r.last_seen.mono_ns << ",\"first_seq\":" << r.first_seen.seq << ",\"last_seq\":"
-      << r.last_seen.seq << "}";
+    o << "{\"alarm_id\":" << r.alarm_id << ",\"name\":\"" << r.symbolic_name << "\",\"severity\":\""
+      << sev_name(r.severity) << "\",\"owner\":\"" << r.owner << "\",\"text\":\""
+      << r.additional_text << "\",\"count\":" << r.count << ",\"probable_cause\":\""
+      << r.probable_cause << "\",\"specific_problem\":\"" << r.specific_problem
+      << "\",\"acknowledged\":" << (r.acknowledged ? "true" : "false")
+      << ",\"first_mono_ns\":" << r.first_seen.mono_ns
+      << ",\"last_mono_ns\":" << r.last_seen.mono_ns << ",\"first_seq\":" << r.first_seen.seq
+      << ",\"last_seq\":" << r.last_seen.seq << "}";
   }
   o << "]";
   return o.str();
 }
 
-Error AlarmManager::save() {
-  return fs_.write(db_path_, active_json());
-}
+Error AlarmManager::save() { return fs_.write(db_path_, active_json()); }
 
 Error AlarmManager::load() {
   auto txt = fs_.read(db_path_);
@@ -284,8 +278,10 @@ Error AlarmManager::load() {
     if (const JValue* v = item.find("specific_problem")) r.specific_problem = v->as_string();
     if (const JValue* v = item.find("count")) r.count = uint32_t(v->as_number());
     if (const JValue* v = item.find("acknowledged")) r.acknowledged = v->as_bool();
-    r.first_seen.mono_ns = item.find("first_mono_ns") ? uint64_t(item.find("first_mono_ns")->as_number()) : 0;
-    r.last_seen.mono_ns = item.find("last_mono_ns") ? uint64_t(item.find("last_mono_ns")->as_number()) : 0;
+    r.first_seen.mono_ns =
+        item.find("first_mono_ns") ? uint64_t(item.find("first_mono_ns")->as_number()) : 0;
+    r.last_seen.mono_ns =
+        item.find("last_mono_ns") ? uint64_t(item.find("last_mono_ns")->as_number()) : 0;
     r.first_seen.seq = item.find("first_seq") ? uint64_t(item.find("first_seq")->as_number()) : 0;
     r.last_seen.seq = item.find("last_seq") ? uint64_t(item.find("last_seq")->as_number()) : 0;
     active_.push_back(r);

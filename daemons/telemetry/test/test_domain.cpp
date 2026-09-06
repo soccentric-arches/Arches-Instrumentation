@@ -25,7 +25,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include <gtest/gtest.h>
 
 #include "instr/common/timestamps.h"
@@ -96,8 +95,8 @@ TEST(TelemetryRetention, DropsOldestTelemetryFirst) {
   for (int i = 0; i < 4; ++i) buf.push(prot, RetentionBuffer::Class::Protected);
   // Each protected push sheds one more old telemetry record; once only
   // protected remain the buffer may exceed the bound (never drop them).
-  EXPECT_EQ(buf.dropped(), 5u);   // telemetry drops only (2 + 3)
-  EXPECT_EQ(buf.size(), 4u);      // 4 protected retained, telemetry shed
+  EXPECT_EQ(buf.dropped(), 5u);  // telemetry drops only (2 + 3)
+  EXPECT_EQ(buf.size(), 4u);  // 4 protected retained, telemetry shed
 }
 
 TEST(TelemetryHealthScore, MonotonicPenaltiesWithFactors) {

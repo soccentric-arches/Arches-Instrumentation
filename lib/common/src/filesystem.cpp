@@ -47,14 +47,18 @@ bool NativeFileSystem::exists(const std::string& path) {
 
 Result<std::string> NativeFileSystem::read(const std::string& path) {
   int fd = ::open(path.c_str(), O_RDONLY);
-  if (fd < 0) return Result<std::string>::fail(Errc::Io, "open failed: " + std::string(strerror(errno)), path);
+  if (fd < 0)
+    return Result<std::string>::fail(Errc::Io, "open failed: " + std::string(strerror(errno)),
+                                     path);
   std::string out;
   char buf[65536];
   ssize_t n;
   while ((n = ::read(fd, buf, sizeof(buf))) > 0) out.append(buf, size_t(n));
   int saved = errno;
   ::close(fd);
-  if (n < 0) return Result<std::string>::fail(Errc::Io, "read failed: " + std::string(strerror(saved)), path);
+  if (n < 0)
+    return Result<std::string>::fail(Errc::Io, "read failed: " + std::string(strerror(saved)),
+                                     path);
   return Result<std::string>::good(std::move(out));
 }
 
@@ -81,9 +85,7 @@ Error NativeFileSystem::mkdirs(const std::string& path) {
   std::string cur;
   for (size_t i = 0; i < path.size(); ++i) {
     cur += path[i];
-    if (path[i] == '/' && i > 0) {
-      ::mkdir(cur.substr(0, i).c_str(), 0755);
-    }
+    if (path[i] == '/' && i > 0) { ::mkdir(cur.substr(0, i).c_str(), 0755); }
   }
   if (::mkdir(path.c_str(), 0755) != 0 && errno != EEXIST)
     return Error::make(Errc::Io, "mkdir failed: " + std::string(strerror(errno)), path);
@@ -115,7 +117,8 @@ Error NativeFileSystem::remove(const std::string& path, bool recursive) {
 
 Error NativeFileSystem::rename(const std::string& from, const std::string& to) {
   if (::rename(from.c_str(), to.c_str()) != 0)
-    return Error::make(Errc::Io, "rename failed: " + std::string(strerror(errno)), from + " -> " + to);
+    return Error::make(Errc::Io, "rename failed: " + std::string(strerror(errno)),
+                       from + " -> " + to);
   return Error::none();
 }
 
@@ -158,9 +161,7 @@ Error NativeFileSystem::fsync_path(const std::string& path) {
 
 // ---------------- SimulatedFileSystem ----------------
 
-bool SimulatedFileSystem::is_dir(const std::string& p) const {
-  return dirs_.count(p) > 0;
-}
+bool SimulatedFileSystem::is_dir(const std::string& p) const { return dirs_.count(p) > 0; }
 
 bool SimulatedFileSystem::exists(const std::string& path) {
   return files_.count(path) > 0 || is_dir(path);
@@ -168,8 +169,7 @@ bool SimulatedFileSystem::exists(const std::string& path) {
 
 Result<std::string> SimulatedFileSystem::read(const std::string& path) {
   auto it = files_.find(path);
-  if (it == files_.end())
-    return Result<std::string>::fail(Errc::NotFound, "no such file", path);
+  if (it == files_.end()) return Result<std::string>::fail(Errc::NotFound, "no such file", path);
   int n = ++read_count_[path];
   std::string data = it->second;
   auto cit = corrupt_.find(path);
@@ -234,12 +234,16 @@ Error SimulatedFileSystem::remove(const std::string& path, bool recursive) {
           return Error::make(Errc::Busy, "directory not empty", path);
     } else {
       for (auto it = files_.begin(); it != files_.end();) {
-        if (it->first.rfind(path + "/", 0) == 0) it = files_.erase(it);
-        else ++it;
+        if (it->first.rfind(path + "/", 0) == 0)
+          it = files_.erase(it);
+        else
+          ++it;
       }
       for (auto it = dirs_.begin(); it != dirs_.end();) {
-        if (it->first.rfind(path + "/", 0) == 0) it = dirs_.erase(it);
-        else ++it;
+        if (it->first.rfind(path + "/", 0) == 0)
+          it = dirs_.erase(it);
+        else
+          ++it;
       }
     }
     dirs_.erase(path);
@@ -279,13 +283,15 @@ Error SimulatedFileSystem::rename(const std::string& from, const std::string& to
           mtimes_.erase(mit);
         }
         it = files_.erase(it);
-      } else ++it;
+      } else
+        ++it;
     }
     for (auto it = dirs_.begin(); it != dirs_.end();) {
       if (it->first.rfind(prefix, 0) == 0) {
         dirs_[to + "/" + it->first.substr(prefix.size())] = true;
         it = dirs_.erase(it);
-      } else ++it;
+      } else
+        ++it;
     }
     dirs_.erase(from);
     dirs_[to] = true;
@@ -317,8 +323,7 @@ Result<std::vector<std::string>> SimulatedFileSystem::list_dir(const std::string
 
 Result<uint64_t> SimulatedFileSystem::file_size(const std::string& path) {
   auto it = files_.find(path);
-  if (it == files_.end())
-    return Result<uint64_t>::fail(Errc::NotFound, "no such file", path);
+  if (it == files_.end()) return Result<uint64_t>::fail(Errc::NotFound, "no such file", path);
   return Result<uint64_t>::good(it->second.size());
 }
 

@@ -29,7 +29,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <memory>
 #include <mutex>
@@ -49,8 +48,8 @@ namespace instr {
 namespace istate {
 
 struct IstateOptions {
-  std::string pst_root;             // /pst (or test root)
-  std::string run_dir;              // /run/instrumentation
+  std::string pst_root;  // /pst (or test root)
+  std::string run_dir;  // /run/instrumentation
   std::string build_version;
   double liveness_hang_timeout_s = 30;
   uint64_t spool_max_bytes = 64ull * 1024 * 1024;

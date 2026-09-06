@@ -64,8 +64,8 @@ static JValue yaml_scalar(const YAML::Node& n) {
 
 static JValue yaml_to_json(const YAML::Node& n) { return yaml_scalar(n); }
 
-static Error validate(const JValue& schema, const std::string& yaml_text,
-                      const std::string& source, JValue* out) {
+static Error validate(const JValue& schema, const std::string& yaml_text, const std::string& source,
+                      JValue* out) {
   auto j = json_from_yaml_text(yaml_text);
   if (!j.ok()) return j.error;
   std::vector<JsonValidator::Issue> issues;
@@ -121,9 +121,11 @@ Result<ResourceProfile> load_resource_profile(const std::string& yaml_text, cons
   if (!e.ok()) return Result<ResourceProfile>::fail(e);
   ResourceProfile p;
   if (const JValue* v = j.find("platform_class")) p.platform_class = v->as_string();
-  if (const JValue* v = j.find("sample_interval_default_s")) p.sample_interval_default_s = v->as_number();
+  if (const JValue* v = j.find("sample_interval_default_s"))
+    p.sample_interval_default_s = v->as_number();
   if (const JValue* v = j.find("sample_intervals_per_class_s"))
-    for (const auto& kv : v->members()) p.sample_intervals_per_class_s[kv.first] = kv.second.as_number();
+    for (const auto& kv : v->members())
+      p.sample_intervals_per_class_s[kv.first] = kv.second.as_number();
   if (const JValue* v = j.find("highres_window_s")) p.highres_window_s = v->as_number();
   if (const JValue* v = j.find("highres_interval_s")) p.highres_interval_s = v->as_number();
   if (const JValue* v = j.find("telemetry_interval_s")) p.telemetry_interval_s = v->as_number();

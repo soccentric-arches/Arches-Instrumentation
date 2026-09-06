@@ -35,11 +35,11 @@ static JValue record_json(const FaultRecord& r) {
   o.set("fault_id", JValue(double(r.fault_id)));
   o.set("id_text", JValue(alarm_id_string(r.fault_id)));
   o.set("rule", JValue(r.rule));
-  o.set("severity", JValue(r.severity == common::SEV_CRITICAL ? "CRITICAL"
-                          : r.severity == common::SEV_MAJOR   ? "MAJOR"
-                          : r.severity == common::SEV_MINOR   ? "MINOR"
-                          : r.severity == common::SEV_WARNING ? "WARNING"
-                                                              : "INFO"));
+  o.set("severity", JValue(r.severity == common::SEV_CRITICAL  ? "CRITICAL"
+                           : r.severity == common::SEV_MAJOR   ? "MAJOR"
+                           : r.severity == common::SEV_MINOR   ? "MINOR"
+                           : r.severity == common::SEV_WARNING ? "WARNING"
+                                                               : "INFO"));
   o.set("raw_line", JValue(r.raw_line));
   o.set("occurrences", JValue(double(r.occurrences)));
   o.set("device_key", JValue(r.device_key));
@@ -50,7 +50,9 @@ static JValue record_json(const FaultRecord& r) {
 
 CommandTable build_faults_table(FaultsCore* core) {
   CommandTable t;
-  t.add({"stats", "scan statistics (lines, faults, duplicates, suppressed)", {},
+  t.add({"stats",
+         "scan statistics (lines, faults, duplicates, suppressed)",
+         {},
          [core](const std::string&) {
            const auto& s = core->stats();
            JValue o = JValue::object();
@@ -60,25 +62,25 @@ CommandTable build_faults_table(FaultsCore* core) {
            o.set("backfill_lines", JValue(double(s.backfill_lines)));
            return CommandResult::good(o.dump());
          }});
-  t.add({"rules-list", "list loaded fault rules", {},
-         [core](const std::string&) {
+  t.add({"rules-list", "list loaded fault rules", {}, [core](const std::string&) {
            JValue arr = JValue::array();
            for (const auto& r : core->rules()) {
              JValue o = JValue::object();
              o.set("name", JValue(r.name));
              o.set("pattern", JValue(r.pattern));
              o.set("id_text", JValue(alarm_id_string(r.fault_id)));
-             o.set("severity", JValue(r.severity == common::SEV_CRITICAL ? "CRITICAL"
-                                     : r.severity == common::SEV_MAJOR   ? "MAJOR"
-                                     : r.severity == common::SEV_MINOR   ? "MINOR"
-                                     : r.severity == common::SEV_WARNING ? "WARNING"
-                                                                         : "INFO"));
+             o.set("severity", JValue(r.severity == common::SEV_CRITICAL  ? "CRITICAL"
+                                      : r.severity == common::SEV_MAJOR   ? "MAJOR"
+                                      : r.severity == common::SEV_MINOR   ? "MINOR"
+                                      : r.severity == common::SEV_WARNING ? "WARNING"
+                                                                          : "INFO"));
              o.set("x733_type", JValue(r.x733_type));
              arr.push(o);
            }
            return CommandResult::good(arr.dump());
          }});
-  t.add({"rules-reload", "reload the rule set from text (rules are data)",
+  t.add({"rules-reload",
+         "reload the rule set from text (rules are data)",
          {{"yaml", true, "full fault-rules.yaml document"}},
          [core](const std::string& args) {
            auto a = args_object(args);
@@ -87,7 +89,8 @@ CommandTable build_faults_table(FaultsCore* core) {
            return e.ok() ? CommandResult::good(std::string("{\"reloaded\":true}"))
                          : CommandResult::from_error(e);
          }});
-  t.add({"test-line", "test a kernel line against the rule set",
+  t.add({"test-line",
+         "test a kernel line against the rule set",
          {{"line", true, "kernel log line"}},
          [core](const std::string& args) {
            auto a = args_object(args);
@@ -103,8 +106,7 @@ CommandTable build_faults_table(FaultsCore* core) {
 FaultsSpoke::FaultsSpoke(FaultsCore* core, Logger* log, const CommandTable* table,
                          const std::string& hub_target, const std::string& build_version)
     : core_(core), log_(log), table_(table) {
-  using ChannelT =
-      SpokeChannel<faults::FaultHub, faults::FaultSpokeFrame, faults::FaultHubFrame>;
+  using ChannelT = SpokeChannel<faults::FaultHub, faults::FaultSpokeFrame, faults::FaultHubFrame>;
   ChannelT::Options o;
   o.target = hub_target;
   o.daemon = "faults";
@@ -128,7 +130,10 @@ FaultsSpoke::FaultsSpoke(FaultsCore* core, Logger* log, const CommandTable* tabl
 
 FaultFollower::FaultFollower(FaultsCore* core, platform::IPlatform* plat, TimeSource* ts,
                              Logger* log)
-    : core_(core), plat_(plat), ts_(ts), log_(log),
+    : core_(core),
+      plat_(plat),
+      ts_(ts),
+      log_(log),
       worker_("faults-follow", core->config().poll_interval_s, [this] { (void)poll(); }) {
   // A delivered configuration retunes the follow interval in place.
   core_->set_config_listener([this](const FaultsConfig& c) {

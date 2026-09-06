@@ -37,8 +37,7 @@ namespace istate {
 // ---------------- AuditLog ----------------
 
 void AuditLog::append(const std::string& actor, const std::string& source,
-                      const std::string& action, const std::string& detail_json,
-                      TimeSource& ts) {
+                      const std::string& action, const std::string& detail_json, TimeSource& ts) {
   AuditEntry e;
   e.seq = next_seq_++;
   e.wall_unix_s = ts.wall_ns() / 1'000'000'000ll;
@@ -86,9 +85,7 @@ Error AuditLog::load() {
     try {
       e.seq = std::stoull(f[0]);
       e.wall_unix_s = std::stoll(f[1]);
-    } catch (...) {
-      continue;
-    }
+    } catch (...) { continue; }
     e.actor = f[2];
     e.source = f[3];
     e.action = f[4];
@@ -116,14 +113,13 @@ std::string ConfigService::drift_report_json(const std::string& daemon) const {
     try {
       size_t pos;
       const std::string& v = kv.second;
-      if (v == "true" || v == "false") vals.set(kv.first, JValue(v == "true"));
+      if (v == "true" || v == "false")
+        vals.set(kv.first, JValue(v == "true"));
       else {
         double d = std::stod(v, nullptr);
         vals.set(kv.first, JValue(d));
       }
-    } catch (...) {
-      vals.set(kv.first, JValue(kv.second));
-    }
+    } catch (...) { vals.set(kv.first, JValue(kv.second)); }
     origins.set(kv.first, JValue(origin_name((*doc).origin_of(kv.first))));
   }
   j.set("daemon", JValue(daemon));
@@ -156,8 +152,8 @@ ConfigService::SetResult ConfigService::set(const std::string& daemon, const std
   auto current = pst_.load_config(daemon);
   if (!current.ok()) {
     // Missing config: start from parsed incoming.
-    auto fresh = ConfigDocument::parse(yaml_text, schema.is_object() ? schema : JValue::object(),
-                                       daemon);
+    auto fresh =
+        ConfigDocument::parse(yaml_text, schema.is_object() ? schema : JValue::object(), daemon);
     if (!fresh.ok()) {
       res.error = fresh.error.str();
       return res;
@@ -170,8 +166,8 @@ ConfigService::SetResult ConfigService::set(const std::string& daemon, const std
     res.ok = true;
     return res;
   }
-  auto incoming = ConfigDocument::parse(yaml_text, schema.is_object() ? schema : JValue::object(),
-                                        daemon);
+  auto incoming =
+      ConfigDocument::parse(yaml_text, schema.is_object() ? schema : JValue::object(), daemon);
   if (!incoming.ok()) {
     res.error = incoming.error.str();
     return res;
@@ -186,10 +182,12 @@ ConfigService::SetResult ConfigService::set(const std::string& daemon, const std
   return res;
 }
 
-Result<std::vector<std::string>> ConfigService::apply_signed(
-    const std::string& daemon, const std::string& yaml_text, const std::string& key_id,
-    const std::string& signature, const std::string& hmac_hex,
-    const std::string& enrollment_secret) {
+Result<std::vector<std::string>> ConfigService::apply_signed(const std::string& daemon,
+                                                             const std::string& yaml_text,
+                                                             const std::string& key_id,
+                                                             const std::string& signature,
+                                                             const std::string& hmac_hex,
+                                                             const std::string& enrollment_secret) {
   // Verification happens BEFORE any write (§9). Nothing below this point
   // touches /pst until the push has proven it came from HQ.
   const std::string signed_bytes = daemon + "|" + yaml_text;

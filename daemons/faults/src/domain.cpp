@@ -44,9 +44,7 @@ static Result<uint32_t> parse_fault_id_text(const std::string& text) {
     if (c != '_') compact += c;
   try {
     return Result<uint32_t>::good(uint32_t(std::stoul(compact, nullptr, 16)));
-  } catch (...) {
-    return Result<uint32_t>::fail(Errc::InvalidArgument, "bad fault id", text);
-  }
+  } catch (...) { return Result<uint32_t>::fail(Errc::InvalidArgument, "bad fault id", text); }
 }
 
 Result<std::vector<FaultRule>> load_rules(const std::string& yaml_text) {
@@ -75,8 +73,8 @@ Result<std::vector<FaultRule>> load_rules(const std::string& yaml_text) {
         // drivers ("CPU2: Package temperature" vs "cpu clock throttled"),
         // and a signature that misses because of capitalisation is a fault
         // class silently unmonitored on every device.
-        fr.re = std::regex(pattern,
-                           std::regex::ECMAScript | std::regex::optimize | std::regex::icase);
+        fr.re =
+            std::regex(pattern, std::regex::ECMAScript | std::regex::optimize | std::regex::icase);
       } catch (const std::regex_error& e) {
         return Result<std::vector<FaultRule>>::fail(
             Errc::InvalidArgument, "bad regex for rule " + fr.name + ": " + e.what(), fr.name);
@@ -91,11 +89,16 @@ Result<std::vector<FaultRule>> load_rules(const std::string& yaml_text) {
             Errc::InvalidArgument, "fault_id must be a fault-domain 32-bit id", fr.name);
       fr.fault_id = uint32_t(std::stoul(fid_compact, nullptr, 16));
       std::string sev = r["severity"].as<std::string>("MAJOR");
-      if (sev == "INFO") fr.severity = common::SEV_INFO;
-      else if (sev == "WARNING") fr.severity = common::SEV_WARNING;
-      else if (sev == "MINOR") fr.severity = common::SEV_MINOR;
-      else if (sev == "MAJOR") fr.severity = common::SEV_MAJOR;
-      else if (sev == "CRITICAL") fr.severity = common::SEV_CRITICAL;
+      if (sev == "INFO")
+        fr.severity = common::SEV_INFO;
+      else if (sev == "WARNING")
+        fr.severity = common::SEV_WARNING;
+      else if (sev == "MINOR")
+        fr.severity = common::SEV_MINOR;
+      else if (sev == "MAJOR")
+        fr.severity = common::SEV_MAJOR;
+      else if (sev == "CRITICAL")
+        fr.severity = common::SEV_CRITICAL;
       fr.x733_type = r["x733_type"].as<std::string>("equipment");
       fr.probable_cause = r["probable_cause"].as<std::string>("");
       fr.dedup_key = r["dedup_key"].as<std::string>(fr.name);
@@ -105,9 +108,8 @@ Result<std::vector<FaultRule>> load_rules(const std::string& yaml_text) {
     }
     return Result<std::vector<FaultRule>>::good(std::move(out));
   } catch (const std::exception& e) {
-    return Result<std::vector<FaultRule>>::fail(Errc::InvalidArgument,
-                                                std::string("rules parse: ") + e.what(),
-                                                "fault-rules.yaml");
+    return Result<std::vector<FaultRule>>::fail(
+        Errc::InvalidArgument, std::string("rules parse: ") + e.what(), "fault-rules.yaml");
   }
 }
 
@@ -115,9 +117,7 @@ std::optional<const FaultRule*> RuleEngine::match(const std::string& line) const
   for (const auto& r : rules_) {
     try {
       if (std::regex_search(line, r.re)) return &r;
-    } catch (const std::regex_error&) {
-      continue;
-    }
+    } catch (const std::regex_error&) { continue; }
   }
   return std::nullopt;
 }
@@ -128,8 +128,8 @@ std::string RuleEngine::render_dedup_key(const std::string& tmpl, const std::str
     return tmpl;
   // Extract the first plausible device/zone/process token from the line.
   std::string token;
-  for (const char* kw : {"sd", "mmcblk", "nvme", "nvme0n1", "eth", "end", "enp", "wlan",
-                         "thermal_zone", "can"}) {
+  for (const char* kw :
+       {"sd", "mmcblk", "nvme", "nvme0n1", "eth", "end", "enp", "wlan", "thermal_zone", "can"}) {
     size_t pos = line.find(kw);
     if (pos != std::string::npos) {
       size_t end = pos;
@@ -203,11 +203,11 @@ std::vector<FaultRecord> FaultProcessor::feed(const std::vector<std::string>& li
     // Bucket starts full (burst), refills at rate with the feed's clock.
     double burst = std::max(rule->rate_limit_per_s, 1.0);
     if (!bucket_last_mono_.count(rule->name)) bucket_tokens_[rule->name] = burst;
-    double last = bucket_last_mono_.count(rule->name)
-                      ? double(bucket_last_mono_[rule->name])
-                      : double(mono_ns);
+    double last = bucket_last_mono_.count(rule->name) ? double(bucket_last_mono_[rule->name])
+                                                      : double(mono_ns);
     double dt_s = std::max(0.0, (double(mono_ns) - last) / 1e9);
-    bucket_tokens_[rule->name] = std::min(burst, bucket_tokens_[rule->name] + dt_s * rule->rate_limit_per_s);
+    bucket_tokens_[rule->name] =
+        std::min(burst, bucket_tokens_[rule->name] + dt_s * rule->rate_limit_per_s);
     bucket_last_mono_[rule->name] = mono_ns;
     bool acquired = bucket_tokens_[rule->name] >= 1.0;
     if (acquired) bucket_tokens_[rule->name] -= 1.0;
@@ -264,7 +264,7 @@ std::vector<FaultRecord> FaultProcessor::feed(const std::vector<std::string>& li
     fr.probable_cause = rule->probable_cause;
     fr.backfill = backfill;
     out.push_back(fr);
-      ++stats_.faults_raised;
+    ++stats_.faults_raised;
   }
   return out;
 }

@@ -49,9 +49,11 @@ std::string HardwareCore::descriptor_summary_json() const {
 
 CommandTable build_hardware_table(HardwareCore* core) {
   CommandTable t;
-  t.add({"list-devices", "list board devices from the descriptor", {},
-         [core](const std::string&) { return CommandResult::good(core->descriptor_summary_json()); }});
-  t.add({"check", "run the quick health checks for one device",
+  t.add({"list-devices", "list board devices from the descriptor", {}, [core](const std::string&) {
+           return CommandResult::good(core->descriptor_summary_json());
+         }});
+  t.add({"check",
+         "run the quick health checks for one device",
          {{"device", true, "device name from devices.yaml"}},
          [core](const std::string& args) {
            auto a = args_object(args);
@@ -71,8 +73,7 @@ CommandTable build_hardware_table(HardwareCore* core) {
            }
            return CommandResult::good(arr.dump());
          }});
-  t.add({"check-all", "run quick health checks for every device", {},
-         [core](const std::string&) {
+  t.add({"check-all", "run quick health checks for every device", {}, [core](const std::string&) {
            auto results = core->manager().check_all();
            JValue arr = JValue::array();
            for (const auto& r : results) {
@@ -85,7 +86,8 @@ CommandTable build_hardware_table(HardwareCore* core) {
            }
            return CommandResult::good(arr.dump());
          }});
-  t.add({"gpio-set", "drive a GPIO line",
+  t.add({"gpio-set",
+         "drive a GPIO line",
          {{"device", true, "gpio device name"}, {"value", true, "true|false"}},
          [core](const std::string& args) {
            auto a = args_object(args);
@@ -96,7 +98,9 @@ CommandTable build_hardware_table(HardwareCore* core) {
            return e.ok() ? CommandResult::good(std::string("{\"set\":true}"))
                          : CommandResult::from_error(e);
          }});
-  t.add({"gpio-get", "read a GPIO line", {{"device", true, "gpio device name"}},
+  t.add({"gpio-get",
+         "read a GPIO line",
+         {{"device", true, "gpio device name"}},
          [core](const std::string& args) {
            auto a = args_object(args);
            if (!a.ok()) return CommandResult::from_error(a.error);
@@ -106,7 +110,9 @@ CommandTable build_hardware_table(HardwareCore* core) {
            o.set("value", JValue(*v));
            return CommandResult::good(o.dump());
          }});
-  t.add({"led-set", "set a board LED", {{"device", true, "led name"}, {"on", true, "true|false"}},
+  t.add({"led-set",
+         "set a board LED",
+         {{"device", true, "led name"}, {"on", true, "true|false"}},
          [core](const std::string& args) {
            auto a = args_object(args);
            if (!a.ok()) return CommandResult::from_error(a.error);
@@ -116,8 +122,11 @@ CommandTable build_hardware_table(HardwareCore* core) {
            return e.ok() ? CommandResult::good(std::string("{\"set\":true}"))
                          : CommandResult::from_error(e);
          }});
-  t.add({"led-blink", "blink a board LED",
-         {{"device", true, "led name"}, {"on_ms", false, "on ms"}, {"off_ms", false, "off ms"},
+  t.add({"led-blink",
+         "blink a board LED",
+         {{"device", true, "led name"},
+          {"on_ms", false, "on ms"},
+          {"off_ms", false, "off ms"},
           {"repeats", false, "repeat count"}},
          [core](const std::string& args) {
            auto a = args_object(args);
@@ -129,7 +138,9 @@ CommandTable build_hardware_table(HardwareCore* core) {
            return e.ok() ? CommandResult::good(std::string("{\"blinking\":true}"))
                          : CommandResult::from_error(e);
          }});
-  t.add({"usb-reset", "reset a USB device", {{"device", true, "usb device name"}},
+  t.add({"usb-reset",
+         "reset a USB device",
+         {{"device", true, "usb device name"}},
          [core](const std::string& args) {
            auto a = args_object(args);
            if (!a.ok()) return CommandResult::from_error(a.error);
@@ -137,8 +148,11 @@ CommandTable build_hardware_table(HardwareCore* core) {
            return e.ok() ? CommandResult::good(std::string("{\"reset\":true}"))
                          : CommandResult::from_error(e);
          }});
-  t.add({"display-cmd", "control the display",
-         {{"device", true, "display name"}, {"cmd", true, "blank|unblank"}, {"arg", false, "argument"}},
+  t.add({"display-cmd",
+         "control the display",
+         {{"device", true, "display name"},
+          {"cmd", true, "blank|unblank"},
+          {"arg", false, "argument"}},
          [core](const std::string& args) {
            auto a = args_object(args);
            if (!a.ok()) return CommandResult::from_error(a.error);
@@ -149,7 +163,8 @@ CommandTable build_hardware_table(HardwareCore* core) {
            return e.ok() ? CommandResult::good(std::string("{\"ok\":true}"))
                          : CommandResult::from_error(e);
          }});
-  t.add({"periodic-interval", "set the periodic check interval",
+  t.add({"periodic-interval",
+         "set the periodic check interval",
          {{"seconds", true, "interval in seconds"}},
          [core](const std::string& args) {
            auto a = args_object(args);
@@ -165,8 +180,8 @@ CommandTable build_hardware_table(HardwareCore* core) {
 HardwareSpoke::HardwareSpoke(HardwareCore* core, Logger* log, const CommandTable* table,
                              const std::string& hub_target, const std::string& build_version)
     : core_(core), log_(log), table_(table) {
-  using ChannelT = SpokeChannel<hardware::HardwareHub, hardware::HardwareSpokeFrame,
-                                hardware::HardwareHubFrame>;
+  using ChannelT =
+      SpokeChannel<hardware::HardwareHub, hardware::HardwareSpokeFrame, hardware::HardwareHubFrame>;
   ChannelT::Options o;
   o.target = hub_target;
   o.daemon = "hardware";

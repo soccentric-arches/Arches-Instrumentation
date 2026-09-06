@@ -29,7 +29,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include <openssl/evp.h>
 
 #include <gtest/gtest.h>
@@ -191,7 +190,7 @@ TEST(OtaMaintenance, WindowGatesStaging) {
   EXPECT_NE(e.message.find("maintenance"), std::string::npos);
   // Outside schedule check reflects it.
   EXPECT_FALSE(f.eng->in_maintenance_window(1'700'013'180));  // 2023-11-15 01:53 UTC
-  EXPECT_TRUE(f.eng->in_maintenance_window(1'700'016'600));   // 02:50 UTC
+  EXPECT_TRUE(f.eng->in_maintenance_window(1'700'016'600));  // 02:50 UTC
 }
 
 TEST(OtaBandwidth, LimiterGrantsBytesPerSecond) {

@@ -43,8 +43,8 @@ using namespace instr;
 
 namespace {
 
-const char* kDaemons[] = {"istate",     "networkd",   "monitord",  "hardware", "faults",
-                          "alarms",     "logmanager", "telemetry", "ota",      "backup"};
+const char* kDaemons[] = {"istate", "networkd",   "monitord",  "hardware", "faults",
+                          "alarms", "logmanager", "telemetry", "ota",      "backup"};
 
 std::string slurp(const std::string& p) {
   std::ifstream f(p);
@@ -80,7 +80,8 @@ TEST(SystemFiles, UnitsHaveExactlyOneServiceSection) {
 
 TEST(SystemFiles, EveryDaemonRunsAsItsOwnUnprivilegedUser) {
   // §10: each daemon unprivileged and confined.
-  const std::string users = slurp(std::string(REPO_ROOT) + "/system/sysusers.d/instrumentation.conf");
+  const std::string users =
+      slurp(std::string(REPO_ROOT) + "/system/sysusers.d/instrumentation.conf");
   for (const char* d : kDaemons) {
     const std::string u = std::string("instr-") + d;
     EXPECT_NE(unit(d).find("User=" + u), std::string::npos) << d << " does not run as " << u;
@@ -94,7 +95,8 @@ TEST(SystemFiles, EveryDaemonRunsAsItsOwnUnprivilegedUser) {
 TEST(SystemFiles, ConfigurationPeerHasItsOwnUser) {
   // Configuration is architecturally a spoke (§3.3) and needs a user for the
   // same reason: its socket is owned by it and nothing else.
-  const std::string users = slurp(std::string(REPO_ROOT) + "/system/sysusers.d/instrumentation.conf");
+  const std::string users =
+      slurp(std::string(REPO_ROOT) + "/system/sysusers.d/instrumentation.conf");
   EXPECT_NE(users.find("u instr-configuration "), std::string::npos);
 }
 

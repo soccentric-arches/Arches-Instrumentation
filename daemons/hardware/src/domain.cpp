@@ -54,8 +54,7 @@ const platform::DeviceSpec* DeviceManager::find(const std::string& name) const {
 }
 
 CheckResult DeviceManager::make_result(const std::string& dev, const std::string& chk,
-                                       CheckState st, const std::string& detail,
-                                       uint64_t started) {
+                                       CheckState st, const std::string& detail, uint64_t started) {
   CheckResult r;
   r.device = dev;
   r.check = chk;
@@ -77,8 +76,7 @@ Error DeviceManager::control(const std::string& device, const std::string& contr
     if (c == control_op) declared = true;
   if (!declared)
     return Error::make(Errc::NotSupported,
-                       "control op not declared for device " + device + ": " + control_op,
-                       device);
+                       "control op not declared for device " + device + ": " + control_op, device);
   if (dev->kind == "gpio") {
     int line = std::stoi(dev->params.count("line") ? dev->params.at("line") : "-1");
     if (control_op == "gpio_set") {
@@ -104,7 +102,8 @@ Error DeviceManager::control(const std::string& device, const std::string& contr
       return plat_.led_blink(device, on, off, reps);
     }
   } else if (dev->kind == "usb") {
-    if (control_op == "usb_reset") return plat_.usb_reset(dev->params.count("port") ? dev->params.at("port") : device);
+    if (control_op == "usb_reset")
+      return plat_.usb_reset(dev->params.count("port") ? dev->params.at("port") : device);
   } else if (dev->kind == "display") {
     if (control_op == "display_control") {
       auto it = args.find("cmd");
@@ -133,12 +132,14 @@ CheckResult DeviceManager::run_check(const platform::DeviceSpec& dev,
     if (dev.kind == "gpio") {
       int line = std::stoi(dev.params.count("line") ? dev.params.at("line") : "-1");
       auto v = plat_.gpio_get(line);
-      if (!v.ok()) return make_result(dev.name, chk.name, CheckState::NotPresent, v.error.message, started);
+      if (!v.ok())
+        return make_result(dev.name, chk.name, CheckState::NotPresent, v.error.message, started);
       return make_result(dev.name, chk.name, CheckState::Pass, "line readable", started);
     }
     if (dev.kind == "display") {
       auto p = plat_.display_probe();
-      if (!p.ok()) return make_result(dev.name, chk.name, CheckState::NotPresent, p.error.message, started);
+      if (!p.ok())
+        return make_result(dev.name, chk.name, CheckState::NotPresent, p.error.message, started);
       return make_result(dev.name, chk.name, CheckState::Pass, *p, started);
     }
     return make_result(dev.name, chk.name, CheckState::Pass, "assumed present", started);
@@ -150,12 +151,14 @@ CheckResult DeviceManager::run_check(const platform::DeviceSpec& dev,
     if (!e1.ok()) return make_result(dev.name, chk.name, CheckState::Fail, e1.message, started);
     auto r1 = plat_.gpio_get(line);
     if (!r1.ok() || !*r1)
-      return make_result(dev.name, chk.name, CheckState::Degraded, "set-high readback mismatch", started);
+      return make_result(dev.name, chk.name, CheckState::Degraded, "set-high readback mismatch",
+                         started);
     Error e2 = plat_.gpio_set(line, false);
     if (!e2.ok()) return make_result(dev.name, chk.name, CheckState::Fail, e2.message, started);
     auto r2 = plat_.gpio_get(line);
     if (!r2.ok() || *r2)
-      return make_result(dev.name, chk.name, CheckState::Degraded, "set-low readback mismatch", started);
+      return make_result(dev.name, chk.name, CheckState::Degraded, "set-low readback mismatch",
+                         started);
     return make_result(dev.name, chk.name, CheckState::Pass, "toggle+read ok", started);
   }
   if (chk.op == "led_blink_ack") {
@@ -189,8 +192,8 @@ CheckResult DeviceManager::run_check(const platform::DeviceSpec& dev,
     if (!p.ok()) return make_result(dev.name, chk.name, CheckState::Fail, p.error.message, started);
     return make_result(dev.name, chk.name, CheckState::Pass, *p, started);
   }
-  return make_result(dev.name, chk.name, CheckState::Unknown,
-                     "check op not known: " + chk.op, started);
+  return make_result(dev.name, chk.name, CheckState::Unknown, "check op not known: " + chk.op,
+                     started);
 }
 
 std::vector<CheckResult> DeviceManager::check_device(const std::string& name) {

@@ -29,7 +29,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <map>
 #include <string>

@@ -31,7 +31,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <functional>
 #include <string>
@@ -51,8 +50,8 @@ struct DeviceIdentity {
   std::string hw_revision;
   std::string board_variant;
   std::string mfg_date;
-  std::string wg_public_key;    // base64
-  std::string factory_sig;      // HMAC(factory secret, pubkey) — base64
+  std::string wg_public_key;  // base64
+  std::string factory_sig;  // HMAC(factory secret, pubkey) — base64
   std::string pubkey_b64() const { return wg_public_key; }
 };
 
@@ -67,10 +66,10 @@ struct TunnelConfig {
 class Provisioner {
  public:
   enum class State {
-    Virgin,      // no system/ yet
-    Seeding,     // defaults written
-    Keygen,      // generating tunnel keypair
-    Enrolling,   // enrolling with HQ
+    Virgin,  // no system/ yet
+    Seeding,  // defaults written
+    Keygen,  // generating tunnel keypair
+    Enrolling,  // enrolling with HQ
     Operational,
   };
   const char* state_name(State s) const;

@@ -25,7 +25,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <memory>
 #include <mutex>
@@ -120,8 +119,7 @@ class HardwareSpoke {
   const CommandTable* table_;
   std::unique_ptr<ConfigSink> config_sink_;
   std::unique_ptr<
-      SpokeChannel<hardware::HardwareHub, hardware::HardwareSpokeFrame,
-                   hardware::HardwareHubFrame>>
+      SpokeChannel<hardware::HardwareHub, hardware::HardwareSpokeFrame, hardware::HardwareHubFrame>>
       channel_;
 };
 

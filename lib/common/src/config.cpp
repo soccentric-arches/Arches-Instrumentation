@@ -115,9 +115,7 @@ Result<ConfigDocument> ConfigDocument::parse(const std::string& yaml_text, const
   return Result<ConfigDocument>::good(std::move(doc));
 }
 
-bool ConfigDocument::has(const std::string& dot_path) const {
-  return values_.count(dot_path) > 0;
-}
+bool ConfigDocument::has(const std::string& dot_path) const { return values_.count(dot_path) > 0; }
 
 std::string ConfigDocument::raw(const std::string& dot_path) const {
   auto it = values_.find(dot_path);
@@ -135,9 +133,7 @@ int64_t ConfigDocument::get_int(const std::string& dot_path, int64_t dflt) const
   if (v.empty() && !has(dot_path)) return dflt;
   try {
     return std::stoll(v);
-  } catch (...) {
-    return dflt;
-  }
+  } catch (...) { return dflt; }
 }
 
 double ConfigDocument::get_double(const std::string& dot_path, double dflt) const {
@@ -145,9 +141,7 @@ double ConfigDocument::get_double(const std::string& dot_path, double dflt) cons
   if (v.empty() && !has(dot_path)) return dflt;
   try {
     return std::stod(v);
-  } catch (...) {
-    return dflt;
-  }
+  } catch (...) { return dflt; }
 }
 
 bool ConfigDocument::get_bool(const std::string& dot_path, bool dflt) const {
@@ -343,9 +337,12 @@ struct YamlWriter {
     // Item is a list element: could be scalar or subtree.
     if (values.count(item) > 0 && !subtree_exists(values, parent_of(item), last_of(item))) {
       std::string v = values.at(item);
-      if (v.empty()) *out += pad + "- null\n";
-      else if (needs_quotes(v)) *out += pad + "- " + quote(v) + "\n";
-      else *out += pad + "- " + v + "\n";
+      if (v.empty())
+        *out += pad + "- null\n";
+      else if (needs_quotes(v))
+        *out += pad + "- " + quote(v) + "\n";
+      else
+        *out += pad + "- " + v + "\n";
       return;
     }
     // Subtree item: "- key: value" style with subsequent lines deeper.
@@ -413,8 +410,7 @@ Result<JValue> load_daemon_schema(IFileSystem& fs, const std::string& sysroot,
   const std::string path =
       sysroot + "/usr/share/instrumentation/schemas/" + daemon + ".schema.json";
   auto text = fs.read(path);
-  if (!text.ok())
-    return Result<JValue>::fail(Errc::NotFound, "schema not installed", path);
+  if (!text.ok()) return Result<JValue>::fail(Errc::NotFound, "schema not installed", path);
   auto schema = load_schema_text(*text);
   if (!schema.ok()) return schema;
   return schema;

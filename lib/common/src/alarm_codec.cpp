@@ -74,10 +74,9 @@ X733Type x733_type_from_name(const std::string& n) {
 
 const std::map<uint8_t, std::string>& module_names() {
   static const std::map<uint8_t, std::string> m = {
-      {0x01, "istate"},      {0x02, "networkd"},  {0x03, "monitord"},
-      {0x04, "hardware"},    {0x05, "faults"},    {0x06, "alarms"},
-      {0x07, "logmanager"},  {0x08, "telemetry"}, {0x09, "ota"},
-      {0x0A, "backup"},      {0x10, "application-1"}, {0x11, "application-2"},
+      {0x01, "istate"}, {0x02, "networkd"}, {0x03, "monitord"},      {0x04, "hardware"},
+      {0x05, "faults"}, {0x06, "alarms"},   {0x07, "logmanager"},    {0x08, "telemetry"},
+      {0x09, "ota"},    {0x0A, "backup"},   {0x10, "application-1"}, {0x11, "application-2"},
   };
   return m;
 }
@@ -91,7 +90,8 @@ uint8_t module_from_name(const std::string& name) {
 Result<AlarmId> decode_alarm_id(uint32_t id) {
   AlarmId a;
   if (id == 0)
-    return Result<AlarmId>::fail(Errc::InvalidArgument, "alarm id 0 is reserved", "decode_alarm_id");
+    return Result<AlarmId>::fail(Errc::InvalidArgument, "alarm id 0 is reserved",
+                                 "decode_alarm_id");
   a.domain = static_cast<AlarmDomain>((id >> 28) & 0xF);
   a.module = static_cast<uint8_t>((id >> 20) & 0xFF);
   a.type = static_cast<X733Type>((id >> 16) & 0xF);

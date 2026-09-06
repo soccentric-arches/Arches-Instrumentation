@@ -66,8 +66,7 @@ Error LogCore::apply_config(const ConfigDocument& doc) {
     sp.max_age_s = uint64_t(doc.get_int(base + "retention_age_s", 7ll * 24 * 3600));
     sp.compress = doc.get_bool(base + "compress", true);
     if (sp.rotate_size_bytes < 1024)
-      return Error::make(Errc::InvalidArgument,
-                         "rotate_size_bytes too small for source " + sp.name,
+      return Error::make(Errc::InvalidArgument, "rotate_size_bytes too small for source " + sp.name,
                          "logmanager config");
     c.sources.push_back(sp);
   }
@@ -80,7 +79,9 @@ Error LogCore::apply_config(const ConfigDocument& doc) {
 
 CommandTable build_log_table(LogCore* core) {
   CommandTable t;
-  t.add({"sources", "list configured log sources and their runtime levels", {},
+  t.add({"sources",
+         "list configured log sources and their runtime levels",
+         {},
          [core](const std::string&) {
            JValue arr = JValue::array();
            for (const auto& s : core->store().sources()) {
@@ -94,8 +95,10 @@ CommandTable build_log_table(LogCore* core) {
            }
            return CommandResult::good(arr.dump());
          }});
-  t.add({"level-set", "set the runtime level for a source",
-         {{"source", true, "source name"}, {"level", true, "TRACE|DEBUG|INFO|WARNING|ERROR|CRITICAL"}},
+  t.add({"level-set",
+         "set the runtime level for a source",
+         {{"source", true, "source name"},
+          {"level", true, "TRACE|DEBUG|INFO|WARNING|ERROR|CRITICAL"}},
          [core](const std::string& args) {
            auto a = args_object(args);
            if (!a.ok()) return CommandResult::from_error(a.error);
@@ -108,7 +111,8 @@ CommandTable build_log_table(LogCore* core) {
            core->store().set_runtime_level(src, lvl);
            return CommandResult::good(std::string("{\"set\":true}"));
          }});
-  t.add({"tail", "bounded on-demand live tail (stream)",
+  t.add({"tail",
+         "bounded on-demand live tail (stream)",
          {{"sources", false, "comma-separated source names"},
           {"min_level", false, "minimum level"},
           {"since_mono_ns", false, "start timestamp"},
@@ -133,8 +137,8 @@ CommandTable build_log_table(LogCore* core) {
            // Emit matching recent lines now (bounded); the ctrl stream layer
            // stops when the response completes — live push continues via the
            // gRPC tail fanout for HQ/Configuration.
-           auto lines = core->store().read_tail(f.sources.empty() ? first_source(core) : f.sources[0],
-                                                1000);
+           auto lines =
+               core->store().read_tail(f.sources.empty() ? first_source(core) : f.sources[0], 1000);
            if (!lines.ok()) return CommandResult::from_error(lines.error);
            JValue arr = JValue::array();
            for (const auto& l : *lines) {
@@ -152,7 +156,8 @@ CommandTable build_log_table(LogCore* core) {
            }
            return CommandResult::good(arr.dump());
          }});
-  t.add({"bundle-create", "create a support bundle for a time window",
+  t.add({"bundle-create",
+         "create a support bundle for a time window",
          {{"sources", false, "comma-separated sources (all)"}, {"timeout_s", false, "ignored"}},
          [core](const std::string& args) {
            auto a = args_object(args);
@@ -178,13 +183,14 @@ CommandTable build_log_table(LogCore* core) {
            o.set("sha256", JValue(m->sha256));
            return CommandResult::good(o.dump());
          }});
-  t.add({"bundle-list", "list bundle handles", {},
-         [core](const std::string&) {
+  t.add({"bundle-list", "list bundle handles", {}, [core](const std::string&) {
            JValue arr = JValue::array();
            for (const auto& m : core->bundles().list()) arr.push(bundle_json(m));
            return CommandResult::good(arr.dump());
          }});
-  t.add({"bundle-meta", "bundle metadata by handle", {{"handle", true, "bundle handle"}},
+  t.add({"bundle-meta",
+         "bundle metadata by handle",
+         {{"handle", true, "bundle handle"}},
          [core](const std::string& args) {
            auto a = args_object(args);
            if (!a.ok()) return CommandResult::from_error(a.error);
@@ -192,7 +198,8 @@ CommandTable build_log_table(LogCore* core) {
            if (!m.ok()) return CommandResult::from_error(m.error);
            return CommandResult::good(bundle_json(*m));
          }});
-  t.add({"bundle-fetch", "locate a bundle payload for bulk transfer by handle",
+  t.add({"bundle-fetch",
+         "locate a bundle payload for bulk transfer by handle",
          {{"handle", true, "bundle handle"}},
          [core](const std::string& args) {
            auto a = args_object(args);
@@ -213,8 +220,10 @@ CommandTable build_log_table(LogCore* core) {
            o.set("transfer", JValue(std::string("bulk")));
            return CommandResult::good(o.dump());
          }});
-  t.add({"crash-report", "capture crash forensics for an abnormal exit",
-         {{"daemon", true, "daemon name"}, {"coredump", false, "coredump path"},
+  t.add({"crash-report",
+         "capture crash forensics for an abnormal exit",
+         {{"daemon", true, "daemon name"},
+          {"coredump", false, "coredump path"},
           {"last_lines", false, "JSON array of last log lines"}},
          [core](const std::string& args) {
            auto a = args_object(args);
@@ -233,14 +242,12 @@ CommandTable build_log_table(LogCore* core) {
            o.set("tail_lines", JValue(double(c->tail_lines)));
            return CommandResult::good(o.dump());
          }});
-  t.add({"stats", "storage usage and retention stats", {},
-         [core](const std::string&) {
+  t.add({"stats", "storage usage and retention stats", {}, [core](const std::string&) {
            JValue o = JValue::object();
            o.set("total_bytes", JValue(double(core->store().total_bytes())));
            return CommandResult::good(o.dump());
          }});
-  t.add({"prune", "enforce retention and budget now", {},
-         [core](const std::string&) {
+  t.add({"prune", "enforce retention and budget now", {}, [core](const std::string&) {
            auto st = core->store().enforce_retention(core->clock().mono_ns());
            JValue o = JValue::object();
            o.set("files_removed", JValue(double(st.files_removed)));
@@ -302,10 +309,14 @@ void LogSpoke::send_line(const LogLine& l) {
     t->mutable_ts()->set_mono_ns(l.mono_ns);
     t->set_source(l.source);
     t->set_message(l.message);
-    if (l.level == "CRITICAL") t->set_level(common::SEV_CRITICAL);
-    else if (l.level == "ERROR") t->set_level(common::SEV_MAJOR);
-    else if (l.level == "WARNING") t->set_level(common::SEV_WARNING);
-    else t->set_level(common::SEV_INFO);
+    if (l.level == "CRITICAL")
+      t->set_level(common::SEV_CRITICAL);
+    else if (l.level == "ERROR")
+      t->set_level(common::SEV_MAJOR);
+    else if (l.level == "WARNING")
+      t->set_level(common::SEV_WARNING);
+    else
+      t->set_level(common::SEV_INFO);
   });
 }
 

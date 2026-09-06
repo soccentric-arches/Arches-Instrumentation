@@ -32,7 +32,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <map>
 #include <string>
@@ -46,28 +45,28 @@ namespace platform {
 
 // ---- device descriptor ----
 struct DeviceCheck {
-  std::string name;        // e.g. "loopback"
-  std::string op;          // e.g. "gpio_toggle_read"
+  std::string name;  // e.g. "loopback"
+  std::string op;  // e.g. "gpio_toggle_read"
   std::map<std::string, std::string> params;
 };
 struct DeviceSpec {
-  std::string name;        // "status-led", "gpio-1", "can0", "usb1", "display"
-  std::string kind;        // gpio / led / can / usb / display / sensor / watchdog
-  std::vector<std::string> controls;   // control op names
+  std::string name;  // "status-led", "gpio-1", "can0", "usb1", "display"
+  std::string kind;  // gpio / led / can / usb / display / sensor / watchdog
+  std::vector<std::string> controls;  // control op names
   std::vector<DeviceCheck> checks;
   std::map<std::string, std::string> params;  // e.g. line=1, port=1-2
 };
 struct DeviceDescriptor {
-  std::string board;                 // board variant name
+  std::string board;  // board variant name
   std::vector<DeviceSpec> devices;
 };
 
 // ---- resource profile ----
 struct ResourceProfile {
-  std::string platform_class;        // small / medium / large
+  std::string platform_class;  // small / medium / large
   double sample_interval_default_s = 5;
   std::map<std::string, double> sample_intervals_per_class_s;  // cpu/memory/storage/thermal/load
-  double highres_window_s = 60;      // fine-grained local retention
+  double highres_window_s = 60;  // fine-grained local retention
   double highres_interval_s = 1;
   double telemetry_interval_s = 30;
   uint64_t telemetry_batch_max_records = 200;

@@ -28,7 +28,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include <cstdio>
 
 #include "instr/common/config_sink.h"
@@ -44,9 +43,10 @@
 int main(int argc, char** argv) {
   auto args = instr::parse_daemon_args(argc, argv, "backup");
   if (args.help) {
-    std::printf("backup — snapshot /pst/system, archive, restore (Arches Instrumentation)\n"
-                "usage: backup [--socket PATH] [--hub PATH] [--root PATH]\n"
-                "       [--platform native|simulated] [--help]\n");
+    std::printf(
+        "backup — snapshot /pst/system, archive, restore (Arches Instrumentation)\n"
+        "usage: backup [--socket PATH] [--hub PATH] [--root PATH]\n"
+        "       [--platform native|simulated] [--help]\n");
     return 0;
   }
   std::atomic<bool> stop{false};
@@ -64,7 +64,8 @@ int main(int argc, char** argv) {
     auto j = instr::json_parse(*ident);
     if (j.ok() && (*j).is_object()) {
       if (const instr::JValue* v = (*j).find("serial")) opts.device_serial = v->as_string();
-      if (const instr::JValue* v = (*j).find("hw_revision")) opts.hardware_revision = v->as_string();
+      if (const instr::JValue* v = (*j).find("hw_revision"))
+        opts.hardware_revision = v->as_string();
     }
   }
   opts.schema_version = "1";
@@ -110,8 +111,8 @@ int main(int argc, char** argv) {
   // Scheduled backups (§7.10). schedule_enabled in the config only means
   // something if something acts on it; the worker idles when it is off.
   instr::PeriodicWorker scheduler(
-      "backup-schedule",
-      core.config().schedule_enabled ? core.config().schedule_interval_s : 0.0, [&] {
+      "backup-schedule", core.config().schedule_enabled ? core.config().schedule_interval_s : 0.0,
+      [&] {
         const auto& c = core.config();
         auto info = core.engine().create(c.paths, c.excludes, core.archive_dir(),
                                          ts.wall_ns() / 1'000'000'000ll);

@@ -31,7 +31,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <deque>
 #include <functional>
@@ -53,7 +52,7 @@ class BudgetManager;  // forward (defined in pst.h)
 struct TimelineRecord {
   uint64_t seq = 0;
   Stamp ts;
-  std::string kind;   // boot / config_change / alarm / fault / update / restart / audit
+  std::string kind;  // boot / config_change / alarm / fault / update / restart / audit
   std::string actor;
   std::string detail_json;
 };
@@ -144,12 +143,8 @@ class HqSession {
     state_ = State::Connected;
     backoff_.reset();
   }
-  void on_disconnected() {
-    state_ = State::Backoff;
-  }
-  void on_backpressure(bool pause) {
-    state_ = pause ? State::Backpressured : State::Draining;
-  }
+  void on_disconnected() { state_ = State::Backoff; }
+  void on_backpressure(bool pause) { state_ = pause ? State::Backpressured : State::Draining; }
   void set_draining() { state_ = State::Draining; }
   void set_disconnected() { state_ = State::Disconnected; }
   uint64_t attempts() const { return backoff_.attempts(); }

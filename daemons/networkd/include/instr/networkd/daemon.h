@@ -25,7 +25,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <atomic>
 #include <memory>
@@ -145,8 +144,8 @@ class NetworkdSpoke {
   Logger* log_;
   const CommandTable* table_;
   std::unique_ptr<ConfigSink> config_sink_;
-  std::unique_ptr<SpokeChannel<networkd::NetworkHub, networkd::NetworkSpokeFrame,
-                               networkd::NetworkHubFrame>>
+  std::unique_ptr<
+      SpokeChannel<networkd::NetworkHub, networkd::NetworkSpokeFrame, networkd::NetworkHubFrame>>
       channel_;
 };
 

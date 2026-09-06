@@ -81,8 +81,8 @@ std::vector<Surface> all_surfaces() {
 
 TEST(CtrlSurface, EveryDaemonHasATableBuildableWithoutACore) {
   for (auto& s : all_surfaces()) {
-    EXPECT_GT(s.table.size(), 0u)
-        << s.daemon << " exposes no operations: its _ctrl would be useless";
+    EXPECT_GT(s.table.size(), 0u) << s.daemon
+                                  << " exposes no operations: its _ctrl would be useless";
   }
 }
 
@@ -92,8 +92,7 @@ TEST(CtrlSurface, EveryOperationIsDescribed) {
   for (auto& s : all_surfaces()) {
     for (const auto* op : s.table.all()) {
       EXPECT_FALSE(op->op.empty()) << s.daemon << " has an unnamed operation";
-      EXPECT_FALSE(op->description.empty())
-          << s.daemon << "." << op->op << " has no description";
+      EXPECT_FALSE(op->description.empty()) << s.daemon << "." << op->op << " has no description";
     }
   }
 }
@@ -188,9 +187,8 @@ TEST(CtrlSurface, OperationsTakingIdentifiersDeclareThemRequired) {
       ASSERT_NE(op, nullptr) << s.daemon << " has no operation '" << op_name << "'";
       bool has_required = false;
       for (const auto& a : op->args) has_required = has_required || a.required;
-      EXPECT_TRUE(has_required)
-          << s.daemon << "." << op_name
-          << " acts on a named subject but declares no required argument";
+      EXPECT_TRUE(has_required) << s.daemon << "." << op_name
+                                << " acts on a named subject but declares no required argument";
     }
   }
 }
@@ -199,10 +197,12 @@ TEST(CtrlSurface, EveryDaemonExposesItsCoreOperations) {
   // Spot-check that the tables carry the operations REQ §7 names for each
   // daemon, so "full coverage" is not satisfied by a table of one op.
   const std::map<std::string, std::vector<std::string>> expected = {
-      {"istate", {"status", "spokes", "config-get", "config-set", "timeline", "reset",
-                  "time-policy", "system-info", "audit", "budgets"}},
-      {"networkd", {"status", "apply-plan", "firewall-add", "ssh-open", "ssh-close",
-                    "tunnel-status", "time-policy-render"}},
+      {"istate",
+       {"status", "spokes", "config-get", "config-set", "timeline", "reset", "time-policy",
+        "system-info", "audit", "budgets"}},
+      {"networkd",
+       {"status", "apply-plan", "firewall-add", "ssh-open", "ssh-close", "tunnel-status",
+        "time-policy-render"}},
       {"monitord", {"status", "sample-once", "set-interval", "wear"}},
       {"hardware", {"list-devices", "check", "check-all", "gpio-set", "led-set", "usb-reset"}},
       {"faults", {"stats", "rules-list", "rules-reload", "test-line"}},

@@ -40,13 +40,13 @@ static common::Severity sev_from_name(const std::string& s) {
 
 CommandTable build_alarms_table(AlarmsCore* core) {
   CommandTable t;
-  t.add({"list", "list the active alarm table", {},
-         [core](const std::string&) {
+  t.add({"list", "list the active alarm table", {}, [core](const std::string&) {
            return CommandResult::good(core->manager().active_table_json());
          }});
   // raise/clear are application operations (R5) — exposed for application
   // integrators and test harnesses; istate relays HQ commands likewise.
-  t.add({"raise", "declare an alarm (applications only)",
+  t.add({"raise",
+         "declare an alarm (applications only)",
          {{"id", true, "alarm id (0x1_04_1_0007 or decimal)"},
           {"owner", true, "declaring application"},
           {"text", false, "additional text"},
@@ -63,7 +63,9 @@ CommandTable build_alarms_table(AlarmsCore* core) {
            while (pos < corr.size()) {
              size_t comma = corr.find(',', pos);
              if (comma == std::string::npos) comma = corr.size();
-             if (comma > pos) correlated.push_back(uint32_t(std::stoul(corr.substr(pos, comma - pos), nullptr, 0)));
+             if (comma > pos)
+               correlated.push_back(
+                   uint32_t(std::stoul(corr.substr(pos, comma - pos), nullptr, 0)));
              pos = comma + 1;
            }
            auto r = core->manager().raise(id, owner, text, correlated);
@@ -73,7 +75,9 @@ CommandTable build_alarms_table(AlarmsCore* core) {
            o.set("needs_snapshot", JValue(r->needs_snapshot));
            return CommandResult::good(o.dump());
          }});
-  t.add({"ack", "acknowledge an active alarm", {{"id", true, "alarm id"}},
+  t.add({"ack",
+         "acknowledge an active alarm",
+         {{"id", true, "alarm id"}},
          [core](const std::string& args) {
            auto a = args_object(args);
            if (!a.ok()) return CommandResult::from_error(a.error);
@@ -81,24 +85,24 @@ CommandTable build_alarms_table(AlarmsCore* core) {
            return r.ok() ? CommandResult::good(std::string("{\"acknowledged\":true}"))
                          : CommandResult::from_error(r.error);
          }});
-  t.add({"clear", "clear an active alarm (owner or operator)",
+  t.add({"clear",
+         "clear an active alarm (owner or operator)",
          {{"id", true, "alarm id"}, {"owner", false, "owner for attribution"}},
          [core](const std::string& args) {
            auto a = args_object(args);
            if (!a.ok()) return CommandResult::from_error(a.error);
-           auto r = core->manager().clear(uint32_t((*a).get_number("id", 0)),
-                                          (*a).get_string("owner"));
+           auto r =
+               core->manager().clear(uint32_t((*a).get_number("id", 0)), (*a).get_string("owner"));
            return r.ok() ? CommandResult::good(std::string("{\"cleared\":true}"))
                          : CommandResult::from_error(r.error);
          }});
-  t.add({"escalation-policy-get", "show the escalation policy", {},
-         [core](const std::string&) {
+  t.add({"escalation-policy-get", "show the escalation policy", {}, [core](const std::string&) {
            JValue arr = JValue::array();
            for (const auto& e : core->manager().escalation()) {
              JValue o = JValue::object();
              o.set("alarm_id", JValue(double(e.alarm_id)));
              o.set("promote_after_s", JValue(double(e.promote_after_s)));
-             o.set("promote_to", JValue(e.promote_to == common::SEV_CRITICAL ? "CRITICAL"
+             o.set("promote_to", JValue(e.promote_to == common::SEV_CRITICAL  ? "CRITICAL"
                                         : e.promote_to == common::SEV_MAJOR   ? "MAJOR"
                                         : e.promote_to == common::SEV_MINOR   ? "MINOR"
                                         : e.promote_to == common::SEV_WARNING ? "WARNING"
@@ -107,35 +111,38 @@ CommandTable build_alarms_table(AlarmsCore* core) {
            }
            return CommandResult::good(arr.dump());
          }});
-  t.add({"escalation-policy-set", "set escalation rules (runtime; config via istate)",
-         {{"json", true, "[{\"alarm_id\":0,\"promote_after_s\":3600,\"promote_to\":\"CRITICAL\"}]"}},
-         [core](const std::string& args) {
-           auto a = args_object(args);
-           if (!a.ok()) return CommandResult::from_error(a.error);
-           auto j = json_parse((*a).get_string("json"));
-           if (!j.ok() || !(*j).is_array())
-             return CommandResult::err(Errc::InvalidArgument, "json must be an array");
-           std::vector<EscalationRule> rules;
-           for (const auto& item : (*j).items()) {
-             EscalationRule r;
-             r.alarm_id = uint32_t(item.find("alarm_id") ? item.find("alarm_id")->as_number() : 0);
-             r.promote_after_s =
-                 uint64_t(item.find("promote_after_s") ? item.find("promote_after_s")->as_number() : 3600);
-             std::string to = item.find("promote_to") ? item.find("promote_to")->as_string() : "CRITICAL";
-             r.promote_to = sev_from_name(to);
-             rules.push_back(r);
-           }
-           core->manager().set_escalation(rules);
-           return CommandResult::good(std::string("{\"set\":true}"));
-         }});
-  t.add({"escalation-sweep", "run one escalation sweep now", {},
-         [core](const std::string&) {
+  t.add(
+      {"escalation-policy-set",
+       "set escalation rules (runtime; config via istate)",
+       {{"json", true, "[{\"alarm_id\":0,\"promote_after_s\":3600,\"promote_to\":\"CRITICAL\"}]"}},
+       [core](const std::string& args) {
+         auto a = args_object(args);
+         if (!a.ok()) return CommandResult::from_error(a.error);
+         auto j = json_parse((*a).get_string("json"));
+         if (!j.ok() || !(*j).is_array())
+           return CommandResult::err(Errc::InvalidArgument, "json must be an array");
+         std::vector<EscalationRule> rules;
+         for (const auto& item : (*j).items()) {
+           EscalationRule r;
+           r.alarm_id = uint32_t(item.find("alarm_id") ? item.find("alarm_id")->as_number() : 0);
+           r.promote_after_s = uint64_t(
+               item.find("promote_after_s") ? item.find("promote_after_s")->as_number() : 3600);
+           std::string to =
+               item.find("promote_to") ? item.find("promote_to")->as_string() : "CRITICAL";
+           r.promote_to = sev_from_name(to);
+           rules.push_back(r);
+         }
+         core->manager().set_escalation(rules);
+         return CommandResult::good(std::string("{\"set\":true}"));
+       }});
+  t.add({"escalation-sweep", "run one escalation sweep now", {}, [core](const std::string&) {
            auto evs = core->manager().escalation_sweep(core->now_mono());
            JValue o = JValue::object();
            o.set("promoted", JValue(double(evs.size())));
            return CommandResult::good(o.dump());
          }});
-  t.add({"catalog-merge", "merge new catalog entries (update regeneration)",
+  t.add({"catalog-merge",
+         "merge new catalog entries (update regeneration)",
          {{"yaml", true, "catalog entries YAML"}},
          [core](const std::string& args) {
            auto a = args_object(args);
@@ -155,8 +162,7 @@ CommandTable build_alarms_table(AlarmsCore* core) {
 AlarmsSpoke::AlarmsSpoke(AlarmsCore* core, Logger* log, const CommandTable* table,
                          const std::string& hub_target, const std::string& build_version)
     : core_(core), log_(log), table_(table) {
-  using ChannelT =
-      SpokeChannel<alarms::AlarmHub, alarms::AlarmSpokeFrame, alarms::AlarmHubFrame>;
+  using ChannelT = SpokeChannel<alarms::AlarmHub, alarms::AlarmSpokeFrame, alarms::AlarmHubFrame>;
   ChannelT::Options o;
   o.target = hub_target;
   o.daemon = "alarms";

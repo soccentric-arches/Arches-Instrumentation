@@ -29,7 +29,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include <fstream>
 #include <sstream>
 
@@ -56,7 +55,8 @@ TEST(ContractProtos, DescriptorHashMatchesGolden) {
   ASSERT_GT(desc.size(), 100u) << "descriptor set missing; build protos_golden first";
   std::string computed = crypto::sha256(desc).hex();
   std::string golden = slurp(GOLDEN_FILE);
-  while (!golden.empty() && (golden.back() == '\n' || golden.back() == ' ' || golden.back() == '\r'))
+  while (!golden.empty() &&
+         (golden.back() == '\n' || golden.back() == ' ' || golden.back() == '\r'))
     golden.pop_back();
   if (golden.empty()) {
     // First run: seed the golden file (CI must commit it).

@@ -34,7 +34,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <cstdint>
 #include <deque>
@@ -50,8 +49,8 @@ enum class SpoolPriority : uint8_t {
   Telemetry = 0,  // dropped first
   LogRef = 1,
   Event = 2,
-  Fault = 3,      // protected
-  Alarm = 4,      // protected
+  Fault = 3,  // protected
+  Alarm = 4,  // protected
 };
 
 struct SpoolConfig {
@@ -116,10 +115,20 @@ class DiskSpool {
 
   IFileSystem& fs_;
   SpoolConfig cfg_;
-  struct Seg { uint64_t seq; uint64_t bytes; uint64_t records; };
+  struct Seg {
+    uint64_t seq;
+    uint64_t bytes;
+    uint64_t records;
+  };
   std::deque<Seg> segments_;
   // In-memory index: record header + segment seq + offset.
-  struct IdxRec { SpoolPriority prio; uint64_t mono_ns; uint32_t len; uint64_t seg; uint64_t off; };
+  struct IdxRec {
+    SpoolPriority prio;
+    uint64_t mono_ns;
+    uint32_t len;
+    uint64_t seg;
+    uint64_t off;
+  };
   std::deque<IdxRec> index_;
   uint64_t next_seg_seq_ = 1;
   uint64_t next_seq_ = 1;

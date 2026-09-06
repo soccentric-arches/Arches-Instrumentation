@@ -25,7 +25,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include "instr/transport/transport.h"
 
 namespace instr {

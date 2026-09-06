@@ -29,7 +29,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include <gtest/gtest.h>
 
 #include "instr/common/filesystem.h"
@@ -293,10 +292,9 @@ TEST(FaultNetwork, TunnelLossGuardRevertsChange) {
 TEST(FaultProto, MismatchRefusedWithAlarm) {
   FaultFixture f;
   std::vector<std::string> events;
-  f.core->orchestrator().set_event_sink(
-      [&](const std::string& kind, const std::string& detail) {
-        events.push_back(kind + ":" + detail);
-      });
+  f.core->orchestrator().set_event_sink([&](const std::string& kind, const std::string& detail) {
+    events.push_back(kind + ":" + detail);
+  });
   auto r = f.core->orchestrator().register_spoke("ota", "1.0.0", 999, std::vector<std::string>{});
   EXPECT_EQ(r, Orchestrator::Reg::SchemaMismatch);
   bool alarm_emitted = false;

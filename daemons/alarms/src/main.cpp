@@ -28,7 +28,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include <cstdio>
 
 #include "instr/common/config_sink.h"
@@ -44,9 +43,10 @@
 int main(int argc, char** argv) {
   auto args = instr::parse_daemon_args(argc, argv, "alarms");
   if (args.help) {
-    std::printf("alarms — telecom-style alarm manager (Arches Instrumentation)\n"
-                "usage: alarms [--socket PATH] [--hub PATH] [--root PATH]\n"
-                "       [--platform native|simulated] [--help]\n");
+    std::printf(
+        "alarms — telecom-style alarm manager (Arches Instrumentation)\n"
+        "usage: alarms [--socket PATH] [--hub PATH] [--root PATH]\n"
+        "       [--platform native|simulated] [--help]\n");
     return 0;
   }
   std::atomic<bool> stop{false};
@@ -79,7 +79,7 @@ int main(int argc, char** argv) {
   auto cfg_schema = instr::load_daemon_schema(fs, root, "alarms");
   if (!cfg_schema.ok())
     log.warning("alarms", "no JSON Schema installed: " + cfg_schema.error.str() +
-                          " — deliveries will be applied unvalidated");
+                              " — deliveries will be applied unvalidated");
 
   auto table = instr::alarms::build_alarms_table(&core);
   std::string run_dir = root + "/run/instrumentation";
@@ -99,8 +99,8 @@ int main(int argc, char** argv) {
 
   // Escalation sweep + persistence, on the configured interval (§7.6). An
   // alarm left uncleared must be promoted whether or not anyone is asking.
-  instr::PeriodicWorker escalation("alarms-escalation",
-                                   core.config().escalation_sweep_interval_s, [&] {
+  instr::PeriodicWorker escalation("alarms-escalation", core.config().escalation_sweep_interval_s,
+                                   [&] {
                                      core.manager().escalation_sweep(ts.mono_ns());
                                      core.manager().save();
                                    });

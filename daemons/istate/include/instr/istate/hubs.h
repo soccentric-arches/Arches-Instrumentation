@@ -29,7 +29,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <grpcpp/grpcpp.h>
 
@@ -53,8 +52,9 @@ namespace istate {
 // Builds and runs the full gRPC server for istate. Socket paths are
 // /run/instrumentation/<daemon>.sock (created by istate, §3.1) plus
 // configuration.sock. Returns the server (BuildAndStart) or nullptr.
-std::unique_ptr<grpc::Server> build_hub_server(IstateCore& core, const std::string& run_dir,
-                                               std::vector<std::unique_ptr<grpc::Service>>* services);
+std::unique_ptr<grpc::Server> build_hub_server(
+    IstateCore& core, const std::string& run_dir,
+    std::vector<std::unique_ptr<grpc::Service>>* services);
 
 // HQ session client: dials HqPeer over the tunnel, pushes spooled data,
 // receives config pushes / OTA commands / backpressure.

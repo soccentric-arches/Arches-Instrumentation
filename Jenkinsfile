@@ -1,6 +1,6 @@
-// CI pipeline (REQ §12, §14): build presets, unit + contract + integration +
-// fault-injection + secret-leak tests, coverage gate, static analysis,
-// sanitizers.
+// CI pipeline (REQ §12, §14): build presets, formatting check, unit +
+// contract + integration + fault-injection + secret-leak tests, coverage
+// gate, static analysis, sanitizers.
 //
 // Nothing here is allowed to pass by not running. A stage that cannot do its
 // job fails the build rather than being skipped — a green pipeline must mean
@@ -14,6 +14,11 @@ pipeline {
   stages {
     stage('Configure') {
       steps { sh 'cmake --preset jenkins' }
+    }
+    stage('Format check') {
+      // .clang-format is the enforced style: a violation is a finding to fix,
+      // not something to silently auto-fix on the way through.
+      steps { sh 'cmake --build --preset jenkins --target check-format' }
     }
     stage('Build') {
       steps { sh 'cmake --build --preset jenkins' }

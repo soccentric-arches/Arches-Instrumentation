@@ -122,6 +122,44 @@ else()
     VERBATIM)
 endif()
 
+# ---- formatting (§14) ----
+# Same philosophy as run-clang-tidy: the gate exists and fails the build when
+# the code drifts from .clang-format. check-format verifies (CI), format fixes
+# in place. Scope is every hand-written C++ file: lib/, daemons/, tools/,
+# test/, catalog/ — generated code lives in the binary dir and is never globed.
+file(GLOB_RECURSE INSTR_FORMAT_SRCS CONFIGURE_DEPENDS
+  "${CMAKE_SOURCE_DIR}/lib/*.cpp"     "${CMAKE_SOURCE_DIR}/lib/*.h"
+  "${CMAKE_SOURCE_DIR}/daemons/*.cpp" "${CMAKE_SOURCE_DIR}/daemons/*.h"
+  "${CMAKE_SOURCE_DIR}/tools/*.cpp"   "${CMAKE_SOURCE_DIR}/tools/*.h"
+  "${CMAKE_SOURCE_DIR}/test/*.cpp"    "${CMAKE_SOURCE_DIR}/test/*.h"
+  "${CMAKE_SOURCE_DIR}/catalog/*.cpp" "${CMAKE_SOURCE_DIR}/catalog/*.h")
+find_program(CLANG_FORMAT_BIN NAMES clang-format clang-format-18 clang-format-17)
+if(CLANG_FORMAT_BIN)
+  add_custom_target(check-format
+    COMMAND ${CLANG_FORMAT_BIN} --dry-run -Werror --style=file ${INSTR_FORMAT_SRCS}
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    COMMENT "clang-format check over lib/, daemons/, tools/, test/, catalog/"
+    VERBATIM)
+  add_custom_target(format
+    COMMAND ${CLANG_FORMAT_BIN} -i --style=file ${INSTR_FORMAT_SRCS}
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    COMMENT "clang-format apply over lib/, daemons/, tools/, test/, catalog/"
+    VERBATIM)
+else()
+  add_custom_target(check-format
+    COMMAND ${CMAKE_COMMAND} -E echo
+            "clang-format not found: install clang-format to check formatting"
+    COMMAND ${CMAKE_COMMAND} -E false
+    COMMENT "clang-format unavailable"
+    VERBATIM)
+  add_custom_target(format
+    COMMAND ${CMAKE_COMMAND} -E echo
+            "clang-format not found: install clang-format to format"
+    COMMAND ${CMAKE_COMMAND} -E false
+    COMMENT "clang-format unavailable"
+    VERBATIM)
+endif()
+
 # ---- tests (§12) ----
 enable_testing()
 # ---- docs (§14: generated so it cannot drift) ----

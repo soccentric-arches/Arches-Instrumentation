@@ -28,7 +28,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include <gtest/gtest.h>
 
 #include "instr/istate/orchestrator.h"
@@ -73,8 +72,8 @@ TEST(Orchestrator, RegistrationRefusesProtoMismatch) {
   Orchestrator orch(plat, ts);
   orch.declare_spokes(startup_order());
   std::string reason;
-  auto ok = orch.register_spoke("monitord", "1.0.0", instr::transport::kProtoSchemaVersion, {"samples"},
-                                &reason);
+  auto ok = orch.register_spoke("monitord", "1.0.0", instr::transport::kProtoSchemaVersion,
+                                {"samples"}, &reason);
   EXPECT_EQ(ok, Orchestrator::Reg::Accepted);
   orch.mark_ready("monitord");
 

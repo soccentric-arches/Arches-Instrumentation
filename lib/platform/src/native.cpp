@@ -128,9 +128,7 @@ bool NativePlatform::entropy_available() {
   if (!a.ok()) return false;
   try {
     return std::stoul(*a) >= 128;
-  } catch (...) {
-    return false;
-  }
+  } catch (...) { return false; }
 }
 
 std::vector<StorageDevice> NativePlatform::storage_devices() {
@@ -154,10 +152,14 @@ std::vector<StorageDevice> NativePlatform::storage_devices() {
         if (step >= 0 && step <= 10) d.wear_pct = step * 10.0;
       } catch (...) {}
     }
-    if (name.rfind("mmcblk", 0) == 0) d.kind = "emmc";
-    else if (name.rfind("sd", 0) == 0) d.kind = "sd";
-    else if (name.rfind("nvme", 0) == 0) d.kind = "nvme";
-    else d.kind = "block";
+    if (name.rfind("mmcblk", 0) == 0)
+      d.kind = "emmc";
+    else if (name.rfind("sd", 0) == 0)
+      d.kind = "sd";
+    else if (name.rfind("nvme", 0) == 0)
+      d.kind = "nvme";
+    else
+      d.kind = "block";
     read_smart(&d);
     out.push_back(d);
   }
@@ -175,9 +177,7 @@ MemInfo NativePlatform::memory_info() {
     if (pos == std::string::npos) return 0;
     try {
       return std::stoull(f->substr(pos)) * 1024;
-    } catch (...) {
-      return 0;
-    }
+    } catch (...) { return 0; }
   };
   m.total_bytes = grab("MemTotal:");
   m.available_bytes = grab("MemAvailable:");
@@ -208,14 +208,12 @@ CpuSnapshot NativePlatform::cpu_snapshot() {
   c.cores = uint32_t(c.busy_ticks.size());
   // Frequencies + governor.
   for (uint32_t i = 0; i < c.cores; ++i) {
-    auto freq = read_file("/sys/devices/system/cpu/cpu" + std::to_string(i) +
-                          "/cpufreq/scaling_cur_freq");
+    auto freq =
+        read_file("/sys/devices/system/cpu/cpu" + std::to_string(i) + "/cpufreq/scaling_cur_freq");
     if (freq.ok()) {
       try {
         c.freq_mhz.push_back(std::stod(*freq) / 1000.0);
-      } catch (...) {
-        c.freq_mhz.push_back(0);
-      }
+      } catch (...) { c.freq_mhz.push_back(0); }
     } else {
       c.freq_mhz.push_back(0);
     }
@@ -234,23 +232,17 @@ double NativePlatform::load_average_1m() {
   if (!f.ok()) return 0;
   try {
     return std::stod(*f);
-  } catch (...) {
-    return 0;
-  }
+  } catch (...) { return 0; }
 }
 
-uint32_t NativePlatform::process_count() {
-  return uint32_t(list_dir("/proc").size());
-}
+uint32_t NativePlatform::process_count() { return uint32_t(list_dir("/proc").size()); }
 
 uint64_t NativePlatform::uptime_s() {
   auto f = read_file("/proc/uptime");
   if (!f.ok()) return 0;
   try {
     return uint64_t(std::stod(*f));
-  } catch (...) {
-    return 0;
-  }
+  } catch (...) { return 0; }
 }
 
 uint32_t NativePlatform::boot_count() {
@@ -258,9 +250,7 @@ uint32_t NativePlatform::boot_count() {
   if (!f.ok()) return 1;
   try {
     return uint32_t(std::stoul(*f));
-  } catch (...) {
-    return 1;
-  }
+  } catch (...) { return 1; }
 }
 
 bool NativePlatform::last_shutdown_clean() {
@@ -276,7 +266,8 @@ std::vector<ThermalZone> NativePlatform::thermal_zones() {
     auto type = read_file("/sys/class/thermal/" + z + "/type");
     if (type.ok()) {
       t.label = *type;
-      while (!t.label.empty() && (t.label.back() == '\n' || t.label.back() == ' ')) t.label.pop_back();
+      while (!t.label.empty() && (t.label.back() == '\n' || t.label.back() == ' '))
+        t.label.pop_back();
     }
     auto temp = read_file("/sys/class/thermal/" + z + "/temp");
     if (temp.ok()) {
@@ -297,7 +288,8 @@ std::vector<PowerSource> NativePlatform::power_sources() {
     auto type = read_file("/sys/class/power_supply/" + p + "/type");
     if (type.ok()) {
       ps.kind = *type;
-      while (!ps.kind.empty() && (ps.kind.back() == '\n' || ps.kind.back() == ' ')) ps.kind.pop_back();
+      while (!ps.kind.empty() && (ps.kind.back() == '\n' || ps.kind.back() == ' '))
+        ps.kind.pop_back();
     }
     auto cap = read_file("/sys/class/power_supply/" + p + "/capacity");
     if (cap.ok()) {
@@ -417,8 +409,7 @@ Result<BootSlotState> NativePlatform::boot_slots() {
 
   if (have_fw_env()) {
     auto active = fw_getenv("boot_slot");
-    if (!active.ok())
-      return Result<BootSlotState>::fail(Errc::NotFound, "boot_slot unset", "boot");
+    if (!active.ok()) return Result<BootSlotState>::fail(Errc::NotFound, "boot_slot unset", "boot");
     s.active = *active;
     s.inactive = s.active == "A" ? "B" : "A";
     auto next = fw_getenv("boot_slot_next");
@@ -539,9 +530,7 @@ Result<bool> NativePlatform::gpio_get(int line) {
   if (!v.ok()) return Result<bool>::fail(v.error.code, v.error.message, "gpio");
   try {
     return Result<bool>::good(std::stoi(*v) != 0);
-  } catch (...) {
-    return Result<bool>::fail(Errc::Corrupt, "gpio value unreadable", "gpio");
-  }
+  } catch (...) { return Result<bool>::fail(Errc::Corrupt, "gpio value unreadable", "gpio"); }
 }
 
 Error NativePlatform::led_set(const std::string& name, bool on) {
@@ -661,8 +650,7 @@ Result<std::vector<std::string>> NativePlatform::kernel_log_lines(bool from_star
 
   // Follow: one long-lived descriptor. Re-opening and seeking to the end on
   // every poll — as this used to do — reads nothing, ever.
-  if (kmsg_follow_fd_ < 0 && !open_follow_fd())
-    return Result<std::vector<std::string>>::good({});
+  if (kmsg_follow_fd_ < 0 && !open_follow_fd()) return Result<std::vector<std::string>>::good({});
   read_kmsg_into(kmsg_follow_fd_, &out, 50000);
   return Result<std::vector<std::string>>::good(std::move(out));
 }
@@ -863,7 +851,8 @@ Error NativePlatform::apply_network_plan(const std::string& plan_json) {
       nat += "    type nat hook prerouting priority -100;\n";
       for (const auto& f : pf->items()) {
         const std::string proto = f.find("proto") ? f.find("proto")->as_string() : "tcp";
-        const uint32_t lp = f.find("listen_port") ? uint32_t(f.find("listen_port")->as_number()) : 0;
+        const uint32_t lp =
+            f.find("listen_port") ? uint32_t(f.find("listen_port")->as_number()) : 0;
         const std::string dip = f.find("dest_ip") ? f.find("dest_ip")->as_string() : "";
         const uint32_t dp = f.find("dest_port") ? uint32_t(f.find("dest_port")->as_number()) : 0;
         if (!lp || dip.empty() || !dp) continue;
@@ -929,9 +918,7 @@ Error NativePlatform::write_wireless_conf(const std::string& mode, const std::st
   return Error::make(Errc::InvalidArgument, "unknown wireless mode", mode);
 }
 
-bool NativePlatform::hq_reachable() {
-  return read_file("/run/instrumentation/tunnel-up").ok();
-}
+bool NativePlatform::hq_reachable() { return read_file("/run/instrumentation/tunnel-up").ok(); }
 
 }  // namespace platform
 }  // namespace instr

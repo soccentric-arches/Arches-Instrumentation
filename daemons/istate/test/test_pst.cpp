@@ -28,7 +28,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include <gtest/gtest.h>
 
 #include "instr/common/filesystem.h"

@@ -28,7 +28,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <memory>
 #include <mutex>
@@ -48,8 +47,10 @@ using namespace instr::transport;
 class LogCore {
  public:
   LogCore(IFileSystem& fs, const std::string& base_dir, TimeSource& ts)
-      : store_(fs, base_dir), bundles_(fs, base_dir + "-bundles"),
-        forensics_(fs, base_dir + "-crash"), ts_(ts) {
+      : store_(fs, base_dir),
+        bundles_(fs, base_dir + "-bundles"),
+        forensics_(fs, base_dir + "-crash"),
+        ts_(ts) {
     bundles_.set_log_base_dir(base_dir);
   }
 

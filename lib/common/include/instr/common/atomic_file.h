@@ -30,7 +30,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <string>
 
@@ -45,8 +44,7 @@ class AtomicFile {
   static Error write(IFileSystem& fs, const std::string& path, const std::string& data);
 
   // Atomic write with .checksum and .bak redundant copy.
-  static Error write_protected(IFileSystem& fs, const std::string& path,
-                               const std::string& data);
+  static Error write_protected(IFileSystem& fs, const std::string& path, const std::string& data);
 
   // Read a protected file; on checksum mismatch of the primary, fall back to
   // the .bak copy. Returns Corrupt only when both fail (REQ §11: /pst corrupt

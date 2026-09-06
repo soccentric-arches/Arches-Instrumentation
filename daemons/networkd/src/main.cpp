@@ -25,7 +25,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include <cstdio>
 
 #include "instr/common/config_sink.h"
@@ -41,9 +40,10 @@
 int main(int argc, char** argv) {
   auto args = instr::parse_daemon_args(argc, argv, "networkd");
   if (args.help) {
-    std::printf("networkd — network/firewall/tunnel/time daemon (Arches Instrumentation)\n"
-                "usage: networkd [--socket PATH] [--hub PATH] [--root PATH]\n"
-                "       [--platform native|simulated] [--help]\n");
+    std::printf(
+        "networkd — network/firewall/tunnel/time daemon (Arches Instrumentation)\n"
+        "usage: networkd [--socket PATH] [--hub PATH] [--root PATH]\n"
+        "       [--platform native|simulated] [--help]\n");
     return 0;
   }
   std::atomic<bool> stop{false};

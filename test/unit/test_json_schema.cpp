@@ -28,7 +28,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include <gtest/gtest.h>
 
 #include "instr/common/json.h"
@@ -109,8 +108,8 @@ TEST(JsonSchema, TypeAndRequired) {
   EXPECT_NE(issues[0].message.find("required"), std::string::npos);
 
   JValue bad2 = JValue::object();
-  bad2.set("name", JValue("x"));    // too short
-  bad2.set("port", JValue(4.5));    // not integer
+  bad2.set("name", JValue("x"));  // too short
+  bad2.set("port", JValue(4.5));  // not integer
   EXPECT_FALSE(JsonValidator::validate(schema, bad2, &issues));
   EXPECT_GE(issues.size(), 2u);
 }

@@ -110,7 +110,8 @@ Stamp TimeReconciler::stamp_now() {
   s.boot_id = ts_.boot_id();
   s.seq = ts_.next_seq();
   s.wall_valid = locked_;
-  s.wall_ns = locked_ ? base_wall_ns_ + static_cast<int64_t>(s.mono_ns - base_mono_ns_) : ts_.wall_ns();
+  s.wall_ns =
+      locked_ ? base_wall_ns_ + static_cast<int64_t>(s.mono_ns - base_mono_ns_) : ts_.wall_ns();
   return s;
 }
 

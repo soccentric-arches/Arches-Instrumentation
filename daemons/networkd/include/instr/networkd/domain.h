@@ -29,7 +29,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <cstdint>
 #include <map>
@@ -48,18 +47,18 @@ namespace domain {
 // ---- configuration model (persisted by istate in /pst/system/networkd) ----
 struct IfaceConfig {
   std::string name;
-  std::string mode;        // dhcp | static | vlan | bond | unused
-  std::string address;     // static
+  std::string mode;  // dhcp | static | vlan | bond | unused
+  std::string address;  // static
   uint32_t prefix = 24;
   uint32_t vlan_id = 0;
-  std::string bond_member; // bond parent iface
-  uint32_t priority = 100; // failover ranking (lower = preferred)
+  std::string bond_member;  // bond parent iface
+  uint32_t priority = 100;  // failover ranking (lower = preferred)
 };
 struct FirewallRule {
-  std::string action;      // allow | deny
-  std::string proto;       // tcp | udp | icmp | any
-  std::string src;         // cidr or any
-  uint32_t dst_port = 0;   // 0 = any
+  std::string action;  // allow | deny
+  std::string proto;  // tcp | udp | icmp | any
+  std::string src;  // cidr or any
+  uint32_t dst_port = 0;  // 0 = any
   std::string comment;
 };
 // Wireless (§7.2): client mode with SSID and credential management, scanning,
@@ -68,12 +67,12 @@ struct FirewallRule {
 // by name, so a plan can be logged without leaking one (§10).
 struct WirelessConfig {
   bool enabled = false;
-  std::string mode = "off";     // client | ap | off
-  std::string iface;            // e.g. wlan0
+  std::string mode = "off";  // client | ap | off
+  std::string iface;  // e.g. wlan0
   std::string ssid;
-  std::string psk_ref;          // key name in /pst, never the secret itself
-  std::string country;          // regulatory domain
-  uint32_t ap_channel = 6;      // AP mode only
+  std::string psk_ref;  // key name in /pst, never the secret itself
+  std::string country;  // regulatory domain
+  uint32_t ap_channel = 6;  // AP mode only
   bool hidden = false;
 };
 
@@ -114,14 +113,14 @@ struct TimePolicy {
   std::vector<std::string> source_priority = {"gnss", "ptp", "ntp"};  // locked order
   std::vector<std::string> ntp_servers;
   uint32_t ptp_domain = 0;
-  std::string ptp_profile;             // e.g. "g8275-1"
+  std::string ptp_profile;  // e.g. "g8275-1"
   std::vector<std::string> gnss_constellations = {"gps", "galileo", "glonass", "beidou"};
 };
 struct WgConfig {
   std::string hq_endpoint;
   std::string device_addr;
   std::string hq_addr;
-  std::string peer_pubkey;   // HQ's public key; ours never leaves the device
+  std::string peer_pubkey;  // HQ's public key; ours never leaves the device
   uint32_t listen_port = 51820;
 };
 
@@ -132,7 +131,7 @@ struct NetworkPlan {
   std::vector<RouteConfig> routes;
   DnsConfig dns;
   WirelessConfig wireless;
-  bool ssh_enabled = false;   // inbound SSH off by default (§7.2)
+  bool ssh_enabled = false;  // inbound SSH off by default (§7.2)
   WgConfig wg;
   bool wg_up = false;
   TimePolicy time;
@@ -196,7 +195,7 @@ TimeDaemonConfig render_time_daemons(const TimePolicy& policy);
 // text held in memory or logged.
 struct WirelessRender {
   std::string wpa_supplicant_conf;  // client mode
-  std::string hostapd_conf;         // AP mode
+  std::string hostapd_conf;  // AP mode
   std::string iface;
   std::string mode;
 };

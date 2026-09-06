@@ -52,6 +52,13 @@ Presets: `host-debug`, `host-release`, `asan`, `ubsan`, `tsan`, `coverage`,
 `jenkins` (CI), plus cross toolchains per target under `cmake/toolchains/`
 (`cross-jetson-orin-nano`, `cross-zynq-ultrascale`, …).
 
+Formatting is enforced in CI (`.clang-format`, Google-based, 100 columns):
+
+```bash
+cmake --build --preset host-debug --target check-format  # verify (CI gate)
+cmake --build --preset host-debug --target format        # rewrite in place
+```
+
 ## Deploy
 
 The repo ships everything the image needs; the Yocto recipe only builds and

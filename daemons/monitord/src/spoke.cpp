@@ -33,8 +33,8 @@ namespace instr {
 namespace monitord {
 namespace domain {
 
-using ChannelT = SpokeChannel<monitord::MonitorHub, monitord::MonitorSpokeFrame,
-                              monitord::MonitorHubFrame>;
+using ChannelT =
+    SpokeChannel<monitord::MonitorHub, monitord::MonitorSpokeFrame, monitord::MonitorHubFrame>;
 
 MonitorSpoke::MonitorSpoke(MonitorCore* core, Logger* log, const CommandTable* table,
                            const std::string& hub_target, const std::string& build_version)

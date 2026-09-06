@@ -29,7 +29,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <map>
 #include <optional>
@@ -55,7 +54,7 @@ struct FaultRule {
   common::Severity severity = common::SEV_MAJOR;
   std::string x733_type;
   std::string probable_cause;
-  std::string dedup_key;      // template, e.g. "bus:$device"
+  std::string dedup_key;  // template, e.g. "bus:$device"
   uint32_t dedup_window_s = 60;
   double rate_limit_per_s = 5;
 };

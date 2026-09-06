@@ -29,7 +29,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <deque>
 #include <optional>
@@ -48,13 +47,13 @@ namespace domain {
 struct MetricDef {
   std::string name;
   std::string unit;
-  std::string type;    // gauge | counter
-  std::string app;     // registering application
+  std::string type;  // gauge | counter
+  std::string app;  // registering application
 };
 
 struct AggWindow {
   std::string metric;
-  std::string fn;      // min / max / mean / count / last
+  std::string fn;  // min / max / mean / count / last
   double value = 0;
   uint32_t count = 0;
   uint64_t window_start_mono_ns = 0;
@@ -116,7 +115,11 @@ class Aggregator {
   void set_functions(const std::vector<std::string>& fns) { functions_ = fns; }
 
  private:
-  struct Sample { double v; uint64_t ns; std::map<std::string, std::string> tags; };
+  struct Sample {
+    double v;
+    uint64_t ns;
+    std::map<std::string, std::string> tags;
+  };
   std::map<std::string, std::deque<Sample>> current_;
   std::vector<std::string> functions_ = {"min", "max", "mean", "count", "last"};
   uint64_t window_start_ns_ = 0;
@@ -172,8 +175,8 @@ class BatchShaper {
   // Ingest raw metric samples; when the batch is full or the interval
   // elapsed, emits a shaped batch of aggregation windows.
   std::optional<MetricBatch> ingest(const std::string& metric, double value,
-                                       const std::string& unit, uint64_t mono_ns,
-                                       const std::map<std::string, std::string>& tags);
+                                    const std::string& unit, uint64_t mono_ns,
+                                    const std::map<std::string, std::string>& tags);
   std::optional<MetricBatch> flush(uint64_t now_mono_ns);
   void set_health(const HealthScoreValue& h) { pending_health_ = h; }
   // Retuned when configuration arrives from istate (§7.8, §9).

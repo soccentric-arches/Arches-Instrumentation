@@ -25,7 +25,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include <gtest/gtest.h>
 
 #include "instr/common/command_table.h"
@@ -49,7 +48,9 @@ TEST(CommandEnvelope, OkAndErrorShapes) {
 
 TEST(CommandTable, ArgSpecValidationIsDeclared) {
   CommandTable t;
-  t.add({"op", "needs args", {{"a", true, "required"}, {"b", false, "optional"}},
+  t.add({"op",
+         "needs args",
+         {{"a", true, "required"}, {"b", false, "optional"}},
          [](const std::string& args) {
            auto a = args_object(args);
            if (!a.ok()) return CommandResult::from_error(a.error);

@@ -25,7 +25,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <memory>
 
@@ -109,8 +108,7 @@ class AlarmsSpoke {
   Logger* log_;
   const CommandTable* table_;
   std::unique_ptr<ConfigSink> config_sink_;
-  std::unique_ptr<
-      SpokeChannel<alarms::AlarmHub, alarms::AlarmSpokeFrame, alarms::AlarmHubFrame>>
+  std::unique_ptr<SpokeChannel<alarms::AlarmHub, alarms::AlarmSpokeFrame, alarms::AlarmHubFrame>>
       channel_;
 };
 

@@ -44,7 +44,8 @@ static JValue info_json(const ArchiveInfo& i) {
 
 CommandTable build_backup_table(BackupCore* core) {
   CommandTable t;
-  t.add({"create", "snapshot the configured paths into an encrypted archive",
+  t.add({"create",
+         "snapshot the configured paths into an encrypted archive",
          {{"excludes", false, "comma-separated path prefixes"}},
          [core](const std::string& args) {
            auto a = args_object(args);
@@ -68,19 +69,19 @@ CommandTable build_backup_table(BackupCore* core) {
            core->emit_event("create", r->name, true, "");
            return CommandResult::good(info_json(*r));
          }});
-  t.add({"list", "list local archives", {},
-         [core](const std::string&) {
+  t.add({"list", "list local archives", {}, [core](const std::string&) {
            JValue arr = JValue::array();
            for (const auto& i : core->engine().list(core->archive_dir())) arr.push(info_json(i));
            return CommandResult::good(arr.dump());
          }});
-  t.add({"verify", "verify an archive manifest and integrity",
+  t.add({"verify",
+         "verify an archive manifest and integrity",
          {{"name", true, "archive name"}},
          [core](const std::string& args) {
            auto a = args_object(args);
            if (!a.ok()) return CommandResult::from_error(a.error);
-           auto m = core->engine().read_manifest(
-               core->archive_dir() + "/" + (*a).get_string("name"));
+           auto m =
+               core->engine().read_manifest(core->archive_dir() + "/" + (*a).get_string("name"));
            if (!m.ok()) return CommandResult::from_error(m.error);
            JValue o = JValue::object();
            o.set("verified", JValue(true));
@@ -88,7 +89,8 @@ CommandTable build_backup_table(BackupCore* core) {
            o.set("created_unix_s", JValue(double(m->created_unix_s)));
            return CommandResult::good(o.dump());
          }});
-  t.add({"preview", "restore preview: what will change before committing",
+  t.add({"preview",
+         "restore preview: what will change before committing",
          {{"name", true, "archive name"}},
          [core](const std::string& args) {
            auto a = args_object(args);
@@ -97,12 +99,11 @@ CommandTable build_backup_table(BackupCore* core) {
                core->archive_dir() + "/" + (*a).get_string("name"), core->restore_roots());
            if (!p.ok()) return CommandResult::from_error(p.error);
            JValue o = JValue::object();
-           o.set("compatibility", JValue(p->compatibility == BackupEngine::Compatibility::Ok
-                                             ? "ok"
-                                             : p->compatibility ==
-                                                       BackupEngine::Compatibility::HardwareMismatch
-                                                   ? "hardware-mismatch"
-                                                   : "schema-mismatch"));
+           o.set("compatibility",
+                 JValue(p->compatibility == BackupEngine::Compatibility::Ok ? "ok"
+                        : p->compatibility == BackupEngine::Compatibility::HardwareMismatch
+                            ? "hardware-mismatch"
+                            : "schema-mismatch"));
            o.set("replacement_board", JValue(p->replacement_board));
            JValue arr = JValue::array();
            for (const auto& e : p->entries) {
@@ -115,20 +116,20 @@ CommandTable build_backup_table(BackupCore* core) {
            o.set("entries", arr);
            return CommandResult::good(o.dump());
          }});
-  t.add({"restore", "transactional restore: completes fully or leaves prior state",
+  t.add({"restore",
+         "transactional restore: completes fully or leaves prior state",
          {{"name", true, "archive name"}},
          [core](const std::string& args) {
            auto a = args_object(args);
            if (!a.ok()) return CommandResult::from_error(a.error);
            std::string name = (*a).get_string("name");
            auto r = core->engine().restore_commit(
-               core->archive_dir() + "/" + name,
-               [core](const std::vector<tar::FileEntry>& files) {
+               core->archive_dir() + "/" + name, [core](const std::vector<tar::FileEntry>& files) {
                  if (core->has_commit_fn()) return core->commit(files);
                  // No istate wiring (unit-test mode): refuse rather than
                  // write /pst silently (R4: istate is the sole writer).
-                 return Error::make(Errc::Unavailable,
-                                    "restore commit requires istate direction", "restore");
+                 return Error::make(Errc::Unavailable, "restore commit requires istate direction",
+                                    "restore");
                });
            if (!r.ok()) {
              core->emit_event("restore_failed", name, false, r.error.str());
@@ -139,14 +140,14 @@ CommandTable build_backup_table(BackupCore* core) {
            o.set("restored_files", JValue(double(*r)));
            return CommandResult::good(o.dump());
          }});
-  t.add({"schedule-get", "show the backup schedule", {},
-         [core](const std::string&) {
+  t.add({"schedule-get", "show the backup schedule", {}, [core](const std::string&) {
            JValue o = JValue::object();
            o.set("enabled", JValue(core->schedule_enabled()));
            o.set("interval_s", JValue(double(core->schedule_interval_s())));
            return CommandResult::good(o.dump());
          }});
-  t.add({"schedule-set", "set the schedule (runtime; config via istate)",
+  t.add({"schedule-set",
+         "set the schedule (runtime; config via istate)",
          {{"enabled", true, "true|false"}, {"interval_s", true, "seconds"}},
          [core](const std::string& args) {
            auto a = args_object(args);
@@ -175,9 +176,8 @@ BackupSpoke::BackupSpoke(BackupCore* core, Logger* log, const CommandTable* tabl
     }
   });
   core_->set_event_sink(
-      [this](const std::string& action, const std::string& archive, bool ok, const std::string& err) {
-        send_event(action, archive, "{}", ok, err);
-      });
+      [this](const std::string& action, const std::string& archive, bool ok,
+             const std::string& err) { send_event(action, archive, "{}", ok, err); });
   // Until a schema is installed, deliveries still apply — just unvalidated.
   // A packaging slip must not leave a daemon running unconfigured (R10).
   set_schema(JValue::object());

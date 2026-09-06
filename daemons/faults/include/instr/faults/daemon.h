@@ -25,7 +25,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <memory>
 
@@ -46,8 +45,8 @@ using namespace instr::transport;
 struct FaultsConfig {
   bool enabled = true;
   bool backfill_boot_log = true;
-  double poll_interval_s = 1.0;   // kernel ring / journal follow interval
-  double max_events_per_s = 0;    // 0 = rule-level limits only
+  double poll_interval_s = 1.0;  // kernel ring / journal follow interval
+  double max_events_per_s = 0;  // 0 = rule-level limits only
   bool stream_to_hq = true;
 };
 
@@ -94,7 +93,9 @@ class FaultsCore {
   }
   void set_sink(std::function<void(const FaultRecord&)> f) { sink_ = std::move(f); }
   const FaultProcessor::Stats& stats() const { return (*processor_).stats(); }
-  const std::vector<FaultRule>& rules() const { return processor_ ? (*processor_).engine_rules() : empty_rules_; }
+  const std::vector<FaultRule>& rules() const {
+    return processor_ ? (*processor_).engine_rules() : empty_rules_;
+  }
 
  private:
   std::string rules_text_;
@@ -125,8 +126,7 @@ class FaultsSpoke {
   Logger* log_;
   const CommandTable* table_;
   std::unique_ptr<ConfigSink> config_sink_;
-  std::unique_ptr<SpokeChannel<faults::FaultHub, faults::FaultSpokeFrame,
-                               faults::FaultHubFrame>>
+  std::unique_ptr<SpokeChannel<faults::FaultHub, faults::FaultSpokeFrame, faults::FaultHubFrame>>
       channel_;
 };
 

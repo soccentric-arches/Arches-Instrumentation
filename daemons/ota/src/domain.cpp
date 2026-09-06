@@ -51,9 +51,7 @@ Result<int> compare_versions(const std::string& a, const std::string& b) {
     while (std::getline(ss, part, '.')) {
       try {
         out.push_back(std::stoull(part));
-      } catch (...) {
-        out.push_back(0);
-      }
+      } catch (...) { out.push_back(0); }
     }
     while (out.size() < 3) out.push_back(0);
     return out;
@@ -74,9 +72,7 @@ Result<uint64_t> OtaEngine::receive_chunk(const std::string& data, uint64_t offs
   if (off_txt.ok()) {
     try {
       current = std::stoull(*off_txt);
-    } catch (...) {
-      current = 0;
-    }
+    } catch (...) { current = 0; }
   }
   if (offset != current)
     return Result<uint64_t>::fail(Errc::InvalidArgument,
@@ -98,9 +94,7 @@ Result<uint64_t> OtaEngine::received_bytes() const {
   if (!off_txt.ok()) return Result<uint64_t>::good(0);
   try {
     return Result<uint64_t>::good(std::stoull(*off_txt));
-  } catch (...) {
-    return Result<uint64_t>::good(0);
-  }
+  } catch (...) { return Result<uint64_t>::good(0); }
 }
 
 Result<ArtifactManifest> OtaEngine::parse_manifest(const std::string& manifest_json) const {
@@ -126,7 +120,8 @@ Error OtaEngine::verify(const ArtifactManifest& m, const std::string& enrollment
   emit("verifying", 0.1, "integrity check");
   // Integrity: SHA-256 of the landed artifact.
   auto artifact = fs_.read(staging_path());
-  if (!artifact.ok()) return Error::make(Errc::NotFound, "artifact not landed on disk", staging_path());
+  if (!artifact.ok())
+    return Error::make(Errc::NotFound, "artifact not landed on disk", staging_path());
   if (crypto::sha256(*artifact).hex() != m.sha256)
     return Error::make(Errc::Corrupt, "artifact integrity verification failed (sha256 mismatch)",
                        "verify");
@@ -142,12 +137,12 @@ Error OtaEngine::verify(const ArtifactManifest& m, const std::string& enrollment
       return Error::make(Errc::SignatureInvalid,
                          "artifact names unknown release key id '" + m.key_id + "'", "verify");
     if (m.signature.empty())
-      return Error::make(Errc::SignatureInvalid,
-                         "artifact carries no release signature — refused", "verify");
+      return Error::make(Errc::SignatureInvalid, "artifact carries no release signature — refused",
+                         "verify");
     Error e = crypto::verify_ed25519(it->second, m.version + "|" + m.sha256, m.signature);
     if (!e.ok())
-      return Error::make(Errc::SignatureInvalid,
-                         "artifact signature invalid (" + e.message + ")", "verify");
+      return Error::make(Errc::SignatureInvalid, "artifact signature invalid (" + e.message + ")",
+                         "verify");
   } else if (!enrollment_secret.empty()) {
     // Legacy shared-secret form for devices provisioned before release keys
     // were distributed.
@@ -203,8 +198,7 @@ Result<int> OtaEngine::run_install(const std::string& artifact, const std::strin
   while (std::fgets(buf, sizeof(buf), pipe)) output += buf;
   int rc = ::pclose(pipe);
   if (rc != 0)
-    return Result<int>::fail(Errc::Io,
-                             "swupdate failed (rc=" + std::to_string(rc) + "): " + output,
+    return Result<int>::fail(Errc::Io, "swupdate failed (rc=" + std::to_string(rc) + "): " + output,
                              "install");
   return Result<int>::good(0);
 }
@@ -247,7 +241,8 @@ Error OtaEngine::stage(const ArtifactManifest& m, const std::string& enrollment_
 
 Error OtaEngine::apply() {
   if (state_.state != "staged")
-    return Error::make(Errc::Busy, "no staged update to apply (state " + state_.state + ")", "apply");
+    return Error::make(Errc::Busy, "no staged update to apply (state " + state_.state + ")",
+                       "apply");
   Error e = plat_.set_boot_slot(state_.staged_slot, /*trial=*/true);
   if (!e.ok()) return e;
   state_.state = "applied_pending_confirm";
@@ -297,8 +292,9 @@ std::optional<OtaProgressEvent> OtaEngine::tick(uint64_t now_mono_ns) {
   if (state_.state == "applied_pending_confirm" && now_mono_ns > state_.confirm_deadline_mono) {
     // An unconfirmed update rolls back automatically (§11).
     Error e = rollback("confirmation timeout elapsed");
-    if (e.ok()) return OtaProgressEvent{"rolled_back", 0, "auto-rollback after confirmation timeout",
-                                state_.from_version, state_.to_version};
+    if (e.ok())
+      return OtaProgressEvent{"rolled_back", 0, "auto-rollback after confirmation timeout",
+                              state_.from_version, state_.to_version};
   }
   return std::nullopt;
 }
@@ -355,8 +351,8 @@ std::string OtaEngine::history_json() const {
   for (const auto& h : history_) {
     if (!first) o << ",";
     first = false;
-    o << "{\"from\":\"" << h.from_version << "\",\"to\":\"" << h.to_version
-      << "\",\"result\":\"" << h.result << "\",\"finished\":" << h.finished_unix_s << "}";
+    o << "{\"from\":\"" << h.from_version << "\",\"to\":\"" << h.to_version << "\",\"result\":\""
+      << h.result << "\",\"finished\":" << h.finished_unix_s << "}";
   }
   o << "]";
   return o.str();

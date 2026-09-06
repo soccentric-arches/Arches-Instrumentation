@@ -84,9 +84,8 @@ Result<std::string> AtomicFile::read_protected(IFileSystem& fs, const std::strin
     if (bsum.ok() && crypto::sha256(*bak).hex() == *bsum) return bak;
     if (!fs.exists(backup_path(path) + ".checksum")) return bak;  // legacy backup
   }
-  return Result<std::string>::fail(Error::make(Errc::Corrupt,
-                                               "both primary and redundant copy failed checks",
-                                               path));
+  return Result<std::string>::fail(
+      Error::make(Errc::Corrupt, "both primary and redundant copy failed checks", path));
 }
 
 }  // namespace instr

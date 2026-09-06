@@ -28,7 +28,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <memory>
 
@@ -105,7 +104,6 @@ class TelemetryCore {
   uint64_t alarm_registrations_conflict = 0;
 
  public:
-
  private:
   TimeSource& ts_;
   MetricRegistry registry_;

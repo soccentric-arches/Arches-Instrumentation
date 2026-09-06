@@ -73,18 +73,22 @@ Result<uint32_t> parse_alarm_id_text(const std::string& text) {
     return Result<uint32_t>::fail(Errc::InvalidArgument,
                                   "alarm id must have 4 fields: domain_module_type_index", text);
   if (parts[0].size() != 1 || parts[1].size() != 2 || parts[2].size() != 1 || parts[3].size() != 4)
-    return Result<uint32_t>::fail(Errc::InvalidArgument,
-                                  "field widths must be 1_2_1_4 hex digits", text);
+    return Result<uint32_t>::fail(Errc::InvalidArgument, "field widths must be 1_2_1_4 hex digits",
+                                  text);
   static const uint32_t shifts[4] = {28, 20, 16, 0};
   uint32_t v = 0;
   for (size_t i = 0; i < parts.size(); ++i) {
     uint32_t field = 0;
     for (char c : parts[i]) {
       int d;
-      if (c >= '0' && c <= '9') d = c - '0';
-      else if (c >= 'a' && c <= 'f') d = c - 'a' + 10;
-      else if (c >= 'A' && c <= 'F') d = c - 'A' + 10;
-      else return Result<uint32_t>::fail(Errc::InvalidArgument, "bad hex digit in alarm id", text);
+      if (c >= '0' && c <= '9')
+        d = c - '0';
+      else if (c >= 'a' && c <= 'f')
+        d = c - 'a' + 10;
+      else if (c >= 'A' && c <= 'F')
+        d = c - 'A' + 10;
+      else
+        return Result<uint32_t>::fail(Errc::InvalidArgument, "bad hex digit in alarm id", text);
       field = (field << 4) | uint32_t(d);
     }
     v |= field << shifts[i];
@@ -132,18 +136,22 @@ Result<AlarmCatalog> parse_catalog(const std::string& yaml_text) {
     }
     return Result<AlarmCatalog>::good(std::move(cat));
   } catch (const std::exception& e) {
-    return Result<AlarmCatalog>::fail(Errc::InvalidArgument, std::string("catalog parse: ") + e.what(),
-                                      "alarms.yaml");
+    return Result<AlarmCatalog>::fail(Errc::InvalidArgument,
+                                      std::string("catalog parse: ") + e.what(), "alarms.yaml");
   }
 }
 
 static std::string to_upper_snake(const std::string& name) {
   std::string out;
   for (char c : name) {
-    if (c == '-' || c == '.') out += '_';
-    else if (std::isalpha((unsigned char)c)) out += char(std::toupper((unsigned char)c));
-    else if (std::isdigit((unsigned char)c)) out += c;
-    else out += '_';
+    if (c == '-' || c == '.')
+      out += '_';
+    else if (std::isalpha((unsigned char)c))
+      out += char(std::toupper((unsigned char)c));
+    else if (std::isdigit((unsigned char)c))
+      out += c;
+    else
+      out += '_';
   }
   return out;
 }
@@ -152,7 +160,10 @@ static std::string c_str(const std::string& s) {
   std::string out = "\"";
   for (char c : s) {
     if (c == '"' || c == '\\') out += '\\';
-    if (c == '\n') { out += "\\n"; continue; }
+    if (c == '\n') {
+      out += "\\n";
+      continue;
+    }
     out += c;
   }
   return out + "\"";
@@ -170,8 +181,8 @@ Result<std::string> render_header(const AlarmCatalog& cat, const std::string& ve
     << "enum class AlarmSeverity : uint8_t { INFO, WARNING, MINOR, MAJOR, CRITICAL };\n\n";
   for (const auto& e : cat.entries) {
     o << "// " << e.description << "\n"
-      << "constexpr uint32_t INSTR_ALARM_" << to_upper_snake(e.name) << " = 0x"
-      << std::hex << e.id << std::dec << "u;  // " << alarm_id_string(e.id) << "\n";
+      << "constexpr uint32_t INSTR_ALARM_" << to_upper_snake(e.name) << " = 0x" << std::hex << e.id
+      << std::dec << "u;  // " << alarm_id_string(e.id) << "\n";
   }
   o << "\nstruct AlarmCatalogEntry {\n"
     << "  uint32_t id;\n"
@@ -186,14 +197,14 @@ Result<std::string> render_header(const AlarmCatalog& cat, const std::string& ve
     << "};\n\n"
     << "inline constexpr AlarmCatalogEntry INSTR_ALARM_CATALOG[] = {\n";
   for (const auto& e : cat.entries) {
-    o << "    {" << std::hex << "0x" << e.id << std::dec << "u, "
-      << c_str(e.name) << ", AlarmSeverity::" << severity_name(e.severity) << ", "
-      << c_str(e.probable_cause) << ", " << c_str(e.specific_problem) << ", "
-      << c_str(e.description) << ", " << c_str(e.escalation) << ", "
-      << c_str(e.auto_clear) << ", " << (e.hq_reportable ? "true" : "false") << "},\n";
+    o << "    {" << std::hex << "0x" << e.id << std::dec << "u, " << c_str(e.name)
+      << ", AlarmSeverity::" << severity_name(e.severity) << ", " << c_str(e.probable_cause) << ", "
+      << c_str(e.specific_problem) << ", " << c_str(e.description) << ", " << c_str(e.escalation)
+      << ", " << c_str(e.auto_clear) << ", " << (e.hq_reportable ? "true" : "false") << "},\n";
   }
   o << "};\n\n"
-    << "inline constexpr size_t INSTR_ALARM_CATALOG_SIZE = sizeof(INSTR_ALARM_CATALOG) / sizeof(INSTR_ALARM_CATALOG[0]);\n\n"
+    << "inline constexpr size_t INSTR_ALARM_CATALOG_SIZE = sizeof(INSTR_ALARM_CATALOG) / "
+       "sizeof(INSTR_ALARM_CATALOG[0]);\n\n"
     << "}  // namespace instr\n\n#endif  // INSTR_ALARMS_GEN_H\n";
   return Result<std::string>::good(o.str());
 }

@@ -28,7 +28,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include <gtest/gtest.h>
 
 #include "instr/backup/domain.h"
@@ -156,10 +155,10 @@ TEST(BackupRestore, TransactionalCommitCompletesFullyOrNotAtAll) {
   ASSERT_TRUE(r.ok());
   EXPECT_EQ(*r, committed.size());
   // Commit failure leaves prior state intact (no partial application).
-  auto r2 = f.eng->restore_commit("/pst/backup/" + info->name,
-                                  [](const std::vector<tar::FileEntry>&) {
-                                    return Error::make(Errc::Io, "simulated commit failure", "x");
-                                  });
+  auto r2 =
+      f.eng->restore_commit("/pst/backup/" + info->name, [](const std::vector<tar::FileEntry>&) {
+        return Error::make(Errc::Io, "simulated commit failure", "x");
+      });
   EXPECT_FALSE(r2.ok());
   EXPECT_EQ(r2.error.code, Errc::Io);
 }

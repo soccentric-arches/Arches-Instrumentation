@@ -25,7 +25,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include <fstream>
 #include <set>
 #include <sstream>
@@ -107,8 +106,8 @@ TEST(FaultEngine, DedupKeyExtraction) {
   auto key = RuleEngine::render_dedup_key("bus:$device", "mmcblk0: I/O error on dev mmcblk0");
   EXPECT_NE(key.find("mmcblk0"), std::string::npos);
   EXPECT_NE(key.find("bus:"), std::string::npos);
-  auto key2 = RuleEngine::render_dedup_key("oom:$process",
-                                            "Out of memory: Killed process 4321 (myapp)");
+  auto key2 =
+      RuleEngine::render_dedup_key("oom:$process", "Out of memory: Killed process 4321 (myapp)");
   EXPECT_NE(key2.find("myapp"), std::string::npos);
 }
 
@@ -209,8 +208,8 @@ TEST(FaultRulesFixture, ShippedRulesMatchARealBootLog) {
   // kernel output is a silent loss of coverage on every device.
   for (const char* want : {"storage_error", "thermal_throttle", "ecc_event", "device_timeout",
                            "oom_kill", "watchdog_trip"}) {
-    EXPECT_TRUE(matched.count(want) > 0) << "no fault raised for " << want
-                                         << " despite a matching line in the boot log";
+    EXPECT_TRUE(matched.count(want) > 0)
+        << "no fault raised for " << want << " despite a matching line in the boot log";
   }
   // Everything raised from the boot ring is marked as backfill, so HQ can
   // tell a boot-window fault from one happening now.

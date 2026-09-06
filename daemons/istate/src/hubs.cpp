@@ -202,8 +202,8 @@ class NetworkHubImpl : public TypedHub<networkd::NetworkHub::Service, networkd::
   }
 };
 
-class HardwareHubImpl : public TypedHub<hardware::HardwareHub::Service, hardware::HardwareSpokeFrame,
-                                        hardware::HardwareHubFrame> {
+class HardwareHubImpl : public TypedHub<hardware::HardwareHub::Service,
+                                        hardware::HardwareSpokeFrame, hardware::HardwareHubFrame> {
  public:
   using TypedHub::TypedHub;
   GenericSpokeMsg to_generic(const hardware::HardwareSpokeFrame& f) override {
@@ -249,8 +249,8 @@ class HardwareHubImpl : public TypedHub<hardware::HardwareHub::Service, hardware
   }
 };
 
-class FaultHubImpl : public TypedHub<faults::FaultHub::Service, faults::FaultSpokeFrame,
-                                     faults::FaultHubFrame> {
+class FaultHubImpl
+    : public TypedHub<faults::FaultHub::Service, faults::FaultSpokeFrame, faults::FaultHubFrame> {
  public:
   using TypedHub::TypedHub;
   GenericSpokeMsg to_generic(const faults::FaultSpokeFrame& f) override {
@@ -301,8 +301,8 @@ class FaultHubImpl : public TypedHub<faults::FaultHub::Service, faults::FaultSpo
   }
 };
 
-class AlarmHubImpl : public TypedHub<alarms::AlarmHub::Service, alarms::AlarmSpokeFrame,
-                                     alarms::AlarmHubFrame> {
+class AlarmHubImpl
+    : public TypedHub<alarms::AlarmHub::Service, alarms::AlarmSpokeFrame, alarms::AlarmHubFrame> {
  public:
   using TypedHub::TypedHub;
   GenericSpokeMsg to_generic(const alarms::AlarmSpokeFrame& f) override {
@@ -415,8 +415,9 @@ class LogHubImpl : public TypedHub<logmanager::LogHub::Service, logmanager::LogS
   }
 };
 
-class TelemetryHubImpl : public TypedHub<telemetry::TelemetryHub::Service,
-                                         telemetry::TelemetrySpokeFrame, telemetry::TelemetryHubFrame> {
+class TelemetryHubImpl
+    : public TypedHub<telemetry::TelemetryHub::Service, telemetry::TelemetrySpokeFrame,
+                      telemetry::TelemetryHubFrame> {
  public:
   using TypedHub::TypedHub;
   GenericSpokeMsg to_generic(const telemetry::TelemetrySpokeFrame& f) override {
@@ -642,13 +643,17 @@ class ConfigurationApiImpl final : public istate::ConfigurationApi::Service {
     auto info = core_.orchestrator().spoke(req->daemon());
     if (!info.ok()) return grpc::Status(grpc::StatusCode::NOT_FOUND, info.error.str());
     const std::string& action = req->action();
-    if (action == "start") core_.platform().unit_start((*info)->unit);
-    else if (action == "stop") core_.platform().unit_stop((*info)->unit);
-    else if (action == "restart") core_.platform().unit_restart((*info)->unit);
-    else return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "action must be start|stop|restart");
+    if (action == "start")
+      core_.platform().unit_start((*info)->unit);
+    else if (action == "stop")
+      core_.platform().unit_stop((*info)->unit);
+    else if (action == "restart")
+      core_.platform().unit_restart((*info)->unit);
+    else
+      return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "action must be start|stop|restart");
     reply->set_ok(true);
-    core_.timeline().append("restart", req->action(),
-                            "{\"daemon\":\"" + req->daemon() + "\"}", core_.clock());
+    core_.timeline().append("restart", req->action(), "{\"daemon\":\"" + req->daemon() + "\"}",
+                            core_.clock());
     return grpc::Status::OK;
   }
 
@@ -698,7 +703,9 @@ class ConfigurationApiImpl final : public istate::ConfigurationApi::Service {
     // Keep the stream open until the client goes away.
     // Simple bounded hold: the fanout delivers via Write above.
     while (true) {
-      struct timespec ts {0, 200 * 1000 * 1000};
+      struct timespec ts {
+        0, 200 * 1000 * 1000
+      };
       nanosleep(&ts, nullptr);
       if (!writer->Write(logmanager::TailLine{})) break;  // heartbeat / disconnect check
     }
@@ -724,7 +731,8 @@ class ConfigurationApiImpl final : public istate::ConfigurationApi::Service {
     if (const JValue* d = (*j).find("data")) {
       reply->set_score(d->find("score") ? d->find("score")->as_number() : 0);
       if (const JValue* f2 = d->find("factors"))
-        for (const auto& kv : f2->members()) (*reply->mutable_factors())[kv.first] = kv.second.as_number();
+        for (const auto& kv : f2->members())
+          (*reply->mutable_factors())[kv.first] = kv.second.as_number();
     }
     return grpc::Status::OK;
   }
@@ -753,7 +761,8 @@ class ConfigurationApiImpl final : public istate::ConfigurationApi::Service {
       return Result<TunnelConfig>::good(t);
     });
     reply->set_ok(r.ok());
-    if (!r.ok()) reply->set_message(r.error.str());
+    if (!r.ok())
+      reply->set_message(r.error.str());
     else {
       core_.audit().append(req->actor(), "hq", "key_rotation", "{}", core_.clock());
       core_.audit().persist();
@@ -800,8 +809,9 @@ class ConfigurationApiImpl final : public istate::ConfigurationApi::Service {
 
 // ---- server builder ----
 
-std::unique_ptr<grpc::Server> build_hub_server(IstateCore& core, const std::string& run_dir,
-                                               std::vector<std::unique_ptr<grpc::Service>>* services) {
+std::unique_ptr<grpc::Server> build_hub_server(
+    IstateCore& core, const std::string& run_dir,
+    std::vector<std::unique_ptr<grpc::Service>>* services) {
   grpc::ServerBuilder builder;
   // Ownership can only be applied once the socket file exists, which is
   // after BuildAndStart — applying it here (as this once did) chmod'd a
@@ -850,15 +860,24 @@ std::unique_ptr<grpc::Server> build_hub_server(IstateCore& core, const std::stri
     return it != routes.end() && it->second(m);
   });
 
-  own("monitord"); builder.RegisterService(monitor.get());
-  own("networkd"); builder.RegisterService(network.get());
-  own("hardware"); builder.RegisterService(hardware.get());
-  own("faults"); builder.RegisterService(faults.get());
-  own("alarms"); builder.RegisterService(alarms.get());
-  own("logmanager"); builder.RegisterService(logs.get());
-  own("telemetry"); builder.RegisterService(telemetry.get());
-  own("ota"); builder.RegisterService(ota.get());
-  own("backup"); builder.RegisterService(backup.get());
+  own("monitord");
+  builder.RegisterService(monitor.get());
+  own("networkd");
+  builder.RegisterService(network.get());
+  own("hardware");
+  builder.RegisterService(hardware.get());
+  own("faults");
+  builder.RegisterService(faults.get());
+  own("alarms");
+  builder.RegisterService(alarms.get());
+  own("logmanager");
+  builder.RegisterService(logs.get());
+  own("telemetry");
+  builder.RegisterService(telemetry.get());
+  own("ota");
+  builder.RegisterService(ota.get());
+  own("backup");
+  builder.RegisterService(backup.get());
   own("configuration");
   builder.RegisterService(config.get());
 
@@ -880,10 +899,9 @@ std::unique_ptr<grpc::Server> build_hub_server(IstateCore& core, const std::stri
     for (const auto& name : socket_names)
       if (own_socket(run_dir + "/" + name + ".sock", name, &core.log())) ++owned;
     if (owned != socket_names.size())
-      core.log().warning("istate",
-                         "socket ownership applied to " + std::to_string(owned) + " of " +
-                             std::to_string(socket_names.size()) +
-                             " sockets; per-daemon access control is degraded");
+      core.log().warning("istate", "socket ownership applied to " + std::to_string(owned) + " of " +
+                                       std::to_string(socket_names.size()) +
+                                       " sockets; per-daemon access control is degraded");
   }
   return server;
 }
@@ -915,7 +933,9 @@ void HqClient::run_loop() {
       log_.info("istate", "HQ session retry in " + std::to_string(d) + "s");
       double slept = 0;
       while (slept < d && running_.load()) {
-        struct timespec ts {0, 100 * 1000 * 1000};
+        struct timespec ts {
+          0, 100 * 1000 * 1000
+        };
         nanosleep(&ts, nullptr);
         slept += 0.1;
       }
@@ -956,9 +976,8 @@ bool HqClient::try_session() {
           core_.deliver_config(hf.config_push().daemon());
         } else {
           log_.error("istate", "signed config push REFUSED: " + r.error.message);
-          core_.push_event_to_spool(
-              "{\"kind\":\"config_push_refused\",\"daemon\":\"" +
-              hf.config_push().daemon() + "\"}");
+          core_.push_event_to_spool("{\"kind\":\"config_push_refused\",\"daemon\":\"" +
+                                    hf.config_push().daemon() + "\"}");
         }
       } else if (hf.has_ota_command() || hf.has_command()) {
         const common::Command& cmd = hf.has_ota_command() ? hf.ota_command() : hf.command();
@@ -973,13 +992,17 @@ bool HqClient::try_session() {
   // fleet booting together honours backpressure, §11).
   while (open.load() && running_.load()) {
     if (core_.hq_backpressured()) {
-      struct timespec ts {0, 200 * 1000 * 1000};
+      struct timespec ts {
+        0, 200 * 1000 * 1000
+      };
       nanosleep(&ts, nullptr);
       continue;
     }
     auto rep = core_.drain_northbound(50);
     if (rep.sent == 0 && !rep.paused) {
-      struct timespec ts {0, 500 * 1000 * 1000};
+      struct timespec ts {
+        0, 500 * 1000 * 1000
+      };
       nanosleep(&ts, nullptr);
     }
     if (core_.hq_session().state() == istate::HqSession::State::Backpressured) continue;

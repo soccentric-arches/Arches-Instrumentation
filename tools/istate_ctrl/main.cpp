@@ -32,7 +32,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include "instr/istate/table.h"
 #include "instr/ctrl/ctrl.h"
 

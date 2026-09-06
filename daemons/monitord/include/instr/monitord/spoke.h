@@ -29,7 +29,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <atomic>
 #include <chrono>
@@ -60,9 +59,7 @@ class MonitorSpoke {
   uint64_t config_revision() const { return channel_->config_revision(); }
 
   // Number of frames handed to the transport (for tests).
-  uint64_t frames_enqueued() const {
-    return frames_.load();
-  }
+  uint64_t frames_enqueued() const { return frames_.load(); }
 
  private:
   void sample_loop();
@@ -71,8 +68,8 @@ class MonitorSpoke {
   Logger* log_;
   const CommandTable* table_;
   std::unique_ptr<ConfigSink> config_sink_;
-  std::unique_ptr<SpokeChannel<monitord::MonitorHub, monitord::MonitorSpokeFrame,
-                               monitord::MonitorHubFrame>>
+  std::unique_ptr<
+      SpokeChannel<monitord::MonitorHub, monitord::MonitorSpokeFrame, monitord::MonitorHubFrame>>
       channel_;
   std::atomic<bool> running_{false};
   std::thread sampler_thread_;
@@ -82,8 +79,8 @@ class MonitorSpoke {
 };
 
 // Build the spoke channel with hub-frame dispatch wired to the command table.
-std::unique_ptr<SpokeChannel<monitord::MonitorHub, monitord::MonitorSpokeFrame,
-                             monitord::MonitorHubFrame>>
+std::unique_ptr<
+    SpokeChannel<monitord::MonitorHub, monitord::MonitorSpokeFrame, monitord::MonitorHubFrame>>
 make_monitor_channel(MonitorCore* core, const CommandTable* table, Logger* log,
                      const std::string& hub_target, const std::string& build_version,
                      SpokeChannel<monitord::MonitorHub, monitord::MonitorSpokeFrame,

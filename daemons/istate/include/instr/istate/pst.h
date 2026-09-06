@@ -31,7 +31,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <map>
 #include <string>
@@ -54,7 +53,7 @@ inline constexpr const char* kConfigSchemaVersion = "1";
 class BudgetManager {
  public:
   struct Budget {
-    std::string consumer;   // spool / logs / ota / backup
+    std::string consumer;  // spool / logs / ota / backup
     uint64_t limit_bytes = 0;
     double alarm_at_pct = 0.8;  // alarm before the limit
   };
@@ -93,9 +92,9 @@ class PstStore {
   // (REQ §11: /pst corrupt → fall back; if both fail, boot unprovisioned).
   struct MountReport {
     bool ok = false;
-    bool virgin = true;              // no system/ yet
+    bool virgin = true;  // no system/ yet
     std::vector<std::string> recovered_from_backup;
-    std::vector<std::string> corrupt;   // unrecoverable
+    std::vector<std::string> corrupt;  // unrecoverable
   };
   MountReport mount();
   // Seed system/ from the shipped default YAML set (first boot / system reset).

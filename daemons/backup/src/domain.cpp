@@ -82,8 +82,6 @@ bool BackupEngine::excluded_path(const std::string& rel, const std::vector<std::
   return false;
 }
 
-
-
 static void collect(IFileSystem& fs, const std::string& root, const std::string& rel,
                     const std::vector<std::string>& excludes,
                     std::vector<std::pair<std::string, std::string>>* out) {
@@ -329,15 +327,15 @@ Result<std::string> BackupEngine::seal_for_hq(const std::string& plaintext) cons
                                      "backup");
   auto rng = [](uint8_t* out, size_t n) { (void)crypto::random_bytes(out, n); };
   crypto::X25519Key eph = crypto::x25519_generate(rng);
-  auto shared = crypto::x25519(eph.priv.data(),
-                               reinterpret_cast<const uint8_t*>(opts_.hq_public_key.data()));
+  auto shared =
+      crypto::x25519(eph.priv.data(), reinterpret_cast<const uint8_t*>(opts_.hq_public_key.data()));
 
   // Bind the ephemeral public key into the KDF so a shared secret cannot be
   // replayed under a different ephemeral key.
   std::string eph_pub(reinterpret_cast<const char*>(eph.pub.data()), 32);
-  std::string key = crypto::hkdf_sha256(
-      std::string(reinterpret_cast<const char*>(shared.data()), shared.size()), eph_pub,
-      "arches-backup-hq-v1", 32);
+  std::string key =
+      crypto::hkdf_sha256(std::string(reinterpret_cast<const char*>(shared.data()), shared.size()),
+                          eph_pub, "arches-backup-hq-v1", 32);
 
   std::string out(kHqSealMagic, sizeof(kHqSealMagic));
   out += eph_pub;
@@ -357,9 +355,9 @@ Result<std::string> BackupEngine::open_from_hq(const std::string& sealed,
   const std::string eph_pub = sealed.substr(sizeof(kHqSealMagic), 32);
   auto shared = crypto::x25519(reinterpret_cast<const uint8_t*>(hq_private_key.data()),
                                reinterpret_cast<const uint8_t*>(eph_pub.data()));
-  std::string key = crypto::hkdf_sha256(
-      std::string(reinterpret_cast<const char*>(shared.data()), shared.size()), eph_pub,
-      "arches-backup-hq-v1", 32);
+  std::string key =
+      crypto::hkdf_sha256(std::string(reinterpret_cast<const char*>(shared.data()), shared.size()),
+                          eph_pub, "arches-backup-hq-v1", 32);
   return crypto::aead_open(key, sealed.substr(sizeof(kHqSealMagic) + 32));
 }
 

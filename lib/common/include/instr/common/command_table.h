@@ -32,7 +32,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <functional>
 #include <map>
@@ -74,13 +73,13 @@ struct CommandResult {
 };
 
 struct ArgSpec {
-  std::string name;      // JSON key
+  std::string name;  // JSON key
   bool required = false;
   std::string help;
 };
 
 struct CommandSpec {
-  std::string op;        // e.g. "raise"
+  std::string op;  // e.g. "raise"
   std::string description;
   std::vector<ArgSpec> args;
   std::function<CommandResult(const std::string& json_args)> handler;
@@ -102,8 +101,7 @@ class CommandTable {
 
   CommandResult dispatch(const std::string& op, const std::string& json_args) const {
     const CommandSpec* spec = find(op);
-    if (!spec)
-      return CommandResult::err(Errc::NotFound, "unknown op: " + op);
+    if (!spec) return CommandResult::err(Errc::NotFound, "unknown op: " + op);
     return spec->handler(json_args);
   }
 

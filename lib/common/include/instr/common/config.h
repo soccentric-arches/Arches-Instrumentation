@@ -31,7 +31,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <map>
 #include <string>
@@ -52,8 +51,7 @@ class ConfigDocument {
 
   // Parse YAML text, validate against the JSON Schema, flatten to dot-paths.
   // source_name appears in rejection errors (file-and-line diagnosability).
-  static Result<ConfigDocument> parse(const std::string& yaml_text,
-                                      const JValue& schema,
+  static Result<ConfigDocument> parse(const std::string& yaml_text, const JValue& schema,
                                       const std::string& source_name);
 
   // Empty document (no schema validation) for programmatic construction.
@@ -81,8 +79,7 @@ class ConfigDocument {
   // Merge `incoming` (origin `in_origin`) into this document.
   // HQ pushes overwrite default/app/hq keys; local (operator) keys are
   // protected unless force. Returns the rejected dot-paths.
-  std::vector<std::string> merge_from(const ConfigDocument& incoming, Origin in_origin,
-                                      bool force);
+  std::vector<std::string> merge_from(const ConfigDocument& incoming, Origin in_origin, bool force);
 
   // Release merge: add keys that are missing entirely (new defaults); keep
   // every existing value. Returns the added dot-paths.

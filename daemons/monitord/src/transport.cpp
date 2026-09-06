@@ -83,15 +83,14 @@ Error MonitorCore::apply_config(const ConfigDocument& doc) {
   c.thermal_warn_c = doc.get_double("thermal_warn_c", 75.0);
   c.thermal_critical_c = doc.get_double("thermal_critical_c", 85.0);
   c.storage_warn_pct = doc.get_double("storage_warn_pct", 90.0);
-  c.wear_projection_threshold_days =
-      uint32_t(doc.get_int("wear_projection_threshold_days", 180));
+  c.wear_projection_threshold_days = uint32_t(doc.get_int("wear_projection_threshold_days", 180));
   c.highres_window_s = doc.get_double("highres_window_s", 60.0);
   c.highres_interval_s = doc.get_double("highres_interval_s", 1.0);
   if (c.interval <= 0)
     return Error::make(Errc::InvalidArgument, "interval must be > 0", "monitord config");
   if (c.thermal_critical_c <= c.thermal_warn_c)
-    return Error::make(Errc::InvalidArgument,
-                       "thermal_critical_c must exceed thermal_warn_c", "monitord config");
+    return Error::make(Errc::InvalidArgument, "thermal_critical_c must exceed thermal_warn_c",
+                       "monitord config");
   for (const char* cls : {"cpu", "memory", "storage", "thermal", "load", "system"}) {
     const std::string key = std::string("intervals_per_class.") + cls;
     if (doc.has(key)) {
@@ -115,12 +114,13 @@ Error MonitorCore::apply_config(const ConfigDocument& doc) {
 
 CommandTable build_monitor_table(MonitorCore* core) {
   CommandTable t;
-  t.add({"status", "show sampler status and intervals", {},
-         [core](const std::string&) {
+  t.add({"status", "show sampler status and intervals", {}, [core](const std::string&) {
            if (!core) return CommandResult::err(Errc::Unavailable, "tool dispatches remotely");
            return CommandResult::good(core->status_json());
          }});
-  t.add({"sample-once", "take one sampling pass and print the samples", {},
+  t.add({"sample-once",
+         "take one sampling pass and print the samples",
+         {},
          [core](const std::string&) {
            if (!core) return CommandResult::err(Errc::Unavailable, "tool dispatches remotely");
            auto samples = core->sample_once();
@@ -135,7 +135,8 @@ CommandTable build_monitor_table(MonitorCore* core) {
            }
            return CommandResult::good(arr.dump());
          }});
-  t.add({"set-interval", "set the sampling interval for a resource class",
+  t.add({"set-interval",
+         "set the sampling interval for a resource class",
          {{"class", true, "resource class: cpu|memory|storage|thermal|load|system"},
           {"seconds", true, "sampling interval in seconds"}},
          [core](const std::string& args_json) {
@@ -145,12 +146,12 @@ CommandTable build_monitor_table(MonitorCore* core) {
            std::string cls = (*a).get_string("class");
            double secs = (*a).get_number("seconds");
            if (cls.empty() || secs <= 0)
-             return CommandResult::err(Errc::InvalidArgument, "class and positive seconds required");
+             return CommandResult::err(Errc::InvalidArgument,
+                                       "class and positive seconds required");
            core->sampler().set_interval_for(cls, secs);
            return CommandResult::good(std::string("{\"set\":true}"));
          }});
-  t.add({"wear", "storage wear projections for all devices", {},
-         [core](const std::string&) {
+  t.add({"wear", "storage wear projections for all devices", {}, [core](const std::string&) {
            if (!core) return CommandResult::err(Errc::Unavailable, "tool dispatches remotely");
            auto p = core->wear_projections(365);
            JValue arr = JValue::array();

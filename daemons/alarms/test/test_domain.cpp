@@ -30,7 +30,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include <gtest/gtest.h>
 
 #include "instr/alarms/domain.h"
@@ -167,7 +166,7 @@ TEST(AlarmsSnapshotOnFault, CriticalRequestsBoundedCapture) {
 TEST(AlarmsEscalation, PromotesUnacknowledgedAfterThreshold) {
   Fixture f;
   f.mgr.set_escalation({{0, 60, common::SEV_CRITICAL}});  // default policy
-  f.mgr.raise(0x30220002u, "app", "x");                    // MAJOR
+  f.mgr.raise(0x30220002u, "app", "x");  // MAJOR
   // Before threshold: no change.
   auto none = f.mgr.escalation_sweep(f.ts.mono + 10ull * 1'000'000'000ull);
   EXPECT_TRUE(none.empty());

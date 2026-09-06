@@ -47,15 +47,14 @@ bool signature_verification_available() {
 Error verify_ed25519(const std::string& public_key, const std::string& message,
                      const std::string& signature) {
   if (public_key.size() != 32)
-    return Error::make(Errc::InvalidArgument,
-                       "Ed25519 public key must be 32 bytes, got " +
-                           std::to_string(public_key.size()),
-                       "signature");
+    return Error::make(
+        Errc::InvalidArgument,
+        "Ed25519 public key must be 32 bytes, got " + std::to_string(public_key.size()),
+        "signature");
   if (signature.size() != 64)
-    return Error::make(Errc::InvalidArgument,
-                       "Ed25519 signature must be 64 bytes, got " +
-                           std::to_string(signature.size()),
-                       "signature");
+    return Error::make(
+        Errc::InvalidArgument,
+        "Ed25519 signature must be 64 bytes, got " + std::to_string(signature.size()), "signature");
 #ifndef INSTR_HAVE_OPENSSL
   // Fail closed. A build without a verification backend must refuse signed
   // content, not accept it unchecked (§9, §10).

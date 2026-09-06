@@ -151,8 +151,8 @@ Result<NetworkPlan> NetworkdCore::plan_from_config(const ConfigDocument& doc) {
   // The PSK is referenced, never carried: credentials live in /pst (§7.2).
   p.wireless.psk_ref = p.wireless.ssid.empty() ? "" : ("wifi-psk-" + p.wireless.ssid);
   if (p.wireless.enabled && p.wireless.mode != "off" && p.wireless.iface.empty())
-    return Result<NetworkPlan>::fail(Errc::InvalidArgument,
-                                     "wireless enabled without an interface", "networkd config");
+    return Result<NetworkPlan>::fail(Errc::InvalidArgument, "wireless enabled without an interface",
+                                     "networkd config");
 
   // Inbound SSH is off by default and is never turned on by configuration
   // alone — it is opened per device, time-boxed and attributed (§7.2, §10).
@@ -199,8 +199,7 @@ std::vector<std::pair<std::string, std::string>> NetworkdCore::sweep_remote_acce
   for (const auto& w : ssh_.sweep(wall_now_s())) {
     // Expiry is customer-visible: the window was alarm-visible when opened,
     // so its close must be too (§7.2, §10).
-    events.emplace_back("remote_access_expired",
-                        "{\"operator\":\"" + w.operator_name + "\"}");
+    events.emplace_back("remote_access_expired", "{\"operator\":\"" + w.operator_name + "\"}");
   }
   if (!ssh_.any_active(wall_now_s()) && plan_.ssh_enabled) {
     plan_.ssh_enabled = false;
@@ -217,8 +216,7 @@ std::vector<std::pair<std::string, std::string>> NetworkdCore::probe_connectivit
   const bool up = reachability_ ? reachability_() : plat_.hq_reachable();
   if (up != tunnel_up_) {
     tunnel_up_ = up;
-    events.emplace_back("tunnel_state",
-                        std::string("{\"up\":") + (up ? "true" : "false") + "}");
+    events.emplace_back("tunnel_state", std::string("{\"up\":") + (up ? "true" : "false") + "}");
   }
   // Re-rank interfaces so failover reflects what is actually reachable.
   std::vector<Reachability> probes;
@@ -246,9 +244,12 @@ std::vector<std::pair<std::string, std::string>> NetworkdCore::probe_connectivit
 
 CommandTable build_networkd_table(NetworkdCore* core) {
   CommandTable t;
-  t.add({"status", "full network status (plan, tunnel, ssh windows)", {},
-         [core](const std::string&) { return CommandResult::good(core->status_json()); }});
-  t.add({"ifaces", "list configured interfaces",
+  t.add(
+      {"status", "full network status (plan, tunnel, ssh windows)", {}, [core](const std::string&) {
+         return CommandResult::good(core->status_json());
+       }});
+  t.add({"ifaces",
+         "list configured interfaces",
          {{"verbose", false, "include mode details (true/false)"}},
          [core](const std::string& args) {
            auto a = args_object(args);
@@ -267,14 +268,13 @@ CommandTable build_networkd_table(NetworkdCore* core) {
            }
            return CommandResult::good(arr.dump());
          }});
-  t.add({"apply-plan", "apply the current plan through the platform", {},
-         [core](const std::string&) {
-           Error e = core->apply();
-           return e.ok() ? CommandResult::good(std::string("{\"applied\":true}"))
-                         : CommandResult::from_error(e);
-         }});
-  t.add({"firewall-get", "list firewall rules", {},
-         [core](const std::string&) {
+  t.add(
+      {"apply-plan", "apply the current plan through the platform", {}, [core](const std::string&) {
+         Error e = core->apply();
+         return e.ok() ? CommandResult::good(std::string("{\"applied\":true}"))
+                       : CommandResult::from_error(e);
+       }});
+  t.add({"firewall-get", "list firewall rules", {}, [core](const std::string&) {
            JValue arr = JValue::array();
            for (const auto& r : core->plan().firewall) {
              JValue o = JValue::object();
@@ -287,8 +287,10 @@ CommandTable build_networkd_table(NetworkdCore* core) {
            }
            return CommandResult::good(arr.dump());
          }});
-  t.add({"firewall-add", "add a runtime firewall rule (persistent config via istate)",
-         {{"action", true, "allow|deny"}, {"proto", true, "tcp|udp|icmp|any"},
+  t.add({"firewall-add",
+         "add a runtime firewall rule (persistent config via istate)",
+         {{"action", true, "allow|deny"},
+          {"proto", true, "tcp|udp|icmp|any"},
           {"src", false, "source cidr (any)"},
           {"dst_port", false, "destination port (0=any)"},
           {"comment", false, "rule comment"}},
@@ -306,8 +308,10 @@ CommandTable build_networkd_table(NetworkdCore* core) {
            core->mutable_plan().firewall.push_back(r);
            return CommandResult::good(std::string("{\"added\":true}"));
          }});
-  t.add({"ssh-open", "open a time-boxed, attributed inbound SSH window (alarm-visible)",
-         {{"operator", true, "named operator for attribution"}, {"ttl_s", true, "window TTL 1s..24h"}},
+  t.add({"ssh-open",
+         "open a time-boxed, attributed inbound SSH window (alarm-visible)",
+         {{"operator", true, "named operator for attribution"},
+          {"ttl_s", true, "window TTL 1s..24h"}},
          [core](const std::string& args) {
            auto a = args_object(args);
            if (!a.ok()) return CommandResult::from_error(a.error);
@@ -320,13 +324,11 @@ CommandTable build_networkd_table(NetworkdCore* core) {
            o.set("expires_unix_s", JValue(double(w->expires_unix_s)));
            return CommandResult::good(o.dump());
          }});
-  t.add({"ssh-close", "close all inbound SSH windows", {},
-         [core](const std::string&) {
+  t.add({"ssh-close", "close all inbound SSH windows", {}, [core](const std::string&) {
            core->ssh().close_all();
            return CommandResult::good(std::string("{\"closed\":true}"));
          }});
-  t.add({"ssh-list", "list SSH windows", {},
-         [core](const std::string&) {
+  t.add({"ssh-list", "list SSH windows", {}, [core](const std::string&) {
            JValue arr = JValue::array();
            for (const auto& w : core->ssh().active(core->wall_now_s())) {
              JValue o = JValue::object();
@@ -336,14 +338,15 @@ CommandTable build_networkd_table(NetworkdCore* core) {
            }
            return CommandResult::good(arr.dump());
          }});
-  t.add({"tunnel-status", "WireGuard tunnel state", {},
-         [core](const std::string&) {
+  t.add({"tunnel-status", "WireGuard tunnel state", {}, [core](const std::string&) {
            JValue o = JValue::object();
            o.set("up", JValue(core->tunnel_up()));
            o.set("endpoint", JValue(core->plan().wg.hq_endpoint));
            return CommandResult::good(o.dump());
          }});
-  t.add({"time-policy-render", "render time daemon configs from the current policy", {},
+  t.add({"time-policy-render",
+         "render time daemon configs from the current policy",
+         {},
          [core](const std::string&) {
            JValue o = JValue::object();
            o.set("chrony_conf", JValue(core->time_daemons().chrony_conf));
@@ -352,7 +355,9 @@ CommandTable build_networkd_table(NetworkdCore* core) {
            o.set("gpsd_args", JValue(core->time_daemons().gpsd_args));
            return CommandResult::good(o.dump());
          }});
-  t.add({"failover-rank", "rank interfaces by priority and reachability", {},
+  t.add({"failover-rank",
+         "rank interfaces by priority and reachability",
+         {},
          [core](const std::string&) {
            std::vector<Reachability> probes;
            for (const auto& i : core->platform().interfaces()) {
@@ -381,8 +386,8 @@ NetworkdSpoke::NetworkdSpoke(NetworkdCore* core, Logger* log, const CommandTable
   o.build_version = build_version;
   o.capabilities = {"wired", "wireless", "firewall", "tunnel", "time-daemons"};
   channel_ = std::make_unique<
-      SpokeChannel<networkd::NetworkHub, networkd::NetworkSpokeFrame,
-                   networkd::NetworkHubFrame>>(std::move(o), *log);
+      SpokeChannel<networkd::NetworkHub, networkd::NetworkSpokeFrame, networkd::NetworkHubFrame>>(
+      std::move(o), *log);
   channel_->set_hub_handler([this](const networkd::NetworkHubFrame& hf) {
     if (hf.has_command()) {
       common::Ack ack = dispatch_to_ack(table_, hf.command());

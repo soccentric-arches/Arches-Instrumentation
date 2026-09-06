@@ -32,7 +32,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <functional>
 #include <map>
@@ -54,28 +53,28 @@ namespace domain {
 
 struct ArtifactManifest {
   std::string version;
-  std::string sha256;      // artifact integrity
+  std::string sha256;  // artifact integrity
   // Release signature: Ed25519 over "<version>|<sha256>" under the release
   // signing key, which the image carries as a public key only. This is the
   // §7.9 "signature verification before staging" path.
-  std::string signature;   // 64 raw bytes
+  std::string signature;  // 64 raw bytes
   std::string key_id;
   // Legacy shared-secret form, accepted only where no release key is
   // provisioned (see OtaEngine::verify).
   std::string hmac;
   uint64_t size_bytes = 0;
-  bool preserve_home = true;   // /home and /pst preserved unless requested otherwise
+  bool preserve_home = true;  // /home and /pst preserved unless requested otherwise
   bool preserve_pst = true;
 };
 
 struct OtaConfig {
-  std::string min_version;          // anti-rollback floor
-  double confirm_timeout_s = 600;   // unconfirmed update rolls back automatically
+  std::string min_version;  // anti-rollback floor
+  double confirm_timeout_s = 600;  // unconfirmed update rolls back automatically
   // maintenance windows: per-device schedules where updates are permitted.
   struct Window {
-    std::string day;      // "*" or weekday abbreviations "mon,sun"
-    std::string start;    // "02:00"
-    std::string end;      // "04:00"
+    std::string day;  // "*" or weekday abbreviations "mon,sun"
+    std::string start;  // "02:00"
+    std::string end;  // "04:00"
   };
   std::vector<Window> windows;
   uint64_t bandwidth_limit_bytes_per_s = 0;  // 0 = unlimited
@@ -83,7 +82,7 @@ struct OtaConfig {
 
 struct UpdateState {
   std::string state = "idle";  // idle / download / verified / staged /
-                               // applied_pending_confirm / confirmed / failed / rolled_back
+      // applied_pending_confirm / confirmed / failed / rolled_back
   std::string from_version;
   std::string to_version;
   double progress = 0;
@@ -125,9 +124,8 @@ class OtaEngine {
   const std::string& swupdate_binary() const { return swupdate_binary_; }
   // Seam for tests and for the simulated platform: runs the installer and
   // returns its exit status. Default implementation execs SWUpdate.
-  using InstallFn = std::function<Result<int>(const std::string& artifact,
-                                              const std::string& target_slot,
-                                              const ArtifactManifest& m)>;
+  using InstallFn = std::function<Result<int>(
+      const std::string& artifact, const std::string& target_slot, const ArtifactManifest& m)>;
   void set_install_fn(InstallFn f) { install_fn_ = std::move(f); }
 
   // Release signing keys (§7.9), by key id. Public keys only: a device can
@@ -176,7 +174,9 @@ class OtaEngine {
   // ---- canary support: enough state for HQ staged rollouts ----
   std::string canary_json(double health_score, double fault_rate_24h) const;
 
-  void set_event_sink(std::function<void(const OtaProgressEvent&)> f) { event_sink_ = std::move(f); }
+  void set_event_sink(std::function<void(const OtaProgressEvent&)> f) {
+    event_sink_ = std::move(f);
+  }
   void set_enrollment_secret_provider(std::function<std::string()> f) {
     secret_provider_ = std::move(f);
   }

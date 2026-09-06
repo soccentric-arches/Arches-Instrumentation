@@ -30,7 +30,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <cstdint>
 #include <string>
@@ -42,7 +41,7 @@ namespace instr {
 namespace tar {
 
 struct FileEntry {
-  std::string name;   // relative path inside the archive
+  std::string name;  // relative path inside the archive
   std::string data;
   uint32_t mode = 0644;
   uint64_t mtime = 0;

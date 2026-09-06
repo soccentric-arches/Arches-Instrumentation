@@ -30,7 +30,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <cstdint>
 #include <map>
@@ -48,8 +47,7 @@ class IFileSystem {
   virtual bool exists(const std::string& path) = 0;
   virtual Result<std::string> read(const std::string& path) = 0;
   // Plain write (not atomic); callers needing atomicity use AtomicFile.
-  virtual Error write(const std::string& path, const std::string& data,
-                      bool append = false) = 0;
+  virtual Error write(const std::string& path, const std::string& data, bool append = false) = 0;
   virtual Error mkdirs(const std::string& path) = 0;
   virtual Error remove(const std::string& path, bool recursive = false) = 0;
   virtual Error rename(const std::string& from, const std::string& to) = 0;
@@ -104,9 +102,7 @@ class SimulatedFileSystem : public IFileSystem {
   void fail_writes_after(int n) { fail_writes_after_ = n; }
   // Corrupt data returned by reads of `path` from the n-th read onwards
   // (simulates bit rot / torn sector).
-  void corrupt_reads_of(const std::string& path, int from_read) {
-    corrupt_[path] = from_read;
-  }
+  void corrupt_reads_of(const std::string& path, int from_read) { corrupt_[path] = from_read; }
   // Clamp reported free space (simulates a filling / full partition).
   void set_free_space(uint64_t bytes) { free_space_ = bytes; }
   // Simulated clock for file timestamps: tests advance it to age files
@@ -129,8 +125,8 @@ class SimulatedFileSystem : public IFileSystem {
 
  private:
   bool is_dir(const std::string& p) const;
-  std::map<std::string, std::string> files_;   // files only
-  std::map<std::string, bool> dirs_;           // dir → recursive flag
+  std::map<std::string, std::string> files_;  // files only
+  std::map<std::string, bool> dirs_;  // dir → recursive flag
   int fail_writes_after_ = 0;
   int write_count_ = 0;
   std::map<std::string, int> corrupt_;

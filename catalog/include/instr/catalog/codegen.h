@@ -29,7 +29,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <string>
 #include <vector>
@@ -46,13 +45,13 @@ Severity severity_from_name(const std::string&, Error* err);
 
 struct AlarmEntry {
   uint32_t id = 0;
-  std::string name;           // symbolic name → INSTR_ALARM_<UPPER_SNAKE>
+  std::string name;  // symbolic name → INSTR_ALARM_<UPPER_SNAKE>
   Severity severity = Severity::Info;
   std::string probable_cause;
   std::string specific_problem;
   std::string description;
-  std::string escalation;     // none / promote-after-15m / promote-after-1h
-  std::string auto_clear;     // manual / auto
+  std::string escalation;  // none / promote-after-15m / promote-after-1h
+  std::string auto_clear;  // manual / auto
   bool hq_reportable = true;
 };
 

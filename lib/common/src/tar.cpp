@@ -60,14 +60,15 @@ std::string write_ustar(const std::vector<FileEntry>& files) {
     std::memset(h, 0, sizeof(h));
     std::memcpy(h, name.c_str(), name.size());
     octal(h + 100, 8, f.mode);
-    octal(h + 108, 8, 0);        // uid
-    octal(h + 116, 8, 0);        // gid
+    octal(h + 108, 8, 0);  // uid
+    octal(h + 116, 8, 0);  // gid
     octal(h + 124, 12, f.data.size());
     octal(h + 136, 12, f.mtime);
     std::memset(h + 148, ' ', 8);  // checksum field placeholder
-    h[156] = '0';                  // regular file
+    h[156] = '0';  // regular file
     std::memcpy(h + 257, "ustar\0", 6);
-    h[263] = '0'; h[264] = '0';
+    h[263] = '0';
+    h[264] = '0';
     uint32_t sum = header_checksum(h);
     char chk[9];
     // checksum is 6 octal digits + NUL + space
@@ -91,7 +92,10 @@ Result<std::vector<FileEntry>> read_ustar(const std::string& archive) {
     const char* h = archive.data() + off;
     bool all_zero = true;
     for (int i = 0; i < 512; ++i)
-      if (h[i] != 0) { all_zero = false; break; }
+      if (h[i] != 0) {
+        all_zero = false;
+        break;
+      }
     if (all_zero) break;  // end marker
     // Validate checksum: stored value vs computed with checksum field as spaces.
     char chkbuf[8];

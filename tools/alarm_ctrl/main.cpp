@@ -32,7 +32,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include "instr/alarms/daemon.h"
 #include "instr/ctrl/ctrl.h"
 

@@ -77,8 +77,7 @@ Error CtrlServer::start() {
     return Error::make(Errc::Io, "bind failed: " + std::string(strerror(errno)), path_);
   // Mode 0600 root-only (REQ §3.2).
   ::chmod(path_.c_str(), 0600);
-  if (::listen(listen_fd_, 16) != 0)
-    return Error::make(Errc::Io, "listen failed", path_);
+  if (::listen(listen_fd_, 16) != 0) return Error::make(Errc::Io, "listen failed", path_);
   running_ = true;
   accept_thread_ = std::thread([this] { serve_accept(); });
   return Error::none();
@@ -235,7 +234,9 @@ CommandResult CtrlClient::call(const std::string& op, const std::string& json_ar
   std::string resp;
   if (!recv_frame(&resp)) return CommandResult::err(Errc::Io, "ctrl read failed", "");
   auto parsed = json_parse(resp);
-  if (!parsed.ok()) return CommandResult::err(Errc::Corrupt, "malformed ctrl response: " + parsed.error.message, "");
+  if (!parsed.ok())
+    return CommandResult::err(Errc::Corrupt, "malformed ctrl response: " + parsed.error.message,
+                              "");
   // Parse the envelope back into CommandResult.
   const JValue& v = *parsed;
   CommandResult r;
@@ -262,9 +263,7 @@ Error CtrlClient::call_stream(const std::string& op, const std::string& json_arg
   if (!send_all(frames::encode_frame(req.dump())))
     return Error::make(Errc::Io, "ctrl write failed", path_);
   std::string resp;
-  while (recv_frame(&resp)) {
-    on_frame(resp);
-  }
+  while (recv_frame(&resp)) { on_frame(resp); }
   return Error::none();
 }
 
@@ -334,8 +333,8 @@ void BulkServer::serve_one(int fd) {
   }
   if (handle.empty()) return;
 
-  auto path = resolve_ ? resolve_(handle) : Result<std::string>::fail(Errc::Unavailable,
-                                                                     "no resolver", handle);
+  auto path = resolve_ ? resolve_(handle)
+                       : Result<std::string>::fail(Errc::Unavailable, "no resolver", handle);
   if (!path.ok()) {
     // An unknown handle closes without data; the metadata call is where a
     // caller learns whether a bundle exists.
@@ -374,8 +373,7 @@ Result<uint64_t> bulk_fetch(const std::string& socket_path, const std::string& h
   std::strncpy(addr.sun_path, socket_path.c_str(), sizeof(addr.sun_path) - 1);
   if (::connect(fd, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) != 0) {
     ::close(fd);
-    return Result<uint64_t>::fail(Errc::Unavailable, "cannot connect to bulk socket",
-                                  socket_path);
+    return Result<uint64_t>::fail(Errc::Unavailable, "cannot connect to bulk socket", socket_path);
   }
   const std::string req = frames::encode_frame(handle);
   size_t off = 0;
@@ -407,8 +405,10 @@ static void print_envelope(const CommandResult& r, bool pretty) {
     return;
   }
   auto v = json_parse(env);
-  if (v.ok()) std::cout << (*v).dump(2) << "\n";
-  else std::cout << env << "\n";
+  if (v.ok())
+    std::cout << (*v).dump(2) << "\n";
+  else
+    std::cout << env << "\n";
 }
 
 int tool_main(int argc, char** argv, const CommandTable& table, const std::string& prog_name,
@@ -446,8 +446,10 @@ int tool_main(int argc, char** argv, const CommandTable& table, const std::strin
       std::cerr << "usage: " << prog_name << " completion bash|zsh\n";
       return 2;
     }
-    if (positional[1] == "bash") std::cout << table.completion_bash(prog_name);
-    else if (positional[1] == "zsh") std::cout << table.completion_zsh(prog_name);
+    if (positional[1] == "bash")
+      std::cout << table.completion_bash(prog_name);
+    else if (positional[1] == "zsh")
+      std::cout << table.completion_zsh(prog_name);
     else {
       std::cerr << "unknown shell: " << positional[1] << "\n";
       return 2;

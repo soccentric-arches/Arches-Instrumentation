@@ -25,7 +25,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include <gtest/gtest.h>
 
 #include "instr/common/log.h"
@@ -95,7 +94,7 @@ TEST(MonitordSampler, CpuUtilDeltaBetweenTicks) {
   s.tick();
   platform::CpuSnapshot c2;
   c2.cores = 1;
-  c2.busy_ticks = {150};   // +50 busy
+  c2.busy_ticks = {150};  // +50 busy
   c2.total_ticks = {300};  // +100 total
   plat.set_cpu(c2);
   auto samples = s.tick();

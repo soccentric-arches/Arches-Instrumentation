@@ -1,0 +1,27 @@
+# Formatting for Arches Instrumentation (REQ §14: consistent style, no drift).
+#
+# Google style with a 100-column limit, tuned to the house conventions so a
+# finding means real drift rather than a fight over idiom:
+#   - One-liners stay one-liners where clang-format allows it: short case
+#     labels (`case X: return "y";` name maps), braceless short ifs/loops,
+#     single-statement and empty blocks (`} catch (...) {}`). Multi-statement
+#     blocks are still split — clang-format has no setting to keep those.
+#   - Comments are hand-wrapped and hand-aligned (doxygen file headers, REQ
+#     §-references, struct field comments): ReflowComments and trailing-comment
+#     realignment are off so clang-format never moves them.
+#   - Includes are left exactly as written (SortIncludes: Never): the house
+#     order — main header, blank line, system block, blank line, project
+#     block — is deliberate, and Google's block regrouping would churn it.
+Language: Cpp
+BasedOnStyle: Google
+ColumnLimit: 100
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortBlocksOnASingleLine: Always
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortLoopsOnASingleLine: true
+AllowShortLambdasOnASingleLine: All
+AlignTrailingComments: false
+ReflowComments: false
+SortIncludes: Never
+DerivePointerAlignment: false
+PointerAlignment: Left

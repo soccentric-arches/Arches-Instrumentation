@@ -31,7 +31,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <cstdint>
 #include <functional>
@@ -103,8 +102,8 @@ class AlarmManager {
   // raise: new → active; existing → count++, last_seen update; severity
   // change on an already-active alarm emits severity_change.
   Result<AlarmStateEvent> raise(uint32_t alarm_id, const std::string& owner,
-                           const std::string& additional_text,
-                           const std::vector<uint32_t>& correlated = {});
+                                const std::string& additional_text,
+                                const std::vector<uint32_t>& correlated = {});
   Result<AlarmStateEvent> acknowledge(uint32_t alarm_id);
   Result<AlarmStateEvent> clear(uint32_t alarm_id, const std::string& owner);
 
@@ -123,7 +122,9 @@ class AlarmManager {
 
   // ---- snapshot-on-fault: a bounded diagnostic capture is requested when a
   // CRITICAL alarm fires; the evidence must exist at the moment it matters.
-  void set_snapshot_sink(std::function<void(uint32_t alarm_id)> f) { snapshot_sink_ = std::move(f); }
+  void set_snapshot_sink(std::function<void(uint32_t alarm_id)> f) {
+    snapshot_sink_ = std::move(f);
+  }
   // Configuration may turn the capture off on resource-constrained boards.
   void set_snapshot_on_critical(bool on) { snapshot_on_critical_ = on; }
   bool snapshot_on_critical() const { return snapshot_on_critical_; }

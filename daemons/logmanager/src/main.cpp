@@ -25,7 +25,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include <cstdio>
 
 #include "instr/common/config_sink.h"
@@ -41,9 +40,10 @@
 int main(int argc, char** argv) {
   auto args = instr::parse_daemon_args(argc, argv, "logmanager");
   if (args.help) {
-    std::printf("logmanager — collection, rotation, tail, bundles, crash forensics\n"
-                "usage: logmanager [--socket PATH] [--hub PATH] [--root PATH]\n"
-                "       [--platform native|simulated] [--help]\n");
+    std::printf(
+        "logmanager — collection, rotation, tail, bundles, crash forensics\n"
+        "usage: logmanager [--socket PATH] [--hub PATH] [--root PATH]\n"
+        "       [--platform native|simulated] [--help]\n");
     return 0;
   }
   std::atomic<bool> stop{false};
@@ -71,7 +71,7 @@ int main(int argc, char** argv) {
   auto cfg_schema = instr::load_daemon_schema(fs, root, "logmanager");
   if (!cfg_schema.ok())
     log.warning("logmanager", "no JSON Schema installed: " + cfg_schema.error.str() +
-                          " — deliveries will be applied unvalidated");
+                                  " — deliveries will be applied unvalidated");
 
   auto table = instr::logmanager::build_log_table(&core);
   std::string run_dir = root + "/run/instrumentation";

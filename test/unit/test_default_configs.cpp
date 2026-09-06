@@ -43,8 +43,8 @@ using namespace instr;
 
 namespace {
 
-const char* kDaemons[] = {"istate",     "networkd",   "monitord", "hardware", "faults",
-                          "alarms",     "logmanager", "telemetry", "ota",     "backup"};
+const char* kDaemons[] = {"istate", "networkd",   "monitord",  "hardware", "faults",
+                          "alarms", "logmanager", "telemetry", "ota",      "backup"};
 
 std::string slurp(const std::string& path) {
   std::ifstream f(path);

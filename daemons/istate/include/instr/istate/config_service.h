@@ -30,7 +30,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <deque>
 #include <functional>
@@ -50,9 +49,9 @@ namespace istate {
 struct AuditEntry {
   uint64_t seq = 0;
   int64_t wall_unix_s = 0;
-  std::string actor;      // who (local operator / hq / app)
-  std::string source;     // from where (configuration-ui / hq-tunnel / local-console)
-  std::string action;     // config_set / update / remote_access / reset
+  std::string actor;  // who (local operator / hq / app)
+  std::string source;  // from where (configuration-ui / hq-tunnel / local-console)
+  std::string action;  // config_set / update / remote_access / reset
   std::string detail_json;
 };
 
@@ -93,8 +92,7 @@ class ConfigService {
     std::string error;
     bool ok = false;
   };
-  SetResult set(const std::string& daemon, const std::string& yaml_text, Origin origin,
-                bool force);
+  SetResult set(const std::string& daemon, const std::string& yaml_text, Origin origin, bool force);
 
   // ---- signing keys (§9) ----
   // HQ's Ed25519 config-signing public keys, by key id. The device holds

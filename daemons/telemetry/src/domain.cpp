@@ -38,8 +38,7 @@ MetricRegistry::Reg MetricRegistry::register_metric(const std::string& name,
                                                     const std::string& unit,
                                                     const std::string& type,
                                                     const std::string& app) {
-  if (name.empty() || (type != "gauge" && type != "counter"))
-    return Reg::Invalid;
+  if (name.empty() || (type != "gauge" && type != "counter")) return Reg::Invalid;
   if (metrics_.count(name)) {
     // Conflicting re-registration is an alarm-visible event, not a silent
     // overwrite (tlm_registration_conflict).
@@ -87,11 +86,22 @@ std::vector<AggWindow> Aggregator::close(uint64_t window_end_mono_ns) {
       w.window_end_mono_ns = window_end_mono_ns;
       w.tags = samples.front().tags;
       w.count = uint32_t(samples.size());
-      if (fn == "min") { w.fn = "min"; w.value = mn; }
-      else if (fn == "max") { w.fn = "max"; w.value = mx; }
-      else if (fn == "mean") { w.fn = "mean"; w.value = mean; }
-      else if (fn == "count") { w.fn = "count"; w.value = double(samples.size()); }
-      else if (fn == "last") { w.fn = "last"; w.value = last; }
+      if (fn == "min") {
+        w.fn = "min";
+        w.value = mn;
+      } else if (fn == "max") {
+        w.fn = "max";
+        w.value = mx;
+      } else if (fn == "mean") {
+        w.fn = "mean";
+        w.value = mean;
+      } else if (fn == "count") {
+        w.fn = "count";
+        w.value = double(samples.size());
+      } else if (fn == "last") {
+        w.fn = "last";
+        w.value = last;
+      }
       out.push_back(w);
     }
     kv.second.clear();
@@ -129,17 +139,18 @@ std::vector<MetricBatch> RetentionBuffer::drain() {
 HealthScoreValue compute_health_score(const HealthInputs& in) {
   // Starts at 100; each factor subtracts its penalty, floored at 0.
   HealthScoreValue h;
-  double cpu_pen = std::max(0.0, (in.cpu_util_pct - 80.0)) * 1.5;      // saturating above 80%
+  double cpu_pen = std::max(0.0, (in.cpu_util_pct - 80.0)) * 1.5;  // saturating above 80%
   double mem_pen = std::max(0.0, (in.mem_used_pct - 85.0)) * 2.0;
   double thermal_pen = std::max(0.0, (in.max_thermal_c - 75.0)) * 3.0;
-  double wear_pen = in.storage_wear_pct >= 0 ? std::max(0.0, (in.storage_wear_pct - 70.0)) * 2.0 : 0;
+  double wear_pen =
+      in.storage_wear_pct >= 0 ? std::max(0.0, (in.storage_wear_pct - 70.0)) * 2.0 : 0;
   double storage_pen = std::max(0.0, (90.0 - in.storage_free_pct)) * 1.0;
   double hw_pen = double(in.hardware_fails) * 15.0;
   double fault_pen = std::min(40.0, in.fault_rate_per_hour * 4.0);
   double alarm_pen = double(in.alarms_critical) * 25.0 + double(in.alarms_major) * 10.0 +
                      double(in.alarms_minor) * 3.0;
-  double total = cpu_pen + mem_pen + thermal_pen + wear_pen + storage_pen + hw_pen + fault_pen +
-                 alarm_pen;
+  double total =
+      cpu_pen + mem_pen + thermal_pen + wear_pen + storage_pen + hw_pen + fault_pen + alarm_pen;
   h.score = std::max(0.0, 100.0 - std::min(100.0, total));
   h.factors["cpu"] = cpu_pen;
   h.factors["memory"] = mem_pen;
@@ -153,8 +164,8 @@ HealthScoreValue compute_health_score(const HealthInputs& in) {
 }
 
 std::optional<MetricBatch> BatchShaper::ingest(const std::string& metric, double value,
-                                                  const std::string& unit, uint64_t mono_ns,
-                                                  const std::map<std::string, std::string>& tags) {
+                                               const std::string& unit, uint64_t mono_ns,
+                                               const std::map<std::string, std::string>& tags) {
   agg_.add(metric, value, mono_ns, tags);
   (void)unit;
   ++total_pending_;

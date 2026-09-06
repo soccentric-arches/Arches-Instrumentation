@@ -32,7 +32,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <mutex>
 #include "instr/platform/platform.h"
@@ -84,7 +83,8 @@ class NativePlatform : public IPlatform {
   Error unit_restart(const std::string& unit) override;
   Result<bool> unit_active(const std::string& unit) override;
   Result<std::vector<std::string>> kernel_log_lines(bool from_start) override;
-  Result<std::vector<std::string>> journal_lines(const std::string& unit, size_t max_lines) override;
+  Result<std::vector<std::string>> journal_lines(const std::string& unit,
+                                                 size_t max_lines) override;
   Error apply_network_plan(const std::string& plan_json) override;
   bool hq_reachable() override;
   MeasuredBootState measured_boot() override;

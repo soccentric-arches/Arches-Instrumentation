@@ -83,8 +83,8 @@ bool wait_for(Pred pred, int timeout_ms = 5000) {
 // The full device: istate with its real gRPC server, and every spoke dialling
 // in over UDS exactly as the daemons do.
 struct Topology {
-  NativeFileSystem real_fs;   // sockets live on the real filesystem
-  SimulatedFileSystem fs;     // /pst is simulated
+  NativeFileSystem real_fs;  // sockets live on the real filesystem
+  SimulatedFileSystem fs;  // /pst is simulated
   SimulatedPlatform plat;
   SystemTimeSource ts;
   MemorySink log_sink;
@@ -283,10 +283,13 @@ TEST(Topology, LivenessPingIsAnsweredOverTheRealChannel) {
   };
   const uint64_t before = pongs();
   // Sweeping sends a ping; the spoke's transport answers it.
-  ASSERT_TRUE(wait_for([&] {
-    t.core->orchestrator().liveness_sweep(0, 60);
-    return pongs() > before;
-  }, 8000)) << "an idle spoke never answered a liveness ping";
+  ASSERT_TRUE(wait_for(
+      [&] {
+        t.core->orchestrator().liveness_sweep(0, 60);
+        return pongs() > before;
+      },
+      8000))
+      << "an idle spoke never answered a liveness ping";
 }
 
 TEST(Topology, ProtoSchemaMismatchIsRefusedAtRegistration) {

@@ -25,7 +25,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <memory>
 
@@ -89,7 +88,8 @@ class BackupCore {
   void set_commit_fn(BackupEngine::CommitFn f) { commit_fn_ = std::move(f); }
   TimeSource& clock() { return ts_; }
   void set_event_sink(std::function<void(const std::string& action, const std::string& meta,
-                                         bool ok, const std::string& err)> f) {
+                                         bool ok, const std::string& err)>
+                          f) {
     sink_ = std::move(f);
   }
   void emit_event(const std::string& action, const std::string& meta, bool ok,
@@ -140,8 +140,7 @@ class BackupSpoke {
   Logger* log_;
   const CommandTable* table_;
   std::unique_ptr<ConfigSink> config_sink_;
-  std::unique_ptr<
-      SpokeChannel<backup::BackupHub, backup::BackupSpokeFrame, backup::BackupHubFrame>>
+  std::unique_ptr<SpokeChannel<backup::BackupHub, backup::BackupSpokeFrame, backup::BackupHubFrame>>
       channel_;
 };
 

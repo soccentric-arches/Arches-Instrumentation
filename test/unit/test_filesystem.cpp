@@ -28,7 +28,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include <gtest/gtest.h>
 
 #include "instr/common/filesystem.h"
@@ -98,8 +97,7 @@ TEST(CtrlLoopback, RequestResponseOverUds) {
   t.add({"ping", "liveness", {}, [](const std::string&) {
            return CommandResult::good(std::string("{\"pong\":true}"));
          }});
-  t.add({"echo", "echo args", {{"msg", false, "text"}},
-         [](const std::string& args) {
+  t.add({"echo", "echo args", {{"msg", false, "text"}}, [](const std::string& args) {
            auto a = args_object(args);
            if (!a.ok()) return CommandResult::from_error(a.error);
            return CommandResult::good((*a).find("msg") ? (*a).find("msg")->as_string() : "");

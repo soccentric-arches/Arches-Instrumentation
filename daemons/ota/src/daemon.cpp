@@ -58,9 +58,12 @@ std::string OtaCore::status_json() const {
 
 CommandTable build_ota_table(OtaCore* core) {
   CommandTable t;
-  t.add({"status", "current slot, version, update state and history", {},
-         [core](const std::string&) { return CommandResult::good(core->status_json()); }});
-  t.add({"receive-chunk", "artifact intake (resume-aware; lands on disk before applying)",
+  t.add(
+      {"status", "current slot, version, update state and history", {}, [core](const std::string&) {
+         return CommandResult::good(core->status_json());
+       }});
+  t.add({"receive-chunk",
+         "artifact intake (resume-aware; lands on disk before applying)",
          {{"data_b64", true, "base64 chunk"}, {"offset", true, "byte offset"}},
          [core](const std::string& args) {
            auto a = args_object(args);
@@ -74,7 +77,8 @@ CommandTable build_ota_table(OtaCore* core) {
            o.set("received_bytes", JValue(double(*r)));
            return CommandResult::good(o.dump());
          }});
-  t.add({"stage", "verify + stage the artifact to the inactive slot",
+  t.add({"stage",
+         "verify + stage the artifact to the inactive slot",
          {{"manifest", true, "artifact manifest JSON"}},
          [core](const std::string& args) {
            auto a = args_object(args);
@@ -86,19 +90,22 @@ CommandTable build_ota_table(OtaCore* core) {
            return e.ok() ? CommandResult::good(std::string("{\"staged\":true}"))
                          : CommandResult::from_error(e);
          }});
-  t.add({"apply", "apply the staged update (set boot slot)", {},
-         [core](const std::string&) {
+  t.add({"apply", "apply the staged update (set boot slot)", {}, [core](const std::string&) {
            Error e = core->engine().apply();
            return e.ok() ? CommandResult::good(std::string("{\"applied\":true}"))
                          : CommandResult::from_error(e);
          }});
-  t.add({"confirm", "explicit post-boot confirmation (unconfirmed rolls back)", {},
+  t.add({"confirm",
+         "explicit post-boot confirmation (unconfirmed rolls back)",
+         {},
          [core](const std::string&) {
            Error e = core->engine().confirm();
            return e.ok() ? CommandResult::good(std::string("{\"confirmed\":true}"))
                          : CommandResult::from_error(e);
          }});
-  t.add({"rollback", "manual rollback to the previous slot", {{"reason", false, "why"}},
+  t.add({"rollback",
+         "manual rollback to the previous slot",
+         {{"reason", false, "why"}},
          [core](const std::string& args) {
            auto a = args_object(args);
            Error e = core->engine().rollback(a.ok() ? (*a).get_string("reason") : "manual");
@@ -108,7 +115,8 @@ CommandTable build_ota_table(OtaCore* core) {
   t.add({"history", "update history", {}, [core](const std::string&) {
            return CommandResult::good(history_json_value(core->engine().history()).dump());
          }});
-  t.add({"window-set", "set maintenance windows (runtime; config via istate)",
+  t.add({"window-set",
+         "set maintenance windows (runtime; config via istate)",
          {{"json", true, "[{\"day\":\"*\",\"start\":\"02:00\",\"end\":\"04:00\"}]"}},
          [core](const std::string& args) {
            auto a = args_object(args);
@@ -127,14 +135,14 @@ CommandTable build_ota_table(OtaCore* core) {
            core->engine().set_windows(wins);
            return CommandResult::good(std::string("{\"set\":true}"));
          }});
-  t.add({"window-check", "is now within a maintenance window?", {},
-         [core](const std::string&) {
+  t.add({"window-check", "is now within a maintenance window?", {}, [core](const std::string&) {
            int64_t wall = core->wall_now_s();
            JValue o = JValue::object();
            o.set("allowed", JValue(core->engine().in_maintenance_window(wall)));
            return CommandResult::good(o.dump());
          }});
-  t.add({"canary", "canary report for staged rollouts",
+  t.add({"canary",
+         "canary report for staged rollouts",
          {{"health_score", false, "0..100"}, {"fault_rate_24h", false, "faults/day"}},
          [core](const std::string& args) {
            auto a = args_object(args);
@@ -142,8 +150,7 @@ CommandTable build_ota_table(OtaCore* core) {
            double fr = a.ok() ? (*a).get_number("fault_rate_24h", 0) : 0;
            return CommandResult::good(core->engine().canary_json(hs, fr));
          }});
-  t.add({"tick", "run the confirmation watchdog tick", {},
-         [core](const std::string&) {
+  t.add({"tick", "run the confirmation watchdog tick", {}, [core](const std::string&) {
            auto ev = core->engine().tick(core->now_mono());
            JValue o = JValue::object();
            o.set("fired", JValue(ev.has_value()));
@@ -161,8 +168,7 @@ OtaSpoke::OtaSpoke(OtaCore* core, Logger* log, const CommandTable* table,
   o.target = hub_target;
   o.daemon = "ota";
   o.build_version = build_version;
-  o.capabilities = {"stage-apply", "confirm-rollback", "resume", "maintenance-windows",
-                    "canary"};
+  o.capabilities = {"stage-apply", "confirm-rollback", "resume", "maintenance-windows", "canary"};
   channel_ = std::make_unique<ChannelT>(std::move(o), *log);
   channel_->set_hub_handler([this](const ota::OtaHubFrame& hf) {
     if (hf.has_command()) {
@@ -199,9 +205,7 @@ void OtaSpoke::send_event(const OtaProgressEvent& ev) {
   });
 }
 
-void OtaSpoke::send_status() {
-  channel_->send_status_json(core_->status_json());
-}
+void OtaSpoke::send_status() { channel_->send_status_json(core_->status_json()); }
 
 }  // namespace ota
 }  // namespace instr

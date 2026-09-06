@@ -25,7 +25,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include <cstdio>
 
 #include "instr/common/config_sink.h"
@@ -40,9 +39,10 @@
 int main(int argc, char** argv) {
   auto args = instr::parse_daemon_args(argc, argv, "telemetry");
   if (args.help) {
-    std::printf("telemetry — aggregation, batch shaping, health score\n"
-                "usage: telemetry [--socket PATH] [--hub PATH] [--root PATH]\n"
-                "       [--platform native|simulated] [--help]\n");
+    std::printf(
+        "telemetry — aggregation, batch shaping, health score\n"
+        "usage: telemetry [--socket PATH] [--hub PATH] [--root PATH]\n"
+        "       [--platform native|simulated] [--help]\n");
     return 0;
   }
   std::atomic<bool> stop{false};
@@ -61,7 +61,8 @@ int main(int argc, char** argv) {
                                  " — deliveries will be applied unvalidated");
 
   auto table = instr::telemetry::build_telemetry_table(&core);
-  std::string run_dir = args.root.empty() ? "/run/instrumentation" : args.root + "/run/instrumentation";
+  std::string run_dir =
+      args.root.empty() ? "/run/instrumentation" : args.root + "/run/instrumentation";
   std::string ctrl_path =
       args.socket_override.empty() ? run_dir + "/telemetry-ctrl.sock" : args.socket_override;
   instr::ctrl::CtrlServer ctrl(&table, ctrl_path);

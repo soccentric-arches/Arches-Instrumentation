@@ -31,7 +31,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <array>
 #include <cstdint>
@@ -64,17 +63,16 @@ X25519Key x25519_generate(const Rng32& rng);
 std::array<uint8_t, 32> x25519(const uint8_t priv[32], const uint8_t pub_in[32]);
 
 // ---- ChaCha20 stream cipher (RFC 8439) ----
-void chacha20(const uint8_t key[32], const uint8_t nonce[12], uint32_t counter,
-              const uint8_t* in, uint8_t* out, size_t len);
+void chacha20(const uint8_t key[32], const uint8_t nonce[12], uint32_t counter, const uint8_t* in,
+              uint8_t* out, size_t len);
 // Encrypt-then-MAC convenience: ChaCha20 stream + HMAC-SHA256 over
 // (nonce || ciphertext). Output layout: nonce(12) || ciphertext || tag(32).
-std::string aead_seal(const std::string& key32, const std::string& plaintext,
-                      const Rng32& rng);
+std::string aead_seal(const std::string& key32, const std::string& plaintext, const Rng32& rng);
 Result<std::string> aead_open(const std::string& key32, const std::string& sealed);
 
 // ---- HKDF-SHA256 (RFC 5869) ----
-std::string hkdf_sha256(const std::string& ikm, const std::string& salt,
-                        const std::string& info, size_t len);
+std::string hkdf_sha256(const std::string& ikm, const std::string& salt, const std::string& info,
+                        size_t len);
 
 // ---- encodings ----
 std::string base64_encode(const std::string& raw);

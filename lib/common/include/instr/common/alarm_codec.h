@@ -30,7 +30,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <cstdint>
 #include <map>
@@ -58,7 +57,7 @@ enum class X733Type : uint8_t {
 
 const char* alarm_domain_name(AlarmDomain);
 const char* x733_type_name(X733Type);
-AlarmDomain alarm_domain_from_name(const std::string&);   // "hardware" etc.
+AlarmDomain alarm_domain_from_name(const std::string&);  // "hardware" etc.
 X733Type x733_type_from_name(const std::string&);
 
 // Module numbering: 0x01..0x0A are the ten daemons, 0x10.. are application

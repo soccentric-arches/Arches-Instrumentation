@@ -25,7 +25,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <memory>
 
@@ -51,8 +50,7 @@ class OtaCore {
     OtaConfig c;
     c.min_version = doc.get_string("min_version", "0.0.0");
     c.confirm_timeout_s = doc.get_double("confirm_timeout_s", 600.0);
-    c.bandwidth_limit_bytes_per_s =
-        uint64_t(doc.get_int("bandwidth_limit_bytes_per_s", 0));
+    c.bandwidth_limit_bytes_per_s = uint64_t(doc.get_int("bandwidth_limit_bytes_per_s", 0));
     for (size_t i = 0;; ++i) {
       const std::string b = "maintenance_windows." + std::to_string(i) + ".";
       if (!doc.has(b + "day")) break;

@@ -25,7 +25,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include <algorithm>
 
 #include <gtest/gtest.h>
@@ -104,14 +103,16 @@ TEST(LogStore, RuntimeLevelControlFiltersCollection) {
 }
 
 TEST(LogTail, FiltersBySourceLevelSince) {
-  TailSession s([]() {
-    TailFilter f;
-    f.sources = {"app"};
-    f.min_level = "WARNING";
-    f.since_mono_ns = 500;
-    return f;
-  }(), 0);
-  EXPECT_FALSE(s.accept(line(100, "ERROR", "too old"), 1));   // since filter
+  TailSession s(
+      []() {
+        TailFilter f;
+        f.sources = {"app"};
+        f.min_level = "WARNING";
+        f.since_mono_ns = 500;
+        return f;
+      }(),
+      0);
+  EXPECT_FALSE(s.accept(line(100, "ERROR", "too old"), 1));  // since filter
   EXPECT_FALSE(s.accept(line(600, "INFO", "too quiet"), 1));  // level filter
   EXPECT_TRUE(s.accept(line(600, "WARNING", "ok"), 1));
   EXPECT_EQ(s.emitted(), 1u);
@@ -133,7 +134,8 @@ TEST(LogTail, RateLimitsAndAutoStops) {
 
 TEST(LogBundles, CreateMetaFetchIntegrity) {
   Fixture f;
-  for (int i = 0; i < 5; ++i) f.core.store().append("app", line(i, "INFO", "hello " + std::to_string(i)));
+  for (int i = 0; i < 5; ++i)
+    f.core.store().append("app", line(i, "INFO", "hello " + std::to_string(i)));
   auto m = f.core.bundles().create(f.core.store(), {"app"}, f.ts.mono_ns());
   ASSERT_TRUE(m.ok());
   EXPECT_NE(m->handle.size(), 0);
@@ -181,9 +183,9 @@ TEST(LogStore, RetainsByAgeNotOnlyByCount) {
   SourceSpec s;
   s.name = "app";
   s.kind = "file";
-  s.rotate_size_bytes = 64;      // rotate often so we accumulate files
-  s.retention_files = 100;       // count retention must not be what prunes
-  s.max_age_s = 7 * 24 * 3600;   // a week
+  s.rotate_size_bytes = 64;  // rotate often so we accumulate files
+  s.retention_files = 100;  // count retention must not be what prunes
+  s.max_age_s = 7 * 24 * 3600;  // a week
   store.configure({s});
 
   auto append = [&](const std::string& text) {
@@ -210,8 +212,7 @@ TEST(LogStore, RetainsByAgeNotOnlyByCount) {
 
   // Everything left is within the window, and the active file survives.
   const auto remaining = store.files_for("app");
-  EXPECT_NE(std::find(remaining.begin(), remaining.end(), std::string("app.log")),
-            remaining.end())
+  EXPECT_NE(std::find(remaining.begin(), remaining.end(), std::string("app.log")), remaining.end())
       << "the active file must never be aged out";
   for (const auto& f : remaining) {
     if (f == "app.log") continue;

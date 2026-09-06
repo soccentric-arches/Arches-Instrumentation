@@ -61,8 +61,8 @@ Error LogStore::append(const std::string& source, const LogLine& line) {
   std::string eff = runtime_levels_.count(source) ? runtime_levels_.at(source) : spec->level;
   if (level_index(line.level) < level_index(eff)) return Error::none();
 
-  std::string text = std::to_string(line.mono_ns) + "\t" + source + "\t" + line.level + "\t" +
-                     line.message + "\n";
+  std::string text =
+      std::to_string(line.mono_ns) + "\t" + source + "\t" + line.level + "\t" + line.message + "\n";
   auto size = fs_.file_size(active_path(source));
   uint64_t cur = size.ok() ? *size : 0;
   if (cur + text.size() > spec->rotate_size_bytes && cur > 0) {
@@ -187,9 +187,7 @@ Result<std::vector<LogLine>> LogStore::read_tail(const std::string& source,
     LogLine l;
     try {
       l.mono_ns = std::stoull(line.substr(0, t1));
-    } catch (...) {
-      continue;
-    }
+    } catch (...) { continue; }
     l.source = line.substr(t1 + 1, t2 - t1 - 1);
     l.level = line.substr(t2 + 1, t3 - t2 - 1);
     l.message = line.substr(t3 + 1);
@@ -283,7 +281,8 @@ Result<BundleMeta> BundleStore::create(LogStore& store, const std::vector<std::s
   w.set("sources", arr);
   w.set("files", JValue(double(entries.size())));
   m.window_json = w.dump();
-  fs_.write(meta_path(handle), m.window_json + "\n" + m.sha256 + "\n" + std::to_string(m.size_bytes));
+  fs_.write(meta_path(handle),
+            m.window_json + "\n" + m.sha256 + "\n" + std::to_string(m.size_bytes));
   return Result<BundleMeta>::good(m);
 }
 
@@ -321,8 +320,7 @@ Result<std::string> BundleStore::payload_path(const std::string& handle) const {
       handle.find("..") != std::string::npos)
     return Result<std::string>::fail(Errc::InvalidArgument, "malformed bundle handle", handle);
   const std::string p = handle_path(handle);
-  if (!fs_.exists(p))
-    return Result<std::string>::fail(Errc::NotFound, "no such bundle", handle);
+  if (!fs_.exists(p)) return Result<std::string>::fail(Errc::NotFound, "no such bundle", handle);
   return Result<std::string>::good(p);
 }
 

@@ -29,7 +29,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <deque>
 #include <map>
@@ -46,22 +45,22 @@ namespace logmanager {
 namespace domain {
 
 struct SourceSpec {
-  std::string name;          // logical source name
-  std::string kind;          // journal | file
-  std::string path;          // file path (or journal unit)
-  std::string level;         // runtime level: TRACE..CRITICAL
+  std::string name;  // logical source name
+  std::string kind;  // journal | file
+  std::string path;  // file path (or journal unit)
+  std::string level;  // runtime level: TRACE..CRITICAL
   uint64_t rotate_size_bytes = 8 * 1024 * 1024;
-  uint32_t retention_files = 5;   // rotated files kept per source
+  uint32_t retention_files = 5;  // rotated files kept per source
   uint64_t max_age_s = 7 * 24 * 3600;
   bool compress = true;
 };
 
 struct TailFilter {
   std::vector<std::string> sources;
-  std::string min_level;      // "" = all
+  std::string min_level;  // "" = all
   uint64_t since_mono_ns = 0;
   uint32_t max_rate_per_s = 50;
-  uint32_t timeout_s = 30;    // auto-stop
+  uint32_t timeout_s = 30;  // auto-stop
 };
 
 struct LogLine {
@@ -84,7 +83,10 @@ class LogStore {
   // Append one line; rotates when the active file exceeds the size limit.
   Error append(const std::string& source, const LogLine& line);
   // Enforce retention (count + age) and the per-class storage budget.
-  struct PruneStats { size_t files_removed = 0; uint64_t bytes_freed = 0; };
+  struct PruneStats {
+    size_t files_removed = 0;
+    uint64_t bytes_freed = 0;
+  };
   PruneStats enforce_retention(uint64_t now_mono_ns);
   void set_budget_bytes(uint64_t b) { budget_bytes_ = b; }
 
@@ -139,7 +141,7 @@ struct BundleMeta {
   std::string handle;
   uint64_t size_bytes = 0;
   std::string sha256;
-  std::string window_json;   // window, sources, manifest summary
+  std::string window_json;  // window, sources, manifest summary
 };
 
 class BundleStore {
@@ -162,8 +164,12 @@ class BundleStore {
   std::vector<BundleMeta> list() const;
 
  private:
-  std::string handle_path(const std::string& handle) const { return fs_.join(dir_, "bundle-" + handle + ".tar.gz"); }
-  std::string meta_path(const std::string& handle) const { return fs_.join(dir_, "bundle-" + handle + ".json"); }
+  std::string handle_path(const std::string& handle) const {
+    return fs_.join(dir_, "bundle-" + handle + ".tar.gz");
+  }
+  std::string meta_path(const std::string& handle) const {
+    return fs_.join(dir_, "bundle-" + handle + ".json");
+  }
   IFileSystem& fs_;
   std::string dir_;
   std::string log_base_;
@@ -184,8 +190,7 @@ class CrashForensics {
   // Coredump truncated to max_coredump_bytes; last_lines from the daemon's
   // log tail. Stored under the forensics dir for bundling.
   Result<Capture> capture(const std::string& daemon, const std::string& coredump_path,
-                          const std::vector<std::string>& last_lines,
-                          uint64_t max_coredump_bytes);
+                          const std::vector<std::string>& last_lines, uint64_t max_coredump_bytes);
   std::vector<std::string> captured_files() const;
 
  private:

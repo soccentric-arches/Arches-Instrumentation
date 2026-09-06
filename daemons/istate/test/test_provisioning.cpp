@@ -25,7 +25,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include <gtest/gtest.h>
 
 #include "instr/common/filesystem.h"
@@ -126,8 +125,8 @@ TEST(Provisioning, KeyRotationWithoutSiteVisit) {
     return Result<TunnelConfig>::good(t);
   });
   ASSERT_TRUE(rotated.ok());
-  EXPECT_EQ(enroll_calls, 1);                        // re-enrolled with HQ
-  EXPECT_NE(rotated->wg_public_key, old_pub);        // fresh keypair
+  EXPECT_EQ(enroll_calls, 1);  // re-enrolled with HQ
+  EXPECT_NE(rotated->wg_public_key, old_pub);  // fresh keypair
   EXPECT_EQ(f.prov.state(), Provisioner::State::Operational);
   auto pub_now = f.pst.read_protected("system/istate/wg-public.key");
   ASSERT_TRUE(pub_now.ok());

@@ -111,8 +111,7 @@ Result<DeviceIdentity> Provisioner::rotate_key(const EnrollFn& enroll_fn) {
   return generate_and_enroll(true, enroll_fn);
 }
 
-Result<DeviceIdentity> Provisioner::generate_and_enroll(bool rotation,
-                                                        const EnrollFn& enroll_fn) {
+Result<DeviceIdentity> Provisioner::generate_and_enroll(bool rotation, const EnrollFn& enroll_fn) {
   // Keypair generated on device via X25519 (RFC 7748, own implementation).
   crypto::X25519Key key = crypto::x25519_generate([](uint8_t* out, size_t n) {
     Error e = crypto::random_bytes(out, n);
@@ -121,10 +120,10 @@ Result<DeviceIdentity> Provisioner::generate_and_enroll(bool rotation,
       std::memset(out, 0, n);  // deterministic-fail; caller checks entropy first
     }
   });
-  std::string pub_b64 = crypto::base64_encode(
-      std::string(reinterpret_cast<const char*>(key.pub.data()), 32));
-  std::string priv_b64 = crypto::base64_encode(
-      std::string(reinterpret_cast<const char*>(key.priv.data()), 32));
+  std::string pub_b64 =
+      crypto::base64_encode(std::string(reinterpret_cast<const char*>(key.pub.data()), 32));
+  std::string priv_b64 =
+      crypto::base64_encode(std::string(reinterpret_cast<const char*>(key.priv.data()), 32));
 
   // Persist: private key 0600-equivalent in /pst/system/networkd, public key
   // in istate's folder.
@@ -139,9 +138,9 @@ Result<DeviceIdentity> Provisioner::generate_and_enroll(bool rotation,
   // 5. Sign the public key with the factory identity; enroll with HQ.
   auto fid = plat_.read_factory_identity();
   if (!fid.ok()) return Result<DeviceIdentity>::fail(fid.error);
-  std::string sig(reinterpret_cast<const char*>(
-                      crypto::hmac_sha256(fid->identity_secret, pub_b64).b.data()),
-                  32);
+  std::string sig(
+      reinterpret_cast<const char*>(crypto::hmac_sha256(fid->identity_secret, pub_b64).b.data()),
+      32);
   identity_.factory_sig = crypto::base64_encode(sig);
   state_ = State::Enrolling;
   auto enrolled = enroll_fn(identity_);

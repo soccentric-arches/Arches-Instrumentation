@@ -25,7 +25,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include <gtest/gtest.h>
 
 #include "instr/catalog/codegen.h"
@@ -71,7 +70,8 @@ TEST(CatalogCodegen, RendersHeaderWithConstants) {
   ASSERT_TRUE(cat.ok());
   auto hdr = render_header(*cat, "9.9.9");
   ASSERT_TRUE(hdr.ok());
-  EXPECT_NE(hdr->find("constexpr uint32_t INSTR_ALARM_HW_DEVICE_FAIL = 0x10410007u;"), std::string::npos);
+  EXPECT_NE(hdr->find("constexpr uint32_t INSTR_ALARM_HW_DEVICE_FAIL = 0x10410007u;"),
+            std::string::npos);
   EXPECT_NE(hdr->find("INSTR_ALARM_CATALOG_SIZE"), std::string::npos);
   EXPECT_NE(hdr->find("AlarmSeverity::CRITICAL"), std::string::npos);
   EXPECT_NE(hdr->find("Generated from catalog/alarms.yaml"), std::string::npos);

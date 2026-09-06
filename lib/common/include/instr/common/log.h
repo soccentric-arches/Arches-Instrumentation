@@ -29,7 +29,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <deque>
 #include <functional>
@@ -111,12 +110,30 @@ class Logger {
   void log(LogLevel lvl, const std::string& source, const std::string& msg,
            const std::map<std::string, std::string>& fields = {});
 
-  void trace(const std::string& s, const std::string& msg, const std::map<std::string, std::string>& f = {}) { log(LogLevel::Trace, s, msg, f); }
-  void debug(const std::string& s, const std::string& msg, const std::map<std::string, std::string>& f = {}) { log(LogLevel::Debug, s, msg, f); }
-  void info(const std::string& s, const std::string& msg, const std::map<std::string, std::string>& f = {}) { log(LogLevel::Info, s, msg, f); }
-  void warning(const std::string& s, const std::string& msg, const std::map<std::string, std::string>& f = {}) { log(LogLevel::Warning, s, msg, f); }
-  void error(const std::string& s, const std::string& msg, const std::map<std::string, std::string>& f = {}) { log(LogLevel::Error, s, msg, f); }
-  void critical(const std::string& s, const std::string& msg, const std::map<std::string, std::string>& f = {}) { log(LogLevel::Critical, s, msg, f); }
+  void trace(const std::string& s, const std::string& msg,
+             const std::map<std::string, std::string>& f = {}) {
+    log(LogLevel::Trace, s, msg, f);
+  }
+  void debug(const std::string& s, const std::string& msg,
+             const std::map<std::string, std::string>& f = {}) {
+    log(LogLevel::Debug, s, msg, f);
+  }
+  void info(const std::string& s, const std::string& msg,
+            const std::map<std::string, std::string>& f = {}) {
+    log(LogLevel::Info, s, msg, f);
+  }
+  void warning(const std::string& s, const std::string& msg,
+               const std::map<std::string, std::string>& f = {}) {
+    log(LogLevel::Warning, s, msg, f);
+  }
+  void error(const std::string& s, const std::string& msg,
+             const std::map<std::string, std::string>& f = {}) {
+    log(LogLevel::Error, s, msg, f);
+  }
+  void critical(const std::string& s, const std::string& msg,
+                const std::map<std::string, std::string>& f = {}) {
+    log(LogLevel::Critical, s, msg, f);
+  }
 
   // Exposed for tests: how many messages were dropped by rate limiting.
   uint64_t dropped_by_rate_limit() const { return dropped_; }
@@ -126,7 +143,11 @@ class Logger {
   TimeSource* ts_;
   LogLevel level_ = LogLevel::Info;
   std::map<std::string, LogLevel> source_levels_;
-  struct RateBucket { double tokens; double last_s; double rate; };
+  struct RateBucket {
+    double tokens;
+    double last_s;
+    double rate;
+  };
   std::map<std::string, RateBucket> rate_limits_;
   std::map<std::string, uint64_t> suppressed_;
   uint64_t dropped_ = 0;

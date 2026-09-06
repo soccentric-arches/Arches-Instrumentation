@@ -39,11 +39,11 @@ Result<bool> BudgetManager::reserve(const std::string& consumer, uint64_t bytes)
   if (it == budgets_.end()) return Result<bool>::good(true);  // no budget configured
   uint64_t used = usage(consumer);
   if (used + bytes > it->second.limit_bytes)
-    return Result<bool>::fail(
-        Errc::BudgetExceeded,
-        "budget exceeded for " + consumer + ": " + std::to_string(used + bytes) + " > " +
-            std::to_string(it->second.limit_bytes),
-        "BudgetManager::reserve");
+    return Result<bool>::fail(Errc::BudgetExceeded,
+                              "budget exceeded for " + consumer + ": " +
+                                  std::to_string(used + bytes) + " > " +
+                                  std::to_string(it->second.limit_bytes),
+                              "BudgetManager::reserve");
   return Result<bool>::good(true);
 }
 
@@ -51,7 +51,8 @@ std::vector<std::string> BudgetManager::over_warning() const {
   std::vector<std::string> out;
   for (const auto& kv : budgets_) {
     uint64_t used = usage(kv.first);
-    if (kv.second.limit_bytes > 0 && double(used) >= double(kv.second.limit_bytes) * kv.second.alarm_at_pct)
+    if (kv.second.limit_bytes > 0 &&
+        double(used) >= double(kv.second.limit_bytes) * kv.second.alarm_at_pct)
       out.push_back(kv.first);
   }
   return out;
@@ -117,8 +118,7 @@ Error PstStore::seed_defaults(const std::map<std::string, std::string>& daemon_d
     Error e = write_protected("system/" + kv.first + "/config.yaml", kv.second);
     if (!e.ok()) return e;
   }
-  if (!fs_.exists(path("system/.schema-version")))
-    return set_schema_version("1");
+  if (!fs_.exists(path("system/.schema-version"))) return set_schema_version("1");
   return Error::none();
 }
 

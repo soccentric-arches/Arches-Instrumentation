@@ -151,7 +151,9 @@ TunnelGuard::Result TunnelGuard::guarded_change(
                  "s; change auto-reverted to the previous plan";
       return r;
     }
-    struct timespec ts {0, 10 * 1000 * 1000};
+    struct timespec ts {
+      0, 10 * 1000 * 1000
+    };
     nanosleep(&ts, nullptr);
   }
   r.detail = "applied; HQ reachable";

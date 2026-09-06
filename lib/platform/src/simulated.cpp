@@ -55,7 +55,11 @@ void SimulatedPlatform::inject_storage_device(const StorageDevice& d) {
 void SimulatedPlatform::set_thermal(const std::string& id, const std::string& label, double c) {
   std::lock_guard<std::mutex> lk(mu_);
   for (auto& t : thermals_)
-    if (t.id == id) { t.temp_c = c; t.label = label; return; }
+    if (t.id == id) {
+      t.temp_c = c;
+      t.label = label;
+      return;
+    }
   thermals_.push_back(ThermalZone{id, label, c});
 }
 void SimulatedPlatform::set_power(const std::string& id, const std::string& kind, double pct,
@@ -122,7 +126,8 @@ std::vector<IfaceInfo> SimulatedPlatform::interfaces() {
   return ifaces_;
 }
 Result<BootSlotState> SimulatedPlatform::boot_slots() {
-  if (fail_boot_slots_) return Result<BootSlotState>::fail(Errc::Io, "simulated bootctl failure", "boot");
+  if (fail_boot_slots_)
+    return Result<BootSlotState>::fail(Errc::Io, "simulated bootctl failure", "boot");
   std::lock_guard<std::mutex> lk(mu_);
   return Result<BootSlotState>::good(slots_);
 }
@@ -162,7 +167,8 @@ Error SimulatedPlatform::led_set(const std::string& name, bool on) {
 }
 Error SimulatedPlatform::led_blink(const std::string& name, int on_ms, int off_ms, int repeats) {
   std::lock_guard<std::mutex> lk(mu_);
-  (void)on_ms; (void)off_ms;
+  (void)on_ms;
+  (void)off_ms;
   // Behavioural sanity: acknowledge the blink request.
   leds_[name + ":blink-ack"] = repeats > 0;
   return Error::none();
@@ -185,7 +191,8 @@ Error SimulatedPlatform::display_control(const std::string& cmd, const std::stri
   return Error::none();
 }
 Result<std::string> SimulatedPlatform::display_probe() {
-  if (fail_display_) return Result<std::string>::fail(Errc::Io, "simulated display probe failure", "display");
+  if (fail_display_)
+    return Result<std::string>::fail(Errc::Io, "simulated display probe failure", "display");
   return Result<std::string>::good("ok 1280x800");
 }
 Error SimulatedPlatform::unit_start(const std::string& unit) {
@@ -256,8 +263,7 @@ std::vector<Partition> SimulatedPlatform::partitions() {
   // A representative A/B layout with a separate /pst and a state partition —
   // the topology §6 recommends, so budget logic has something real to read.
   std::vector<Partition> out;
-  auto mk = [](const char* name, const char* mount, uint64_t total, uint64_t used,
-               bool ro) {
+  auto mk = [](const char* name, const char* mount, uint64_t total, uint64_t used, bool ro) {
     Partition p;
     p.name = name;
     p.device_path = std::string("/dev/") + name;
@@ -270,8 +276,8 @@ std::vector<Partition> SimulatedPlatform::partitions() {
     return p;
   };
   out.push_back(mk("mmcblk0p1", "/boot", 256ull << 20, 64ull << 20, false));
-  out.push_back(mk("mmcblk0p2", "/", 2ull << 30, 1ull << 30, true));       // slot A
-  out.push_back(mk("mmcblk0p3", "", 2ull << 30, 0, true));                  // slot B
+  out.push_back(mk("mmcblk0p2", "/", 2ull << 30, 1ull << 30, true));  // slot A
+  out.push_back(mk("mmcblk0p3", "", 2ull << 30, 0, true));  // slot B
   out.push_back(mk("mmcblk0p4", "/pst", 512ull << 20, 32ull << 20, false));
   out.push_back(mk("mmcblk0p5", "/pst/state", 1ull << 30, 64ull << 20, false));
   return out;

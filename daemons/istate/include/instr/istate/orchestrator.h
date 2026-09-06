@@ -31,7 +31,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <functional>
 #include <map>
@@ -51,9 +50,9 @@ const char* spoke_state_name(SpokeState);
 
 struct SpokeInfo {
   std::string name;
-  std::string unit;            // systemd unit
+  std::string unit;  // systemd unit
   SpokeState state = SpokeState::Expected;
-  bool live = false;           // liveness probe result
+  bool live = false;  // liveness probe result
   std::string build_version;
   uint32_t proto_version = 0;
   std::vector<std::string> capabilities;
@@ -115,7 +114,9 @@ class Orchestrator {
   void note_pong(const std::string& daemon, uint64_t nonce);
   // Optional synchronous probe override (tests, and any spoke that offers a
   // cheaper liveness signal than the channel).
-  void set_probe_fn(const std::string& name, std::function<bool()> f) { probes_[name] = std::move(f); }
+  void set_probe_fn(const std::string& name, std::function<bool()> f) {
+    probes_[name] = std::move(f);
+  }
   struct LivenessEvent {
     std::string daemon;
     std::string event;  // hung / restarted / degraded

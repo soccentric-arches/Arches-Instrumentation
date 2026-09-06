@@ -28,7 +28,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include <cstdio>
 #include <set>
 
@@ -47,8 +46,7 @@
 
 namespace {
 // Default YAML set shipped in the image (§6: seeds /pst on first boot).
-std::map<std::string, std::string> load_defaults(instr::IFileSystem& fs,
-                                                 const std::string& dir) {
+std::map<std::string, std::string> load_defaults(instr::IFileSystem& fs, const std::string& dir) {
   std::map<std::string, std::string> out;
   auto daemons = fs.list_dir(dir);
   if (!daemons.ok()) return out;
@@ -66,8 +64,9 @@ inline bool server_up(const std::unique_ptr<grpc::Server>& s) { return s != null
 int main(int argc, char** argv) {
   auto args = instr::parse_daemon_args(argc, argv, "istate");
   if (args.help) {
-    std::printf("istate — the hub: state, provisioning, config, orchestration, external face\n"
-                "usage: istate [--socket PATH] [--root PATH] [--help]\n");
+    std::printf(
+        "istate — the hub: state, provisioning, config, orchestration, external face\n"
+        "usage: istate [--socket PATH] [--root PATH] [--help]\n");
     return 0;
   }
   std::atomic<bool> stop{false};
@@ -108,8 +107,8 @@ int main(int argc, char** argv) {
       if (parsed.ok()) caps_schema = *parsed;
     }
     if (caps_txt.ok()) {
-      auto manifest = instr::platform::load_capability_manifest(*caps_txt, caps_schema,
-                                                                "capabilities.yaml");
+      auto manifest =
+          instr::platform::load_capability_manifest(*caps_txt, caps_schema, "capabilities.yaml");
       if (manifest.ok()) {
         core.set_capabilities(manifest->capabilities);
       } else {
@@ -121,7 +120,6 @@ int main(int argc, char** argv) {
                   "no capability manifest installed — reporting no optional capabilities");
     }
   }
-
 
   auto table = build_istate_table(&core);
   std::string ctrl_path =
@@ -150,43 +148,46 @@ int main(int argc, char** argv) {
   instr::sd_notify_ready();
 
   // Liveness sweeps + watchdog petting on the main loop.
-  instr::run_until_stop(stop, [&] {
-    auto evs = core.orchestrator().liveness_sweep(double(ts.mono_ns()) / 1e9,
-                                                  core.options().liveness_hang_timeout_s);
-    for (const auto& ev : evs) log.warning("istate", "liveness: " + ev.daemon + " " + ev.event);
-    core.orchestrator().pet_watchdog();
+  instr::run_until_stop(
+      stop,
+      [&] {
+        auto evs = core.orchestrator().liveness_sweep(double(ts.mono_ns()) / 1e9,
+                                                      core.options().liveness_hang_timeout_s);
+        for (const auto& ev : evs) log.warning("istate", "liveness: " + ev.daemon + " " + ev.event);
+        core.orchestrator().pet_watchdog();
 
-    // §6: "an alarm raised before the limit". A log line is not an alarm —
-    // nobody is watching the journal on a fielded device, and the whole
-    // point of the budget is to be visible before storage wedges anything.
-    // Edge-triggered so a standing condition does not re-raise every second.
-    static std::set<std::string> warned, exceeded;
-    auto sync = [&](const std::vector<std::string>& now, std::set<std::string>& seen,
-                    uint32_t alarm_id, const char* what) {
-      std::set<std::string> current(now.begin(), now.end());
-      for (const auto& c : current) {
-        if (seen.insert(c).second) {
-          log.warning("istate", std::string("storage budget ") + what + ": " + c);
-          core.raise_alarm(alarm_id, std::string("consumer '") + c + "' " + what);
-        }
-      }
-      for (auto it = seen.begin(); it != seen.end();) {
-        if (current.count(*it)) {
-          ++it;
-        } else {
-          log.info("istate", std::string("storage budget recovered: ") + *it);
-          it = seen.erase(it);
-        }
-      }
-      if (current.empty() && !seen.empty()) seen.clear();
-      if (current.empty()) core.clear_alarm(alarm_id);
-    };
-    sync(core.budgets().over_warning(), warned, instr::INSTR_ALARM_ISTATE_BUDGET_WARNING,
-         "warning");
-    sync(core.budgets().over_limit(), exceeded, instr::INSTR_ALARM_ISTATE_BUDGET_EXCEEDED,
-         "exceeded");
-    return true;
-  }, 1000);
+        // §6: "an alarm raised before the limit". A log line is not an alarm —
+        // nobody is watching the journal on a fielded device, and the whole
+        // point of the budget is to be visible before storage wedges anything.
+        // Edge-triggered so a standing condition does not re-raise every second.
+        static std::set<std::string> warned, exceeded;
+        auto sync = [&](const std::vector<std::string>& now, std::set<std::string>& seen,
+                        uint32_t alarm_id, const char* what) {
+          std::set<std::string> current(now.begin(), now.end());
+          for (const auto& c : current) {
+            if (seen.insert(c).second) {
+              log.warning("istate", std::string("storage budget ") + what + ": " + c);
+              core.raise_alarm(alarm_id, std::string("consumer '") + c + "' " + what);
+            }
+          }
+          for (auto it = seen.begin(); it != seen.end();) {
+            if (current.count(*it)) {
+              ++it;
+            } else {
+              log.info("istate", std::string("storage budget recovered: ") + *it);
+              it = seen.erase(it);
+            }
+          }
+          if (current.empty() && !seen.empty()) seen.clear();
+          if (current.empty()) core.clear_alarm(alarm_id);
+        };
+        sync(core.budgets().over_warning(), warned, instr::INSTR_ALARM_ISTATE_BUDGET_WARNING,
+             "warning");
+        sync(core.budgets().over_limit(), exceeded, instr::INSTR_ALARM_ISTATE_BUDGET_EXCEEDED,
+             "exceeded");
+        return true;
+      },
+      1000);
 
   core.shutdown();
   hq.stop();

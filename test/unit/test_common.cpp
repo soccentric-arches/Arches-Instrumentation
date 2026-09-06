@@ -29,7 +29,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include <gtest/gtest.h>
 
 #include <chrono>
@@ -67,8 +66,7 @@ TEST(TimeReconciliation, PendingRecordsRestampedOnLock) {
   auto stamped = rec.take_stamped();
   ASSERT_EQ(stamped.size(), 3u);
   // Wall times derived from the lock offset; never reordered.
-  for (size_t i = 1; i < stamped.size(); ++i)
-    EXPECT_GE(stamped[i].wall_ns, stamped[i - 1].wall_ns);
+  for (size_t i = 1; i < stamped.size(); ++i) EXPECT_GE(stamped[i].wall_ns, stamped[i - 1].wall_ns);
   EXPECT_GT(stamped[0].wall_ns, 0);
 }
 
@@ -171,8 +169,8 @@ TEST(ConfigDocument, MergeReleaseAddsMissingKeepsOperatorValues) {
   existing.set("interval", "45", Origin::Local);
   auto added = existing.merge_release(*defaults);
   ASSERT_EQ(added.size(), 2u);  // name + flag added
-  EXPECT_EQ(existing.get_int("interval"), 45);     // operator edit preserved
-  EXPECT_EQ(existing.get_string("name"), "shipped"); // new default
+  EXPECT_EQ(existing.get_int("interval"), 45);  // operator edit preserved
+  EXPECT_EQ(existing.get_string("name"), "shipped");  // new default
   EXPECT_EQ(existing.origin_of("name"), Origin::Default);
 }
 
@@ -225,9 +223,7 @@ TEST(AlarmCodec, AllFieldsRoundTrip) {
   }
 }
 
-TEST(AlarmCodec, ZeroReserved) {
-  EXPECT_FALSE(decode_alarm_id(0).ok());
-}
+TEST(AlarmCodec, ZeroReserved) { EXPECT_FALSE(decode_alarm_id(0).ok()); }
 
 // ---------------- spool drop policy (§11) ----------------
 
@@ -315,7 +311,7 @@ TEST(TokenBucket, RefillsByRate) {
   EXPECT_TRUE(b.try_acquire());
   EXPECT_TRUE(b.try_acquire());
   EXPECT_FALSE(b.try_acquire());  // burst exhausted
-  now = 0.5;                       // 5 tokens accrued at 10/s
+  now = 0.5;  // 5 tokens accrued at 10/s
   EXPECT_TRUE(b.try_acquire());
 }
 
@@ -408,8 +404,7 @@ TEST(Tar, CorruptHeaderDetected) {
 // ---------------- crypto: published vectors ----------------
 
 TEST(CryptoSha256, FipsVectors) {
-  EXPECT_EQ(sha256("").hex(),
-            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+  EXPECT_EQ(sha256("").hex(), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
   EXPECT_EQ(sha256("abc").hex(),
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
   EXPECT_EQ(sha256("The quick brown fox jumps over the lazy dog").hex(),
@@ -475,13 +470,14 @@ TEST(CryptoChaCha20, Rfc8439Vector) {
   std::string nonce_hex = "000000090000004a00000000";
   auto key = hex_decode(key_hex).value;
   auto nonce = hex_decode(nonce_hex).value;
-  std::string pt = "Ladies and Gentlemen of the class of '99: If I could offer you "
-                   "only one tip for the future, sunscreen would be it.";
+  std::string pt =
+      "Ladies and Gentlemen of the class of '99: If I could offer you "
+      "only one tip for the future, sunscreen would be it.";
   std::string ct(pt.size(), '\0');
   chacha20(reinterpret_cast<const uint8_t*>(key.data()),
            reinterpret_cast<const uint8_t*>(nonce.data()), 1,
-           reinterpret_cast<const uint8_t*>(pt.data()),
-           reinterpret_cast<uint8_t*>(&ct[0]), ct.size());
+           reinterpret_cast<const uint8_t*>(pt.data()), reinterpret_cast<uint8_t*>(&ct[0]),
+           ct.size());
   // RFC 8439 §2.3.2 keystream block first 16 bytes:
   // 10 f1 e7 e4 d1 3b 59 15 50 0f dd 1f a3 20 71 c4
   // Plaintext "Ladies and Gentl" XOR keystream:
@@ -580,7 +576,7 @@ TEST(Backoff, ExponentialWithJitterBounded) {
   double total = 0;
   for (int i = 0; i < 8; ++i) total += b.next();
   EXPECT_GE(total, 255.0 - 1.0);  // 1+2+4+...+128
-  EXPECT_LE(b.next(), 256.0);     // capped at max
+  EXPECT_LE(b.next(), 256.0);  // capped at max
   b.reset();
   EXPECT_DOUBLE_EQ(b.next(), 1.0);
 }
@@ -588,7 +584,7 @@ TEST(Backoff, ExponentialWithJitterBounded) {
 TEST(Backoff, JitterStaysInBounds) {
   JitteredBackoff b(10.0, 100.0, 0.2);
   b.set_rng([] { return 0.0; });
-  EXPECT_NEAR(b.next(), 8.0, 0.001);   // 1 - 0.2
+  EXPECT_NEAR(b.next(), 8.0, 0.001);  // 1 - 0.2
   b.set_rng([] { return 1.0; });
   EXPECT_NEAR(b.next(), 24.0, 0.001);  // 2 * (1 + 0.2)
 }
@@ -597,9 +593,12 @@ TEST(Backoff, JitterStaysInBounds) {
 
 TEST(CommandTable, DispatchHelpCompletion) {
   CommandTable t;
-  t.add({"ping", "reply with pong", {},
-         [](const std::string&) { return CommandResult::good(std::string("{\"pong\":true}")); }});
-  t.add({"set", "set a value", {{"key", true, "key name"}, {"value", false, "value"}},
+  t.add({"ping", "reply with pong", {}, [](const std::string&) {
+           return CommandResult::good(std::string("{\"pong\":true}"));
+         }});
+  t.add({"set",
+         "set a value",
+         {{"key", true, "key name"}, {"value", false, "value"}},
          [](const std::string& args) {
            auto a = args_object(args);
            if (!a.ok()) return CommandResult::from_error(a.error);

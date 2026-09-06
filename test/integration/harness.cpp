@@ -31,7 +31,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include <gtest/gtest.h>
 
 #include <sys/stat.h>
@@ -97,8 +96,8 @@ struct Harness {
 
   std::map<std::string, std::string> defaults() const {
     std::map<std::string, std::string> d;
-    for (const char* daemon : {"istate", "networkd", "monitord", "hardware", "faults",
-                               "alarms", "logmanager", "telemetry", "ota", "backup"})
+    for (const char* daemon : {"istate", "networkd", "monitord", "hardware", "faults", "alarms",
+                               "logmanager", "telemetry", "ota", "backup"})
       d[daemon] = std::string("enabled: true\n") + "interval: 5\n";
     return d;
   }
@@ -134,9 +133,8 @@ TEST(IntegrationRegistration, HandshakeAcceptsMatchingSchemaRefusesMismatch) {
   Harness h;
   h.core->boot(h.defaults());
   std::string reason;
-  auto ok = h.core->orchestrator().register_spoke("monitord", "1.0.0",
-                                                  transport::kProtoSchemaVersion, {"samples"},
-                                                  &reason);
+  auto ok = h.core->orchestrator().register_spoke(
+      "monitord", "1.0.0", transport::kProtoSchemaVersion, {"samples"}, &reason);
   EXPECT_EQ(ok, Orchestrator::Reg::Accepted);
   auto bad = h.core->orchestrator().register_spoke("faults", "1.0.0", 42, {}, &reason);
   EXPECT_EQ(bad, Orchestrator::Reg::SchemaMismatch);
@@ -151,7 +149,8 @@ TEST(IntegrationSpool, ProtectedAndDroppableClassesFlowNorthbound) {
   // Faults in (protected) and telemetry in (droppable).
   h.core->on_spoke_msg(spoke_msg("faults", "fault", "{\"fault_id\":845575041}", stamp_of(h.ts)));
   for (int i = 0; i < 30; ++i)
-    h.core->on_spoke_msg(spoke_msg("monitord", "sample", "{\"metric\":\"cpu.util\",\"value\":10}", stamp_of(h.ts)));
+    h.core->on_spoke_msg(
+        spoke_msg("monitord", "sample", "{\"metric\":\"cpu.util\",\"value\":10}", stamp_of(h.ts)));
   auto rep = h.core->drain_northbound(100);
   EXPECT_GT(rep.sent, 0u);
   // Faults arrived.
@@ -193,14 +192,15 @@ TEST(IntegrationConfig, SignedPushFromHqAppliesAfterVerification) {
   h.core->set_enrollment_secret("enroll-secret");
   std::string yaml = "interval: 9\n";
   auto digest = crypto::hmac_sha256("enroll-secret", "monitord|" + yaml);
-  std::string hmac = crypto::hex_encode(std::string(reinterpret_cast<const char*>(digest.b.data()), 32));
+  std::string hmac =
+      crypto::hex_encode(std::string(reinterpret_cast<const char*>(digest.b.data()), 32));
   // Unsigned/tampered push refused.
   auto bad = h.core->config_service().apply_signed("monitord", yaml, "k1", "",
                                                    "ff" + hmac.substr(2), "enroll-secret");
   EXPECT_FALSE(bad.ok());
   // Valid push applied.
-  auto ok = h.core->config_service().apply_signed("monitord", yaml, "k1", "", hmac,
-                                                 "enroll-secret");
+  auto ok =
+      h.core->config_service().apply_signed("monitord", yaml, "k1", "", hmac, "enroll-secret");
   EXPECT_TRUE(ok.ok());
   auto doc = h.core->config_service().get("monitord");
   ASSERT_TRUE(doc.ok());

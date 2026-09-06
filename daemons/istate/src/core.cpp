@@ -48,15 +48,16 @@ IstateCore::IstateCore(IstateOptions opts, IFileSystem& fs, platform::IPlatform&
       provisioner_(pst_, plat, fs),
       orchestrator_(plat, ts),
       timeline_(5000),
-      northbound_spool_(fs,
-                        [&] {
-                          SpoolConfig c;
-                          c.dir = opts_.pst_root + "/state/spool";
-                          c.max_bytes = opts_.spool_max_bytes;
-                          c.segment_bytes = 4 * 1024 * 1024;
-                          return c;
-                        }(),
-                        &budgets_),
+      northbound_spool_(
+          fs,
+          [&] {
+            SpoolConfig c;
+            c.dir = opts_.pst_root + "/state/spool";
+            c.max_bytes = opts_.spool_max_bytes;
+            c.segment_bytes = 4 * 1024 * 1024;
+            return c;
+          }(),
+          &budgets_),
       config_service_(pst_, fs),
       audit_(fs, opts_.pst_root + "/state/audit.log", 2000),
       reconciler_(ts) {
@@ -74,9 +75,9 @@ bool IstateCore::boot(const std::map<std::string, std::string>& default_yaml) {
     log_.critical("istate", "/pst unrecoverable files: booting unprovisioned",
                   {{"files", std::to_string(mount.corrupt.size())}});
     timeline_.append("boot", "istate", "{\"pst_corrupt\":true}", ts_);
-    pending_alarms_.push_back({INSTR_ALARM_ISTATE_PST_CORRUPT,
-                               std::to_string(mount.corrupt.size()) +
-                                   " /pst file(s) failed both copies"});
+    pending_alarms_.push_back(
+        {INSTR_ALARM_ISTATE_PST_CORRUPT,
+         std::to_string(mount.corrupt.size()) + " /pst file(s) failed both copies"});
   }
   // Unclean shutdown detection via the clean-shutdown marker (§11). The
   // marker lives under /pst/state — /run is tmpfs and would be empty on
@@ -85,9 +86,10 @@ bool IstateCore::boot(const std::map<std::string, std::string>& default_yaml) {
   if (!observed_clean_shutdown_) {
     log_.warning("istate", "previous shutdown was not clean");
     timeline_.append("boot", "istate", "{\"unclean_shutdown\":true}", ts_);
-    pending_alarms_.push_back({INSTR_ALARM_ISTATE_UNCLEAN_SHUTDOWN,
-                               "previous shutdown left no clean-shutdown marker"});
-    northbound_spool_.enqueue(SpoolPriority::Event, "{\"kind\":\"unclean_shutdown\"}", ts_.mono_ns());
+    pending_alarms_.push_back(
+        {INSTR_ALARM_ISTATE_UNCLEAN_SHUTDOWN, "previous shutdown left no clean-shutdown marker"});
+    northbound_spool_.enqueue(SpoolPriority::Event, "{\"kind\":\"unclean_shutdown\"}",
+                              ts_.mono_ns());
   }
   // Clear it for this run: a crash now leaves no marker for the next boot.
   fs_.remove(clean_shutdown_marker_path(), false);
@@ -138,12 +140,14 @@ bool IstateCore::boot(const std::map<std::string, std::string>& default_yaml) {
         t.valid = true;
         return Result<TunnelConfig>::good(t);
       }
-      return Result<TunnelConfig>::fail(Errc::Unavailable, "HQ unreachable for enrollment", "enroll");
+      return Result<TunnelConfig>::fail(Errc::Unavailable, "HQ unreachable for enrollment",
+                                        "enroll");
     }
     return Result<TunnelConfig>::fail(Errc::Unavailable, "no HQ transport wired", "enroll");
   });
   if (enrolled.ok())
-    log_.info("istate", "provisioning state: " + std::string(provisioner_.state_name(provisioner_.state())));
+    log_.info("istate",
+              "provisioning state: " + std::string(provisioner_.state_name(provisioner_.state())));
   else
     log_.warning("istate", "enrollment deferred: " + enrolled.error.str());
 
@@ -234,8 +238,7 @@ void IstateCore::on_spoke_msg(const transport::GenericSpokeMsg& msg) {
       timeline_.append("config", msg.daemon,
                        "{\"config_rejected\":true,\"reason\":\"" + st.reason + "\"}", ts_);
       northbound_spool_.enqueue(SpoolPriority::Event,
-                                "{\"kind\":\"config_rejected\",\"daemon\":\"" + msg.daemon +
-                                    "\"}",
+                                "{\"kind\":\"config_rejected\",\"daemon\":\"" + msg.daemon + "\"}",
                                 ts_.mono_ns());
     }
     return;
@@ -316,7 +319,8 @@ std::future<std::string> IstateCore::relay_command(const std::string& daemon,
   if (relay_to_spoke_ && !relay_to_spoke_(daemon, m)) {
     std::lock_guard<std::mutex> lk(relay_mu_);
     pending_relays_.erase(id);
-    pending->promise.set_value("{\"ok\":false,\"error\":{\"code\":\"unavailable\",\"message\":\"spoke not connected\"}}");
+    pending->promise.set_value(
+        "{\"ok\":false,\"error\":{\"code\":\"unavailable\",\"message\":\"spoke not connected\"}}");
   }
   return fut;
 }
@@ -508,7 +512,8 @@ std::string IstateCore::budgets_json() const {
     o.set("consumer", JValue(kv.first));
     o.set("limit_bytes", JValue(double(kv.second.limit_bytes)));
     o.set("used_bytes", JValue(double(budgets_.usage(kv.first))));
-    o.set("warning", JValue(budgets_.usage(kv.first) >= uint64_t(double(kv.second.limit_bytes) * kv.second.alarm_at_pct)));
+    o.set("warning", JValue(budgets_.usage(kv.first) >=
+                            uint64_t(double(kv.second.limit_bytes) * kv.second.alarm_at_pct)));
     arr.push(o);
   }
   return arr.dump();
@@ -532,9 +537,9 @@ Result<bool> IstateCore::system_reset(const std::string& actor) {
 Result<bool> IstateCore::factory_reset(const std::string& actor, const std::string& confirmation) {
   // Manufacturing operation only, explicitly gated (§6.1).
   if (confirmation != "FACTORY-RESET")
-    return Result<bool>::fail(
-        Errc::InvalidArgument,
-        "factory reset requires explicit confirmation string FACTORY-RESET", "factory_reset");
+    return Result<bool>::fail(Errc::InvalidArgument,
+                              "factory reset requires explicit confirmation string FACTORY-RESET",
+                              "factory_reset");
   Error e = pst_.factory_reset();
   if (!e.ok()) return Result<bool>::fail(e);
   audit_.append(actor, "local-console", "reset", "{\"type\":\"factory\"}", ts_);

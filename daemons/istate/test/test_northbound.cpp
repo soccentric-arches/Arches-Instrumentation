@@ -28,7 +28,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include <gtest/gtest.h>
 
 #include "instr/common/filesystem.h"
@@ -81,15 +80,18 @@ TEST(NorthboundSpool, DrainHonoursBackpressure) {
   NorthboundSpool spool(fs, cfg, nullptr);
   ASSERT_TRUE(spool.open().ok());
   for (int i = 0; i < 10; ++i)
-    ASSERT_TRUE(spool.enqueue(SpoolPriority::Telemetry, "{\"i\":" + std::to_string(i) + "}", i).ok());
+    ASSERT_TRUE(
+        spool.enqueue(SpoolPriority::Telemetry, "{\"i\":" + std::to_string(i) + "}", i).ok());
   // Sender pauses after 3 records (HQ backpressure, §11).
   int sent = 0;
-  auto rep = spool.drain([&](const DiskSpool::Entry&) {
-    if (++sent > 3) return false;
-    return true;
-  }, 50);
+  auto rep = spool.drain(
+      [&](const DiskSpool::Entry&) {
+        if (++sent > 3) return false;
+        return true;
+      },
+      50);
   EXPECT_TRUE(rep.paused);
-  EXPECT_EQ(spool.size(), 7u);   // 3 acked records consumed; pause on the 4th
+  EXPECT_EQ(spool.size(), 7u);  // 3 acked records consumed; pause on the 4th
   // Drain completes when the sender accepts everything.
   auto rep2 = spool.drain([](const DiskSpool::Entry&) { return true; }, 50);
   EXPECT_EQ(rep2.sent, 7);
@@ -117,7 +119,7 @@ TEST(HqSession, BackoffAndStateTransitions) {
   EXPECT_EQ(s.state(), HqSession::State::Disconnected);
   double total = 0;
   for (int i = 0; i < 10; ++i) total += s.next_delay_s();
-  EXPECT_GE(total, 1.0);   // exponential growth
+  EXPECT_GE(total, 1.0);  // exponential growth
   s.on_connected();
   EXPECT_EQ(s.state(), HqSession::State::Connected);
   s.on_backpressure(true);

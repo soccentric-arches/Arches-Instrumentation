@@ -38,7 +38,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <atomic>
 #include <chrono>
@@ -68,8 +67,8 @@ namespace transport {
 constexpr uint32_t kProtoSchemaVersion = 2;  // v2: config delivery (§9)
 
 struct GenericSpokeMsg {
-  std::string daemon;   // which spoke sent it
-  std::string type;     // e.g. "sample", "fault", "batch", "event"
+  std::string daemon;  // which spoke sent it
+  std::string type;  // e.g. "sample", "fault", "batch", "event"
   std::string payload_json;
   common::TimeStamp ts;
 };
@@ -94,7 +93,7 @@ template <typename StubOuter, typename SpokeFrame, typename HubFrame>
 class SpokeChannel {  // StubOuter = the generated service stub factory.
  public:
   struct Options {
-    std::string target;        // "unix:/run/instrumentation/<daemon>.sock"
+    std::string target;  // "unix:/run/instrumentation/<daemon>.sock"
     std::string daemon;
     std::string build_version;
     uint32_t proto_version = kProtoSchemaVersion;
@@ -179,7 +178,9 @@ class SpokeChannel {  // StubOuter = the generated service stub factory.
       // Sleep in small slices so stop() is responsive.
       double slept = 0;
       while (slept < d && running_.load()) {
-        struct timespec ts {0, 100 * 1000 * 1000};
+        struct timespec ts {
+          0, 100 * 1000 * 1000
+        };
         nanosleep(&ts, nullptr);
         slept += 0.1;
       }

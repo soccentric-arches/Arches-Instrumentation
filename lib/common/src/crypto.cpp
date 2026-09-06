@@ -60,24 +60,28 @@ struct Sha256Ctx {
 };
 
 const uint32_t K[64] = {
-    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1,
-    0x923f82a4, 0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
-    0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786,
-    0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147,
-    0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
-    0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
-    0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a,
-    0x5b9cca4f, 0x682e6ff3, 0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
-    0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2};
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2};
 
 inline uint32_t rotr(uint32_t x, int n) { return (x >> n) | (x << (32 - n)); }
 
 void sha_init(Sha256Ctx& c) {
-  c.h[0] = 0x6a09e667; c.h[1] = 0xbb67ae85; c.h[2] = 0x3c6ef372; c.h[3] = 0xa54ff53a;
-  c.h[4] = 0x510e527f; c.h[5] = 0x9b05688c; c.h[6] = 0x1f83d9ab; c.h[7] = 0x5be0cd19;
-  c.total = 0; c.buflen = 0;
+  c.h[0] = 0x6a09e667;
+  c.h[1] = 0xbb67ae85;
+  c.h[2] = 0x3c6ef372;
+  c.h[3] = 0xa54ff53a;
+  c.h[4] = 0x510e527f;
+  c.h[5] = 0x9b05688c;
+  c.h[6] = 0x1f83d9ab;
+  c.h[7] = 0x5be0cd19;
+  c.total = 0;
+  c.buflen = 0;
 }
 
 void sha_block(Sha256Ctx& c, const uint8_t* p) {
@@ -99,11 +103,23 @@ void sha_block(Sha256Ctx& c, const uint8_t* p) {
     uint32_t S0 = rotr(a, 2) ^ rotr(a, 13) ^ rotr(a, 22);
     uint32_t maj = (a & b) ^ (a & cc) ^ (b & cc);
     uint32_t t2 = S0 + maj;
-    h = g; g = f; f = e; e = d + t1;
-    d = cc; cc = b; b = a; a = t1 + t2;
+    h = g;
+    g = f;
+    f = e;
+    e = d + t1;
+    d = cc;
+    cc = b;
+    b = a;
+    a = t1 + t2;
   }
-  c.h[0] += a; c.h[1] += b; c.h[2] += cc; c.h[3] += d;
-  c.h[4] += e; c.h[5] += f; c.h[6] += g; c.h[7] += h;
+  c.h[0] += a;
+  c.h[1] += b;
+  c.h[2] += cc;
+  c.h[3] += d;
+  c.h[4] += e;
+  c.h[5] += f;
+  c.h[6] += g;
+  c.h[7] += h;
   (void)0;
 }
 
@@ -112,12 +128,15 @@ void sha_update(Sha256Ctx& c, const uint8_t* p, size_t n) {
   while (n > 0) {
     if (c.buflen == 0 && n >= 64) {
       sha_block(c, p);
-      p += 64; n -= 64;
+      p += 64;
+      n -= 64;
       continue;
     }
     size_t take = std::min(n, size_t(64) - c.buflen);
     std::memcpy(c.buf + c.buflen, p, take);
-    c.buflen += take; p += take; n -= take;
+    c.buflen += take;
+    p += take;
+    n -= take;
     if (c.buflen == 64) {
       sha_block(c, c.buf);
       c.buflen = 0;
@@ -160,7 +179,8 @@ Digest32 hmac_sha256(const std::string& key, const std::string& msg) {
   if (k.size() > 64) k = std::string(reinterpret_cast<const char*>(sha256(k).b.data()), 32);
   k.resize(64, '\0');
   std::string ipad, opad;
-  ipad.reserve(64); opad.reserve(64);
+  ipad.reserve(64);
+  opad.reserve(64);
   for (int i = 0; i < 64; ++i) {
     ipad += char(k[i] ^ 0x36);
     opad += char(k[i] ^ 0x5c);
@@ -179,8 +199,13 @@ typedef uint64_t fe[5];  // radix 2^51
 constexpr uint64_t MASK51 = (1ull << 51) - 1;
 
 static void fe_zero(fe h) { h[0] = h[1] = h[2] = h[3] = h[4] = 0; }
-static void fe_one(fe h) { h[0] = 1; h[1] = h[2] = h[3] = h[4] = 0; }
-static void fe_copy(fe out, const fe in) { for (int i = 0; i < 5; ++i) out[i] = in[i]; }
+static void fe_one(fe h) {
+  h[0] = 1;
+  h[1] = h[2] = h[3] = h[4] = 0;
+}
+static void fe_copy(fe out, const fe in) {
+  for (int i = 0; i < 5; ++i) out[i] = in[i];
+}
 
 static void fe_add(fe h, const fe f, const fe g) {
   for (int i = 0; i < 5; ++i) h[i] = f[i] + g[i];
@@ -188,21 +213,32 @@ static void fe_add(fe h, const fe f, const fe g) {
 
 static void fe_sub(fe h, const fe f, const fe g) {
   // h = f - g + 2p, limb-wise, keeping values positive.
-  static const uint64_t two_p[5] = {
-      2ull * ((1ull << 51) - 19), 2ull * ((1ull << 51) - 1),
-      2ull * ((1ull << 51) - 1),  2ull * ((1ull << 51) - 1),
-      2ull * ((1ull << 51) - 1)};
+  static const uint64_t two_p[5] = {2ull * ((1ull << 51) - 19), 2ull * ((1ull << 51) - 1),
+                                    2ull * ((1ull << 51) - 1), 2ull * ((1ull << 51) - 1),
+                                    2ull * ((1ull << 51) - 1)};
   for (int i = 0; i < 5; ++i) h[i] = f[i] + two_p[i] - g[i];
 }
 
 static void fe_carry(fe h) {
   uint64_t c;
-  c = h[0] >> 51; h[0] &= MASK51; h[1] += c;
-  c = h[1] >> 51; h[1] &= MASK51; h[2] += c;
-  c = h[2] >> 51; h[2] &= MASK51; h[3] += c;
-  c = h[3] >> 51; h[3] &= MASK51; h[4] += c;
-  c = h[4] >> 51; h[4] &= MASK51; h[0] += 19 * c;
-  c = h[0] >> 51; h[0] &= MASK51; h[1] += c;
+  c = h[0] >> 51;
+  h[0] &= MASK51;
+  h[1] += c;
+  c = h[1] >> 51;
+  h[1] &= MASK51;
+  h[2] += c;
+  c = h[2] >> 51;
+  h[2] &= MASK51;
+  h[3] += c;
+  c = h[3] >> 51;
+  h[3] &= MASK51;
+  h[4] += c;
+  c = h[4] >> 51;
+  h[4] &= MASK51;
+  h[0] += 19 * c;
+  c = h[0] >> 51;
+  h[0] &= MASK51;
+  h[1] += c;
 }
 
 static void fe_mul(fe h, const fe f, const fe g) {
@@ -218,29 +254,42 @@ static void fe_mul(fe h, const fe f, const fe g) {
   // Fold the five 128-bit accumulators into 51-bit limbs, carrying in 128-bit
   // so no high bits are lost.
   unsigned __int128 u = t0;
-  h[0] = uint64_t(u) & MASK51; u >>= 51;
+  h[0] = uint64_t(u) & MASK51;
+  u >>= 51;
   u += t1;
-  h[1] = uint64_t(u) & MASK51; u >>= 51;
+  h[1] = uint64_t(u) & MASK51;
+  u >>= 51;
   u += t2;
-  h[2] = uint64_t(u) & MASK51; u >>= 51;
+  h[2] = uint64_t(u) & MASK51;
+  u >>= 51;
   u += t3;
-  h[3] = uint64_t(u) & MASK51; u >>= 51;
+  h[3] = uint64_t(u) & MASK51;
+  u >>= 51;
   u += t4;
   h[4] = uint64_t(u) & MASK51;
   uint64_t top = uint64_t(u >> 51);
   h[0] += 19 * top;
   uint64_t c;
-  c = h[0] >> 51; h[0] &= MASK51; h[1] += c;
-  c = h[1] >> 51; h[1] &= MASK51; h[2] += c;
-  c = h[2] >> 51; h[2] &= MASK51; h[3] += c;
-  c = h[3] >> 51; h[3] &= MASK51; h[4] += c;
+  c = h[0] >> 51;
+  h[0] &= MASK51;
+  h[1] += c;
+  c = h[1] >> 51;
+  h[1] &= MASK51;
+  h[2] += c;
+  c = h[2] >> 51;
+  h[2] &= MASK51;
+  h[3] += c;
+  c = h[3] >> 51;
+  h[3] &= MASK51;
+  h[4] += c;
 }
 
 static void fe_mul_small(fe h, const fe f, uint64_t n) {
   unsigned __int128 t[5];
   for (int i = 0; i < 5; ++i) t[i] = (unsigned __int128)f[i] * n;
   unsigned __int128 u = t[0];
-  h[0] = uint64_t(u) & MASK51; u >>= 51;
+  h[0] = uint64_t(u) & MASK51;
+  u >>= 51;
   for (int i = 1; i < 5; ++i) {
     u += t[i];
     h[i] = uint64_t(u) & MASK51;
@@ -248,10 +297,18 @@ static void fe_mul_small(fe h, const fe f, uint64_t n) {
   }
   h[0] += 19 * uint64_t(u);
   uint64_t c;
-  c = h[0] >> 51; h[0] &= MASK51; h[1] += c;
-  c = h[1] >> 51; h[1] &= MASK51; h[2] += c;
-  c = h[2] >> 51; h[2] &= MASK51; h[3] += c;
-  c = h[3] >> 51; h[3] &= MASK51; h[4] += c;
+  c = h[0] >> 51;
+  h[0] &= MASK51;
+  h[1] += c;
+  c = h[1] >> 51;
+  h[1] &= MASK51;
+  h[2] += c;
+  c = h[2] >> 51;
+  h[2] &= MASK51;
+  h[3] += c;
+  c = h[3] >> 51;
+  h[3] &= MASK51;
+  h[4] += c;
 }
 
 static void fe_sq(fe h, const fe f) { fe_mul(h, f, f); }
@@ -283,19 +340,29 @@ static void fe_tobytes(uint8_t out[32], const fe f) {
   // p = {MASK51 - 18, MASK51, MASK51, MASK51, MASK51} in limbs
   // (limb0 = 2^51 - 19). Conditionally subtract p once: t in [0, 2^255).
   bool ge;
-  if (t[4] != MASK51) ge = t[4] > MASK51;
-  else if (t[3] != MASK51) ge = t[3] > MASK51;
-  else if (t[2] != MASK51) ge = t[2] > MASK51;
-  else if (t[1] != MASK51) ge = t[1] > MASK51;
-  else ge = t[0] >= MASK51 - 18;
+  if (t[4] != MASK51)
+    ge = t[4] > MASK51;
+  else if (t[3] != MASK51)
+    ge = t[3] > MASK51;
+  else if (t[2] != MASK51)
+    ge = t[2] > MASK51;
+  else if (t[1] != MASK51)
+    ge = t[1] > MASK51;
+  else
+    ge = t[0] >= MASK51 - 18;
   if (ge) {
     uint64_t b = 0;
     for (int i = 0; i < 5; ++i) {
       uint64_t pi = (i == 0) ? (MASK51 - 18) : MASK51;
       uint64_t sub = pi + b;
       uint64_t v;
-      if (t[i] >= sub) { v = t[i] - sub; b = 0; }
-      else { v = t[i] + (1ull << 51) - sub; b = 1; }
+      if (t[i] >= sub) {
+        v = t[i] - sub;
+        b = 0;
+      } else {
+        v = t[i] + (1ull << 51) - sub;
+        b = 1;
+      }
       t[i] = v;
     }
   }
@@ -318,8 +385,8 @@ static void fe_invert(fe out, const fe z) {
   fe_one(acc);
   uint8_t e[32];
   std::memset(e, 0xff, 32);
-  e[0] = 0xeb;        // low byte of p-2 = 2^255 - 21 (borrow propagates)
-  e[31] &= 0x7f;      // clear bit 255
+  e[0] = 0xeb;  // low byte of p-2 = 2^255 - 21 (borrow propagates)
+  e[31] &= 0x7f;  // clear bit 255
   bool first = true;
   for (int byte = 31; byte >= 0; --byte) {
     for (int bit = 7; bit >= 0; --bit) {
@@ -353,8 +420,10 @@ std::array<uint8_t, 32> x25519(const uint8_t priv_in[32], const uint8_t pub_in[3
 
   fe x1, x2, z2, x3, z3;
   fe_frombytes(x1, u);
-  fe_one(x2); fe_zero(z2);
-  fe_copy(x3, x1); fe_one(z3);
+  fe_one(x2);
+  fe_zero(z2);
+  fe_copy(x3, x1);
+  fe_one(z3);
 
   uint64_t swap = 0;
   for (int t = 254; t >= 0; --t) {
@@ -365,24 +434,24 @@ std::array<uint8_t, 32> x25519(const uint8_t priv_in[32], const uint8_t pub_in[3
     swap = kt;
 
     fe a, aa, b, bb, e, c, d, da, cb, t0, t1;
-    fe_add(a, x2, z2);          // A = x2 + z2
-    fe_sq(aa, a);               // AA = A^2
-    fe_sub(b, x2, z2);          // B = x2 - z2
-    fe_sq(bb, b);               // BB = B^2
-    fe_sub(e, aa, bb);          // E = AA - BB
-    fe_add(c, x3, z3);          // C = x3 + z3
-    fe_sub(d, x3, z3);          // D = x3 - z3
-    fe_mul(da, d, a);           // DA = D * A
-    fe_mul(cb, c, b);           // CB = C * B
+    fe_add(a, x2, z2);  // A = x2 + z2
+    fe_sq(aa, a);  // AA = A^2
+    fe_sub(b, x2, z2);  // B = x2 - z2
+    fe_sq(bb, b);  // BB = B^2
+    fe_sub(e, aa, bb);  // E = AA - BB
+    fe_add(c, x3, z3);  // C = x3 + z3
+    fe_sub(d, x3, z3);  // D = x3 - z3
+    fe_mul(da, d, a);  // DA = D * A
+    fe_mul(cb, c, b);  // CB = C * B
     fe_add(t0, da, cb);
-    fe_sq(x3, t0);              // x3 = (DA + CB)^2
+    fe_sq(x3, t0);  // x3 = (DA + CB)^2
     fe_sub(t1, da, cb);
     fe_sq(t0, t1);
-    fe_mul(z3, x1, t0);         // z3 = x1 * (DA - CB)^2
-    fe_mul(x2, aa, bb);         // x2 = AA * BB
+    fe_mul(z3, x1, t0);  // z3 = x1 * (DA - CB)^2
+    fe_mul(x2, aa, bb);  // x2 = AA * BB
     fe_mul_small(t1, e, 121665);
     fe_add(t0, aa, t1);
-    fe_mul(z2, e, t0);          // z2 = E * (AA + 121665*E)
+    fe_mul(z2, e, t0);  // z2 = E * (AA + 121665*E)
   }
   cswap(swap, x2, x3);
   cswap(swap, z2, z3);
@@ -414,10 +483,18 @@ namespace {
 inline uint32_t rotl32(uint32_t v, int c) { return (v << c) | (v >> (32 - c)); }
 
 void quarter(uint32_t& a, uint32_t& b, uint32_t& c, uint32_t& d) {
-  a += b; d ^= a; d = rotl32(d, 16);
-  c += d; b ^= c; b = rotl32(b, 12);
-  a += b; d ^= a; d = rotl32(d, 8);
-  c += d; b ^= c; b = rotl32(b, 7);
+  a += b;
+  d ^= a;
+  d = rotl32(d, 16);
+  c += d;
+  b ^= c;
+  b = rotl32(b, 12);
+  a += b;
+  d ^= a;
+  d = rotl32(d, 8);
+  c += d;
+  b ^= c;
+  b = rotl32(b, 7);
 }
 
 void chacha_block(const uint8_t key[32], const uint8_t nonce[12], uint32_t counter,
@@ -458,8 +535,8 @@ void chacha_block(const uint8_t key[32], const uint8_t nonce[12], uint32_t count
 
 }  // namespace
 
-void chacha20(const uint8_t key[32], const uint8_t nonce[12], uint32_t counter,
-              const uint8_t* in, uint8_t* out, size_t len) {
+void chacha20(const uint8_t key[32], const uint8_t nonce[12], uint32_t counter, const uint8_t* in,
+              uint8_t* out, size_t len) {
   uint8_t block[64];
   size_t off = 0;
   while (off < len) {
@@ -470,14 +547,13 @@ void chacha20(const uint8_t key[32], const uint8_t nonce[12], uint32_t counter,
   }
 }
 
-std::string aead_seal(const std::string& key32, const std::string& plaintext,
-                      const Rng32& rng) {
+std::string aead_seal(const std::string& key32, const std::string& plaintext, const Rng32& rng) {
   uint8_t nonce[12];
   rng(nonce, 12);
   std::string ct(plaintext.size(), '\0');
   chacha20(reinterpret_cast<const uint8_t*>(key32.data()), nonce, 1,
-           reinterpret_cast<const uint8_t*>(plaintext.data()),
-           reinterpret_cast<uint8_t*>(&ct[0]), plaintext.size());
+           reinterpret_cast<const uint8_t*>(plaintext.data()), reinterpret_cast<uint8_t*>(&ct[0]),
+           plaintext.size());
   std::string nonce_s(reinterpret_cast<const char*>(nonce), 12);
   Digest32 tag = hmac_sha256(key32, nonce_s + ct);
   return nonce_s + ct + std::string(reinterpret_cast<const char*>(tag.b.data()), 32);
@@ -496,15 +572,15 @@ Result<std::string> aead_open(const std::string& key32, const std::string& seale
   std::string pt(ct.size(), '\0');
   chacha20(reinterpret_cast<const uint8_t*>(key32.data()),
            reinterpret_cast<const uint8_t*>(nonce_s.data()), 1,
-           reinterpret_cast<const uint8_t*>(ct.data()),
-           reinterpret_cast<uint8_t*>(&pt[0]), ct.size());
+           reinterpret_cast<const uint8_t*>(ct.data()), reinterpret_cast<uint8_t*>(&pt[0]),
+           ct.size());
   return Result<std::string>::good(pt);
 }
 
 // ---------------- HKDF-SHA256 (RFC 5869) ----------------
 
-std::string hkdf_sha256(const std::string& ikm, const std::string& salt,
-                        const std::string& info, size_t len) {
+std::string hkdf_sha256(const std::string& ikm, const std::string& salt, const std::string& info,
+                        size_t len) {
   std::string actual_salt = salt.empty() ? std::string(32, '\0') : salt;
   Digest32 prk = hmac_sha256(actual_salt, ikm);
   std::string prk_s(reinterpret_cast<const char*>(prk.b.data()), 32);
@@ -532,16 +608,23 @@ std::string base64_encode(const std::string& raw) {
   size_t i = 0;
   while (i + 2 < raw.size()) {
     uint32_t v = (uint8_t(raw[i]) << 16) | (uint8_t(raw[i + 1]) << 8) | uint8_t(raw[i + 2]);
-    out += B64[(v >> 18) & 63]; out += B64[(v >> 12) & 63];
-    out += B64[(v >> 6) & 63]; out += B64[v & 63];
+    out += B64[(v >> 18) & 63];
+    out += B64[(v >> 12) & 63];
+    out += B64[(v >> 6) & 63];
+    out += B64[v & 63];
     i += 3;
   }
   if (i + 1 == raw.size()) {
     uint32_t v = uint8_t(raw[i]) << 16;
-    out += B64[(v >> 18) & 63]; out += B64[(v >> 12) & 63]; out += "==";
+    out += B64[(v >> 18) & 63];
+    out += B64[(v >> 12) & 63];
+    out += "==";
   } else if (i + 2 == raw.size()) {
     uint32_t v = (uint8_t(raw[i]) << 16) | (uint8_t(raw[i + 1]) << 8);
-    out += B64[(v >> 18) & 63]; out += B64[(v >> 12) & 63]; out += B64[(v >> 6) & 63]; out += '=';
+    out += B64[(v >> 18) & 63];
+    out += B64[(v >> 12) & 63];
+    out += B64[(v >> 6) & 63];
+    out += '=';
   }
   return out;
 }
@@ -552,7 +635,8 @@ Result<std::string> base64_decode(const std::string& b64in) {
   if (!init) {
     std::memset(rev, -1, sizeof(rev));
     for (int i = 0; i < 64; ++i) rev[uint8_t(B64[i])] = int8_t(i);
-    rev['-'] = 62; rev['_'] = 63;  // accept URL-safe too
+    rev['-'] = 62;
+    rev['_'] = 63;  // accept URL-safe too
     init = true;
   }
   std::string out;
@@ -593,7 +677,8 @@ Result<std::string> hex_decode(const std::string& hexin) {
     return -1;
   };
   if (hexin.size() % 2 != 0)
-    return Result<std::string>::fail(Errc::InvalidArgument, "hex length must be even", "hex_decode");
+    return Result<std::string>::fail(Errc::InvalidArgument, "hex length must be even",
+                                     "hex_decode");
   std::string out;
   out.reserve(hexin.size() / 2);
   for (size_t i = 0; i < hexin.size(); i += 2) {

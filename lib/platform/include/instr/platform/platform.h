@@ -33,7 +33,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <atomic>
 #include <cstdint>
@@ -52,7 +51,7 @@ struct FactoryIdentity {
   std::string hw_revision;
   std::string board_variant;
   std::string mfg_date;
-  std::string hostname_base;    // hostname derived on first boot
+  std::string hostname_base;  // hostname derived on first boot
   std::string identity_secret;  // factory-provisioned HMAC key (never logged)
   bool valid = false;
 };
@@ -60,16 +59,16 @@ struct FactoryIdentity {
 struct StorageDevice {
   std::string name;
   std::string device_path;
-  std::string kind;              // emmc / sd / nvme / usb
+  std::string kind;  // emmc / sd / nvme / usb
   uint64_t bytes = 0;
-  double wear_pct = -1;          // -1 when unknown
+  double wear_pct = -1;  // -1 when unknown
   uint32_t lifetime_days_estimate = 0;  // 0 when unknown
   // SMART / NVMe health, where the device exposes it (§5 wear indicators).
-  int32_t temperature_c = -1;         // -1 when unknown
+  int32_t temperature_c = -1;  // -1 when unknown
   uint64_t power_on_hours = 0;
   uint64_t reallocated_sectors = 0;
   uint64_t media_errors = 0;
-  bool smart_ok = true;               // false once the device reports failing
+  bool smart_ok = true;  // false once the device reports failing
   bool smart_available = false;
 };
 
@@ -77,10 +76,10 @@ struct StorageDevice {
 // and how full they are. The budgets in §6 are meaningless without knowing
 // which partition /pst and the spool actually live on.
 struct Partition {
-  std::string name;          // e.g. mmcblk0p3
+  std::string name;  // e.g. mmcblk0p3
   std::string device_path;
-  std::string parent;        // parent block device
-  std::string mount_point;   // empty when not mounted
+  std::string parent;  // parent block device
+  std::string mount_point;  // empty when not mounted
   std::string fs_type;
   uint64_t bytes = 0;
   uint64_t used_bytes = 0;
@@ -91,18 +90,18 @@ struct Partition {
 // source it is using; without this it cannot tell "no GNSS lock yet" from
 // "this board has no GNSS receiver".
 struct TimeSourceInfo {
-  std::string kind;      // gnss / ptp / ntp / rtc
+  std::string kind;  // gnss / ptp / ntp / rtc
   bool present = false;  // hardware/daemon exists on this board
-  bool locked = false;   // currently disciplined
+  bool locked = false;  // currently disciplined
   double offset_ms = 0;
-  double quality = 0;    // 0..1, source-specific confidence
+  double quality = 0;  // 0..1, source-specific confidence
 };
 
 // Measured boot (§10): report the platform's attestation state upward where
 // it exists. Absent TPM/PCR support is reported honestly, never faked.
 struct MeasuredBootState {
   bool available = false;
-  std::string mechanism;                 // tpm2 / optee / none
+  std::string mechanism;  // tpm2 / optee / none
   std::map<uint32_t, std::string> pcrs;  // PCR index → hex digest
   bool secure_boot_enabled = false;
 };
@@ -115,7 +114,7 @@ struct ThermalZone {
 
 struct PowerSource {
   std::string id;
-  std::string kind;   // ac / battery
+  std::string kind;  // ac / battery
   double percent = 0;
   bool charging = false;
 };
@@ -129,10 +128,10 @@ struct IfaceInfo {
 };
 
 struct BootSlotState {
-  std::string active;     // "A" / "B"
+  std::string active;  // "A" / "B"
   std::string inactive;
-  std::string pending;    // staged slot awaiting confirmation; empty if none
-  std::string golden;     // fallback slot
+  std::string pending;  // staged slot awaiting confirmation; empty if none
+  std::string golden;  // fallback slot
   uint32_t boot_attempts = 0;
 };
 
@@ -145,7 +144,7 @@ struct MemInfo {
 
 struct CpuSnapshot {
   uint32_t cores = 1;
-  std::vector<uint64_t> busy_ticks;   // per core
+  std::vector<uint64_t> busy_ticks;  // per core
   std::vector<uint64_t> total_ticks;  // per core
   std::vector<double> freq_mhz;
   std::string governor;
@@ -208,8 +207,7 @@ class IPlatform {
     std::vector<uint8_t> data;
   };
   virtual Error can_send(const std::string& iface, const CanFrame& frame) = 0;
-  virtual Result<std::vector<CanFrame>> can_recv(const std::string& iface,
-                                                 size_t max_frames) = 0;
+  virtual Result<std::vector<CanFrame>> can_recv(const std::string& iface, size_t max_frames) = 0;
   virtual Error display_control(const std::string& cmd, const std::string& arg) = 0;
   virtual Result<std::string> display_probe() = 0;
 

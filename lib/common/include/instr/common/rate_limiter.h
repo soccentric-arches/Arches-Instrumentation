@@ -30,7 +30,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <chrono>
 #include <cstdint>
@@ -42,8 +41,7 @@ namespace instr {
 
 class TokenBucket {
  public:
-  TokenBucket(double rate_per_s, double burst,
-              std::function<double()> now_s = nullptr)
+  TokenBucket(double rate_per_s, double burst, std::function<double()> now_s = nullptr)
       : rate_(rate_per_s), burst_(burst), now_(std::move(now_s)) {
     if (!now_) now_ = [] { return steady_now_s(); };
     tokens_ = burst_;
@@ -66,11 +64,13 @@ class TokenBucket {
   double rate() const { return rate_; }
   double burst() const { return burst_; }
   double tokens() const { return tokens_; }
-  void reset() { tokens_ = burst_; streak_ = 0; }
+  void reset() {
+    tokens_ = burst_;
+    streak_ = 0;
+  }
 
   static double steady_now_s() {
-    return std::chrono::duration<double>(
-               std::chrono::steady_clock::now().time_since_epoch())
+    return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch())
         .count();
   }
 

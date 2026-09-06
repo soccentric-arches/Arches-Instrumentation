@@ -74,7 +74,9 @@ static uint64_t get_u64(const std::string& s, size_t off) {
 static std::string encode_record(SpoolPriority prio, uint64_t mono, const std::string& payload) {
   std::string body;
   body += char(prio);
-  body += '\0'; body += '\0'; body += '\0';
+  body += '\0';
+  body += '\0';
+  body += '\0';
   put_u64(body, mono);
   put_u32(body, uint32_t(payload.size()));
   std::string rec;
@@ -183,7 +185,11 @@ Error DiskSpool::erase_index_record(size_t victim) {
   }
   bytes_ -= removed;
   for (auto& s : segments_)
-    if (s.seq == rec.seg) { s.bytes -= removed; --s.records; break; }
+    if (s.seq == rec.seg) {
+      s.bytes -= removed;
+      --s.records;
+      break;
+    }
   if (rec.seg == segments_.back().seq) seg_offset_ -= removed;
   index_.erase(index_.begin() + long(victim));
   return Error::none();
@@ -192,8 +198,7 @@ Error DiskSpool::erase_index_record(size_t victim) {
 Error DiskSpool::drop_one_oldest_droppable() {
   for (size_t i = 0; i < index_.size(); ++i) {
     SpoolPriority p = index_[i].prio;
-    if (p == SpoolPriority::Telemetry || p == SpoolPriority::LogRef ||
-        p == SpoolPriority::Event) {
+    if (p == SpoolPriority::Telemetry || p == SpoolPriority::LogRef || p == SpoolPriority::Event) {
       switch (p) {
         case SpoolPriority::Telemetry: ++stats_.dropped_telemetry; break;
         case SpoolPriority::LogRef: ++stats_.dropped_logref; break;
@@ -225,10 +230,9 @@ Error DiskSpool::append(SpoolPriority prio, const std::string& payload, uint64_t
   while (bytes_ + rec_size > cfg_.max_bytes) {
     Error e = drop_one_oldest_droppable();
     if (!e.ok()) {
-      if (prio == SpoolPriority::Alarm || prio == SpoolPriority::Fault)
-        ++stats_.refused_protected;
-      return Error::make(Errc::BudgetExceeded,
-                         "spool full and only protected records remain", "DiskSpool::append");
+      if (prio == SpoolPriority::Alarm || prio == SpoolPriority::Fault) ++stats_.refused_protected;
+      return Error::make(Errc::BudgetExceeded, "spool full and only protected records remain",
+                         "DiskSpool::append");
     }
   }
   Seg& active = segments_.back();
@@ -288,7 +292,10 @@ Error DiskSpool::pop_front(size_t n) {
       Error e = fs_.remove(segment_path(seg), false);
       if (!e.ok()) return e;
       for (auto it = segments_.begin(); it != segments_.end(); ++it)
-        if (it->seq == seg) { segments_.erase(it); break; }
+        if (it->seq == seg) {
+          segments_.erase(it);
+          break;
+        }
       continue;
     }
     auto content = fs_.read(segment_path(seg));
@@ -301,7 +308,10 @@ Error DiskSpool::pop_front(size_t n) {
     while (off < content->size()) {
       size_t start = off;
       Entry ent;
-      if (!decode_record(*content, off, &ent)) { off = start + 1; continue; }
+      if (!decode_record(*content, off, &ent)) {
+        off = start + 1;
+        continue;
+      }
       if (keep_off.count(start)) {
         remap[start] = rebuilt.size();
         rebuilt += content->substr(start, off - start);
@@ -312,7 +322,11 @@ Error DiskSpool::pop_front(size_t n) {
     for (auto& r : index_)
       if (r.seg == seg) r.off = remap[r.off];
     for (auto it = segments_.begin(); it != segments_.end(); ++it)
-      if (it->seq == seg) { it->bytes = rebuilt.size(); it->records = keep.size(); break; }
+      if (it->seq == seg) {
+        it->bytes = rebuilt.size();
+        it->records = keep.size();
+        break;
+      }
   }
   return Error::none();
 }

@@ -25,7 +25,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include <gtest/gtest.h>
 
 #include "instr/common/timestamps.h"
@@ -80,7 +79,10 @@ TEST(NetworkdTunnelGuard, RevertsWhenHqUnreachablePastTimeout) {
   int applies = 0;
   auto res = TunnelGuard::guarded_change(
       prev, next,
-      [&](const NetworkPlan&) { ++applies; return Error::none(); },
+      [&](const NetworkPlan&) {
+        ++applies;
+        return Error::none();
+      },
       [] { return false; }, 0.5,  // never reachable
       [&now] {
         now += 0.1;  // test clock advances per probe
@@ -105,8 +107,8 @@ TEST(NetworkdRemoteAccess, OpenExpiresAutomatically) {
 
 TEST(NetworkdRemoteAccess, RequiresAttributionAndBoundsTtl) {
   RemoteAccessManager mgr;
-  EXPECT_FALSE(mgr.open("", 60, 0).ok());          // must be attributed
-  EXPECT_FALSE(mgr.open("bob", 0, 0).ok());        // ttl > 0
+  EXPECT_FALSE(mgr.open("", 60, 0).ok());  // must be attributed
+  EXPECT_FALSE(mgr.open("bob", 0, 0).ok());  // ttl > 0
   EXPECT_FALSE(mgr.open("bob", 25 * 3600ull, 0).ok());  // ttl ≤ 24h
 }
 

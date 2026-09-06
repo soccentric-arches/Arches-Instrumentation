@@ -29,7 +29,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #pragma once
 #include <string>
 #include <utility>
@@ -82,7 +81,10 @@ struct Error {
   }
   static Error none() { return Error{}; }
   static Error make(Errc c, std::string msg, std::string ctx = "") {
-    Error e; e.code = c; e.message = std::move(msg); e.context = std::move(ctx);
+    Error e;
+    e.code = c;
+    e.message = std::move(msg);
+    e.context = std::move(ctx);
     return e;
   }
 };
@@ -98,8 +100,16 @@ struct Result {
   const T* operator->() const { return &value; }
   T* operator->() { return &value; }
 
-  static Result good(T v) { Result r; r.value = std::move(v); return r; }
-  static Result fail(Error e) { Result r; r.error = std::move(e); return r; }
+  static Result good(T v) {
+    Result r;
+    r.value = std::move(v);
+    return r;
+  }
+  static Result fail(Error e) {
+    Result r;
+    r.error = std::move(e);
+    return r;
+  }
   static Result fail(Errc c, std::string msg, std::string ctx = "") {
     return fail(Error::make(c, std::move(msg), std::move(ctx)));
   }

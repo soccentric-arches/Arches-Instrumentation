@@ -96,8 +96,8 @@ bool sd_notify(const std::string& status) {
     std::strncpy(sa.sun_path, addr.c_str(), sizeof(sa.sun_path) - 1);
   }
   std::string msg = status;
-  ssize_t n = ::sendto(fd, msg.data(), msg.size(), 0,
-                       reinterpret_cast<struct sockaddr*>(&sa), sizeof(sa));
+  ssize_t n =
+      ::sendto(fd, msg.data(), msg.size(), 0, reinterpret_cast<struct sockaddr*>(&sa), sizeof(sa));
   ::close(fd);
   return n >= 0;
 }

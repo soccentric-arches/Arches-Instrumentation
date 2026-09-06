@@ -50,8 +50,8 @@ const char* spoke_state_name(SpokeState s) {
 
 const std::vector<std::string>& startup_order() {
   static const std::vector<std::string> order = {
-      "faults", "monitord", "hardware", "alarms", "logmanager",
-      "telemetry", "networkd", "ota", "backup",
+      "faults",    "monitord", "hardware", "alarms", "logmanager",
+      "telemetry", "networkd", "ota",      "backup",
   };
   return order;
 }

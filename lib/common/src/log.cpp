@@ -66,7 +66,8 @@ void StderrSink::write(const LogRecord& r) {
   strftime(tbuf, sizeof(tbuf), "%Y-%m-%dT%H:%M:%SZ", &tm);
   std::fprintf(stderr, "%s %s %s: %s", tbuf, log_level_name(r.level), r.source.c_str(),
                r.message.c_str());
-  for (const auto& kv : r.fields) std::fprintf(stderr, " %s=%s", kv.first.c_str(), kv.second.c_str());
+  for (const auto& kv : r.fields)
+    std::fprintf(stderr, " %s=%s", kv.first.c_str(), kv.second.c_str());
   std::fprintf(stderr, "\n");
 }
 
@@ -79,8 +80,8 @@ void MemorySink::write(const LogRecord& r) {
 
 const std::vector<std::string>& Redactor::secret_key_names() {
   static const std::vector<std::string> names = {
-      "password", "passwd", "secret", "token", "credential", "private_key",
-      "privatekey", "api_key", "apikey", "wg-private", "psk", "session_key",
+      "password",   "passwd",  "secret", "token",      "credential", "private_key",
+      "privatekey", "api_key", "apikey", "wg-private", "psk",        "session_key",
   };
   return names;
 }
@@ -169,9 +170,7 @@ std::string Redactor::redact_text(const std::string& text) {
 
 // ---------------- logger ----------------
 
-double Logger::now_s() {
-  return static_cast<double>(ts_->mono_ns()) / 1e9;
-}
+double Logger::now_s() { return static_cast<double>(ts_->mono_ns()) / 1e9; }
 
 void Logger::set_rate_limit(const std::string& source, double max_per_s) {
   rate_limits_[source] = RateBucket{max_per_s, now_s(), max_per_s};

@@ -72,7 +72,8 @@ std::string CommandTable::help_text(const std::string& prog) const {
   for (const CommandSpec* s : all()) {
     o << "  " << s->op;
     std::string args;
-    for (const auto& a : s->args) args += (a.required ? " <" : " [") + a.name + (a.required ? ">" : "]");
+    for (const auto& a : s->args)
+      args += (a.required ? " <" : " [") + a.name + (a.required ? ">" : "]");
     o << args << "\n      " << s->description << "\n";
   }
   return o.str();
@@ -105,7 +106,8 @@ std::string CommandTable::completion_bash(const std::string& prog) const {
     << "    completion) COMPREPLY=( $(compgen -W 'bash zsh' -- \"$cur\") ); return ;;\n"
     << "    *)\n"
     << "      if [ \"$COMP_CWORD\" -eq 1 ]; then\n"
-    << "        COMPREPLY=( $(compgen -W \"$ops --help --json --socket completion\" -- \"$cur\") )\n"
+    << "        COMPREPLY=( $(compgen -W \"$ops --help --json --socket completion\" -- \"$cur\") "
+       ")\n"
     << "      else\n"
     << "        local op=\"${COMP_WORDS[1]}\"\n"
     << "        local args=\"\"";
@@ -146,7 +148,8 @@ std::string CommandTable::completion_zsh(const std::string& prog) const {
     << "  ops=(\n";
   for (const CommandSpec* s : all()) {
     std::string desc = s->description;
-    for (auto& c : desc) if (c == '\'' || c == '[' || c == ']') c = ' ';
+    for (auto& c : desc)
+      if (c == '\'' || c == '[' || c == ']') c = ' ';
     o << "    '" << s->op << "[" << desc << "]'\n";
   }
   o << "  )\n"

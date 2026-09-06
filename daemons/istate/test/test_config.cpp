@@ -28,7 +28,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include <gtest/gtest.h>
 
 #include "instr/common/filesystem.h"
@@ -95,7 +94,8 @@ TEST(ConfigService, SignedPushVerifiedBeforeApply) {
   std::string secret = "device-enrollment-secret";
   std::string yaml = "mode: dhcp\ninterval: 3\n";
   auto digest = crypto::hmac_sha256(secret, "networkd|" + yaml);
-  std::string hmac = crypto::hex_encode(std::string(reinterpret_cast<const char*>(digest.b.data()), 32));
+  std::string hmac =
+      crypto::hex_encode(std::string(reinterpret_cast<const char*>(digest.b.data()), 32));
   // Tampered signature → refused, nothing written.
   auto bad = f.svc.apply_signed("networkd", yaml, "key-1", "", "00" + hmac.substr(2), secret);
   EXPECT_FALSE(bad.ok());
@@ -157,7 +157,7 @@ namespace {
 // A signing keypair standing in for HQ's. Only the public half is given to
 // the device, which is the entire point.
 struct HqSigner {
-  std::string public_key;   // 32 raw bytes
+  std::string public_key;  // 32 raw bytes
   EVP_PKEY* key = nullptr;
 
   HqSigner() {
@@ -176,8 +176,8 @@ struct HqSigner {
     EVP_MD_CTX* ctx = EVP_MD_CTX_new();
     EVP_DigestSignInit(ctx, nullptr, nullptr, nullptr, key);
     size_t siglen = 0;
-    EVP_DigestSign(ctx, nullptr, &siglen,
-                   reinterpret_cast<const unsigned char*>(message.data()), message.size());
+    EVP_DigestSign(ctx, nullptr, &siglen, reinterpret_cast<const unsigned char*>(message.data()),
+                   message.size());
     std::string sig(siglen, '\0');
     EVP_DigestSign(ctx, reinterpret_cast<unsigned char*>(&sig[0]), &siglen,
                    reinterpret_cast<const unsigned char*>(message.data()), message.size());
@@ -253,14 +253,17 @@ TEST(ConfigServiceSigning, TwoKeysAreTrustedAtOnceSoRotationNeedsNoFlagDay) {
   f.svc.add_signing_key("hq-2026", new_key.public_key);
 
   const std::string a = "interval: 3\n";
-  EXPECT_TRUE(f.svc.apply_signed("networkd", a, "hq-2025", old_key.sign("networkd|" + a), "", "").ok());
+  EXPECT_TRUE(
+      f.svc.apply_signed("networkd", a, "hq-2025", old_key.sign("networkd|" + a), "", "").ok());
   const std::string b = "interval: 4\n";
-  EXPECT_TRUE(f.svc.apply_signed("networkd", b, "hq-2026", new_key.sign("networkd|" + b), "", "").ok());
+  EXPECT_TRUE(
+      f.svc.apply_signed("networkd", b, "hq-2026", new_key.sign("networkd|" + b), "", "").ok());
 
   // Retiring the old key stops accepting anything signed with it.
   f.svc.remove_signing_key("hq-2025");
   const std::string c = "interval: 5\n";
-  EXPECT_FALSE(f.svc.apply_signed("networkd", c, "hq-2025", old_key.sign("networkd|" + c), "", "").ok());
+  EXPECT_FALSE(
+      f.svc.apply_signed("networkd", c, "hq-2025", old_key.sign("networkd|" + c), "", "").ok());
 }
 
 TEST(SignatureBackend, VerificationIsAvailableAndFailsClosedOnBadInput) {

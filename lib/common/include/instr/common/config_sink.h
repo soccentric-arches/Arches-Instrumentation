@@ -59,8 +59,8 @@ class ConfigSink {
   // Returns "" when the delivery was accepted and applied, otherwise a
   // diagnosable reason. Never throws; never leaves a partial config.
   std::string deliver(const std::string& yaml, uint64_t revision) {
-    auto parsed = ConfigDocument::parse(yaml, schema_, daemon_ + " config (revision " +
-                                                           std::to_string(revision) + ")");
+    auto parsed = ConfigDocument::parse(
+        yaml, schema_, daemon_ + " config (revision " + std::to_string(revision) + ")");
     if (!parsed.ok()) return parsed.error.str();
     std::lock_guard<std::mutex> lk(mu_);
     if (apply_) {

@@ -25,7 +25,6 @@
  * @copyright (C) 2026 Soccentric. All rights reserved. Proprietary.
  */
 
-
 #include <cstdio>
 #include <fstream>
 #include <sstream>
@@ -44,9 +43,10 @@
 int main(int argc, char** argv) {
   auto args = instr::parse_daemon_args(argc, argv, "hardware");
   if (args.help) {
-    std::printf("hardware — board device control + quick health checks (Arches Instrumentation)\n"
-                "usage: hardware [--socket PATH] [--hub PATH] [--root PATH]\n"
-                "       [--platform native|simulated] [--help]\n");
+    std::printf(
+        "hardware — board device control + quick health checks (Arches Instrumentation)\n"
+        "usage: hardware [--socket PATH] [--hub PATH] [--root PATH]\n"
+        "       [--platform native|simulated] [--help]\n");
     return 0;
   }
   std::atomic<bool> stop{false};
@@ -76,8 +76,8 @@ int main(int argc, char** argv) {
         instr::hardware::HardwareCore core(plat, ts, *desc);
         auto table = instr::hardware::build_hardware_table(&core);
         std::string run_dir = root + "/run/instrumentation";
-        std::string ctrl_path = args.socket_override.empty() ? run_dir + "/hardware-ctrl.sock"
-                                                             : args.socket_override;
+        std::string ctrl_path =
+            args.socket_override.empty() ? run_dir + "/hardware-ctrl.sock" : args.socket_override;
         instr::ctrl::CtrlServer ctrl(&table, ctrl_path);
         auto e = ctrl.start();
         if (!e.ok()) {
@@ -85,8 +85,8 @@ int main(int argc, char** argv) {
           return 1;
         }
         std::string hub = args.hub_socket.empty() ? run_dir + "/hardware.sock" : args.hub_socket;
-        instr::hardware::HardwareSpoke spoke(&core, &log, &table,
-                                             instr::transport::uds_target(hub), INSTR_VERSION);
+        instr::hardware::HardwareSpoke spoke(&core, &log, &table, instr::transport::uds_target(hub),
+                                             INSTR_VERSION);
         auto cfg_schema = instr::load_daemon_schema(fs, root, "hardware");
         if (!cfg_schema.ok())
           log.warning("hardware", "no JSON Schema installed: " + cfg_schema.error.str() +
@@ -96,10 +96,11 @@ int main(int argc, char** argv) {
 
         // Periodic scheduled checks alongside on-demand ones (§7.4). Without
         // this the device only ever reports the health someone asked for.
-        instr::PeriodicWorker checks(
-            "hardware-checks", core.config().periodic_check_interval_s, [&] {
-              for (const auto& r : core.manager().due_checks(ts.mono_ns())) core.emit(r);
-            });
+        instr::PeriodicWorker checks("hardware-checks", core.config().periodic_check_interval_s,
+                                     [&] {
+                                       for (const auto& r : core.manager().due_checks(ts.mono_ns()))
+                                         core.emit(r);
+                                     });
         core.set_config_listener([&](const instr::hardware::HardwareCore::Config& c) {
           core.manager().set_periodic_interval_s(c.periodic_check_interval_s);
           checks.set_interval_s(c.enabled ? c.periodic_check_interval_s : 0.0);

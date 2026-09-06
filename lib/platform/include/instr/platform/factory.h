@@ -49,8 +49,7 @@ namespace platform {
 // name: "native" (default) or "simulated". An unrecognised name falls back to
 // native and is reported by the caller — a typo must not silently put a real
 // device onto a simulated platform.
-inline std::unique_ptr<IPlatform> make_platform(const std::string& name,
-                                                const std::string& sysroot,
+inline std::unique_ptr<IPlatform> make_platform(const std::string& name, const std::string& sysroot,
                                                 bool* recognised = nullptr) {
   if (recognised) *recognised = true;
   if (name == "simulated") return std::make_unique<SimulatedPlatform>();
