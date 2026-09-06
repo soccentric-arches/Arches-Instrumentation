@@ -44,6 +44,7 @@ namespace ctrl
 
 // ---------------- StreamSink ----------------
 
+/// @brief Frame one JSON line to the client; latches closed() on failure.
 bool StreamSink::send(const std::string& json_line)
 {
     std::string frame = frames::encode_frame(json_line);
@@ -65,15 +66,18 @@ bool StreamSink::send(const std::string& json_line)
 
 // ---------------- CtrlServer ----------------
 
+/// @brief Construct a server over @p table on @p socket_path.
 CtrlServer::CtrlServer(const CommandTable* table, std::string socket_path) : table_(table), path_(std::move(socket_path))
 {
 }
 
+/// @brief Stop and join everything.
 CtrlServer::~CtrlServer()
 {
     stop();
 }
 
+/// @brief Bind, listen and start the accept thread.
 Error CtrlServer::start()
 {
     listen_fd_ = ::socket(AF_UNIX, SOCK_STREAM, 0);
@@ -93,6 +97,7 @@ Error CtrlServer::start()
     return Error::none();
 }
 
+/// @brief Stop accepting, close the socket and join all workers.
 void CtrlServer::stop()
 {
     if (!running_.exchange(false))
@@ -120,6 +125,7 @@ void CtrlServer::stop()
     ::unlink(path_.c_str());
 }
 
+/// @brief Accept loop: reap finished connections, accept and spawn workers.
 void CtrlServer::serve_accept()
 {
     while (running_.load())
@@ -154,6 +160,7 @@ void CtrlServer::serve_accept()
     }
 }
 
+/// @brief Serve one connection until close.
 void CtrlServer::serve_conn(int fd)
 {
     frames::FrameDecoder dec;
@@ -204,15 +211,18 @@ void CtrlServer::serve_conn(int fd)
 
 // ---------------- CtrlClient ----------------
 
+/// @brief Construct a client for @p socket_path (not yet connected).
 CtrlClient::CtrlClient(std::string socket_path) : path_(std::move(socket_path))
 {
 }
 
+/// @brief Close the connection if open.
 CtrlClient::~CtrlClient()
 {
     close();
 }
 
+/// @brief Connect to the control socket (mode is checked at the server).
 Error CtrlClient::connect()
 {
     fd_ = ::socket(AF_UNIX, SOCK_STREAM, 0);
@@ -233,6 +243,7 @@ Error CtrlClient::connect()
     return Error::none();
 }
 
+/// @brief Close the connection (idempotent).
 void CtrlClient::close()
 {
     if (fd_ >= 0)
@@ -242,6 +253,7 @@ void CtrlClient::close()
     }
 }
 
+/// @brief Loop over partial writes until all bytes are sent.
 bool CtrlClient::send_all(const std::string& data)
 {
     size_t off = 0;
@@ -254,6 +266,7 @@ bool CtrlClient::send_all(const std::string& data)
     return true;
 }
 
+/// @brief Read one length-prefixed frame.
 bool CtrlClient::recv_frame(std::string* out)
 {
     char buf[8192];
@@ -267,6 +280,7 @@ bool CtrlClient::recv_frame(std::string* out)
     }
 }
 
+/// @brief Single request/response round trip.
 CommandResult CtrlClient::call(const std::string& op, const std::string& json_args)
 {
     if (fd_ < 0) return CommandResult::err(Errc::Unavailable, "not connected", "");
@@ -299,6 +313,7 @@ CommandResult CtrlClient::call(const std::string& op, const std::string& json_ar
     return r;
 }
 
+/// @brief Streaming call: one callback per frame until the server closes.
 Error CtrlClient::call_stream(const std::string& op, const std::string& json_args, const std::function<void(const std::string&)>& on_frame)
 {
     if (fd_ < 0) return Error::make(Errc::Unavailable, "not connected", path_);
@@ -315,11 +330,13 @@ Error CtrlClient::call_stream(const std::string& op, const std::string& json_arg
 
 // ---------------- bulk transfer (REQ §7.7) ----------------
 
+/// @brief Stop and join the accept thread.
 BulkServer::~BulkServer()
 {
     stop();
 }
 
+/// @brief Bind, listen and start the accept loop.
 Error BulkServer::start()
 {
     listen_fd_ = ::socket(AF_UNIX, SOCK_STREAM, 0);
@@ -340,6 +357,7 @@ Error BulkServer::start()
     return Error::none();
 }
 
+/// @brief Stop accepting and close the socket.
 void BulkServer::stop()
 {
     if (!running_.exchange(false))
@@ -361,6 +379,7 @@ void BulkServer::stop()
     ::unlink(path_.c_str());
 }
 
+/// @brief Accept loop serving one bulk connection at a time.
 void BulkServer::serve_accept()
 {
     while (running_.load())
@@ -376,6 +395,7 @@ void BulkServer::serve_accept()
     }
 }
 
+/// @brief Read a handle and stream the resolved file until close.
 void BulkServer::serve_one(int fd)
 {
     // Request: one length-prefixed frame carrying the handle.
@@ -423,6 +443,7 @@ void BulkServer::serve_one(int fd)
     ++served_;
 }
 
+/// @brief Stream a bulk payload by handle, chunk by chunk.
 Result<uint64_t> bulk_fetch(const std::string& socket_path, const std::string& handle, const std::function<bool(const char*, size_t)>& sink)
 {
     int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
@@ -482,6 +503,7 @@ static void print_envelope(const CommandResult& r, bool pretty)
         std::cout << env << "\n";
 }
 
+/// @brief Shared _ctrl tool entry: argument parsing, help and dispatch.
 int tool_main(int argc, char** argv, const CommandTable& table, const std::string& prog_name, const std::string& default_socket)
 {
     std::string socket_path = default_socket;
