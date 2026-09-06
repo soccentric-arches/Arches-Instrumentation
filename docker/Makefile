@@ -47,7 +47,7 @@ ifeq ($(HOST_ARCH),x86_64)
 image: binfmt
 endif
 image:
-	docker buildx build --platform $(PLATFORM) --load -t $(FULL_IMAGE) $(ROOT)
+	docker buildx build --platform $(PLATFORM) --load -f $(ROOT)/docker/Dockerfile -t $(FULL_IMAGE) $(ROOT)
 
 binfmt:
 	docker run --privileged --rm tonistiigi/binfmt --install arm64
