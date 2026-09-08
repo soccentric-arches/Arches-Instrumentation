@@ -20,3 +20,5 @@ out/
 .env
 # CMake build dirs (presets)
 build-*/
+
+output_dir/*
