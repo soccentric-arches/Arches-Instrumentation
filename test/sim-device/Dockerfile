@@ -21,7 +21,7 @@
 # ---- build stage ----
 FROM debian:bookworm-slim AS build
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        build-essential cmake ninja-build pkg-config \
+        build-essential cmake ninja-build pkg-config python3 \
         protobuf-compiler protobuf-compiler-grpc \
         libprotobuf-dev libgrpc++-dev libyaml-cpp-dev libgtest-dev \
     && rm -rf /var/lib/apt/lists/*
@@ -37,26 +37,29 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libprotobuf32 libgrpc++1.51 libyaml-cpp0.7 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=build /build/daemons/istate/istate         /usr/bin/instr-istate
-COPY --from=build /build/daemons/networkd/networkd     /usr/bin/instr-networkd
-COPY --from=build /build/daemons/monitord/monitord     /usr/bin/instr-monitord
-COPY --from=build /build/daemons/hardware/hardware     /usr/bin/instr-hardware
-COPY --from=build /build/daemons/faults/faults         /usr/bin/instr-faults
-COPY --from=build /build/daemons/alarms/alarms         /usr/bin/instr-alarms
-COPY --from=build /build/daemons/logmanager/logmanager /usr/bin/instr-logmanager
-COPY --from=build /build/daemons/telemetry/telemetry   /usr/bin/instr-telemetry
-COPY --from=build /build/daemons/ota/ota               /usr/bin/instr-ota
-COPY --from=build /build/daemons/backup/backup         /usr/bin/instr-backup
-COPY --from=build /build/tools/istate_ctrl    /usr/bin/istate_ctrl
-COPY --from=build /build/tools/network_ctrl   /usr/bin/network_ctrl
-COPY --from=build /build/tools/monitor_ctrl   /usr/bin/monitor_ctrl
-COPY --from=build /build/tools/hardware_ctrl  /usr/bin/hardware_ctrl
-COPY --from=build /build/tools/fault_ctrl     /usr/bin/fault_ctrl
-COPY --from=build /build/tools/alarm_ctrl     /usr/bin/alarm_ctrl
-COPY --from=build /build/tools/log_ctrl       /usr/bin/log_ctrl
-COPY --from=build /build/tools/telemetry_ctrl /usr/bin/telemetry_ctrl
-COPY --from=build /build/tools/ota_ctrl       /usr/bin/ota_ctrl
-COPY --from=build /build/tools/backup_ctrl    /usr/bin/backup_ctrl
+# Every executable lands flat in output_dir/bin (EXECUTABLE_OUTPUT_PATH in
+# the top-level CMakeLists), not under its source subdirectory — copy from
+# there rather than /build/daemons/<x> or /build/tools/<x>.
+COPY --from=build /src/output_dir/bin/istate      /usr/bin/instr-istate
+COPY --from=build /src/output_dir/bin/networkd    /usr/bin/instr-networkd
+COPY --from=build /src/output_dir/bin/monitord    /usr/bin/instr-monitord
+COPY --from=build /src/output_dir/bin/hardware    /usr/bin/instr-hardware
+COPY --from=build /src/output_dir/bin/faults      /usr/bin/instr-faults
+COPY --from=build /src/output_dir/bin/alarms      /usr/bin/instr-alarms
+COPY --from=build /src/output_dir/bin/logmanager  /usr/bin/instr-logmanager
+COPY --from=build /src/output_dir/bin/telemetry   /usr/bin/instr-telemetry
+COPY --from=build /src/output_dir/bin/ota         /usr/bin/instr-ota
+COPY --from=build /src/output_dir/bin/backup      /usr/bin/instr-backup
+COPY --from=build /src/output_dir/bin/istate_ctrl    /usr/bin/istate_ctrl
+COPY --from=build /src/output_dir/bin/network_ctrl   /usr/bin/network_ctrl
+COPY --from=build /src/output_dir/bin/monitor_ctrl   /usr/bin/monitor_ctrl
+COPY --from=build /src/output_dir/bin/hardware_ctrl  /usr/bin/hardware_ctrl
+COPY --from=build /src/output_dir/bin/fault_ctrl     /usr/bin/fault_ctrl
+COPY --from=build /src/output_dir/bin/alarm_ctrl     /usr/bin/alarm_ctrl
+COPY --from=build /src/output_dir/bin/log_ctrl       /usr/bin/log_ctrl
+COPY --from=build /src/output_dir/bin/telemetry_ctrl /usr/bin/telemetry_ctrl
+COPY --from=build /src/output_dir/bin/ota_ctrl       /usr/bin/ota_ctrl
+COPY --from=build /src/output_dir/bin/backup_ctrl    /usr/bin/backup_ctrl
 
 # Image data: schemas, catalogs, descriptors and the default YAML set that
 # seeds /pst on first boot — the same files the Yocto recipe installs.
