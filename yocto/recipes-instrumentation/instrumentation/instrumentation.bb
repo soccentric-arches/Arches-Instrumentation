@@ -174,6 +174,18 @@ SYSTEMD_AUTO_ENABLE = "enable"
 # The MACHINE list is Arches-OS/kas/boards/*.yaml. The p-numbers are NVIDIA
 # module/carrier part numbers: p3767 is the Orin Nano / Orin NX module and
 # p3701 is the AGX Orin module, so each maps to that module's descriptor set.
+#
+# COMPATIBLE_MACHINE restricts parsing to exactly the MACHINEs listed below.
+# Without it, wiring this layer into any kas build makes bitbake parse this
+# recipe for every MACHINE in the layer set -- including Arches-OS's current
+# boards (jetson-nano-devkit, jetson-tx1-devkit, jetson-tx2-devkit*,
+# jetson-xavier-nx-devkit-tx2-nx), none of which have an INSTR_BOARD mapping
+# below -- and the do_install-guard python __anonymous() further down would
+# bb.fatal on every one of them. COMPATIBLE_MACHINE makes bitbake cleanly
+# skip the recipe there instead, exactly like an unmapped MACHINE should be
+# handled: refuse to guess, don't crash the whole layer set.
+COMPATIBLE_MACHINE = "^(jetson-orin-nano-devkit|jetson-orin-nano-devkit-nvme|p3509-a02-p3767-0000|p3768-0000-p3767-0000|p3768-0000-p3767-0001|p3768-0000-p3767-0003|p3768-0000-p3767-0004|jetson-agx-orin-devkit|jetson-agx-orin-devkit-industrial|p3737-0000-p3701-0004|p3737-0000-p3701-0005|zynq-ultrascale|zynq-7000|imx8m-plus|sitara-am62|raspberrypi4-64|raspberrypi5|qemux86-64|genericx86-64)$"
+
 INSTR_BOARD ?= ""
 
 # Orin Nano class (p3767 module).
