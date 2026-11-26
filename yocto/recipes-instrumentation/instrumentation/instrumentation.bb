@@ -4,22 +4,11 @@
 SUMMARY = "Arches Instrumentation on-device management and observability suite"
 DESCRIPTION = "Hub-and-spoke instrumentation: istate hub, nine spokes, one external face"
 HOMEPAGE = "https://arches.example"
-# CLOSED, matching every source header in this repo ("a proprietary product of
-# Soccentric... may not be used, copied, modified, distributed, or disclosed...
-# without the express prior written consent") and matching the sibling
-# meta-webconfig recipes, which also declare CLOSED.
-#
-# This previously said Apache-2.0 with the canonical Apache full-text checksum
-# (md5 3b83ef96...). Three things were wrong with that at once: the 151 source
-# files declare proprietary terms, the LICENSE file was an Apache *reference*
-# rather than the full text so the checksum could never match, and an image
-# whose license manifest claims Apache-2.0 over proprietary code is a
-# compliance problem rather than a cosmetic one. The mismatch also means this
-# recipe has never successfully built -- do_populate_lic would fail.
-# See Task.md D-14.
-LICENSE = "CLOSED"
+# MIT, matching the LICENSE file and every source header in this repo.
+LICENSE = "MIT"
+LIC_FILES_CHKSUM = "file://LICENSE;md5=faed9bcc3b178f3d68ef2a8a4f3ad0bc"
 
-SRC_URI = "git://github.com/soccentric-arches/Arches-Instrumentation.git;protocol=ssh;user=git;branch=develop"
+SRC_URI = "git://github.com/soccentric-arches/Arches-Instrumentation.git;protocol=https;branch=develop"
 # Pinned, not AUTOREV. Two builds of the same release tag must produce the same
 # software, which is disqualifying to get wrong for an image with an OTA story:
 # a SWUpdate artifact built from a floating branch is not reproducible, so a
