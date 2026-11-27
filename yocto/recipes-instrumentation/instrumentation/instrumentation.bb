@@ -26,7 +26,7 @@ SRC_URI = "git://github.com/soccentric-arches/Arches-Instrumentation.git;protoco
 # this recipe was first written -- confirmed by an actual do_fetch
 # failure (exit code 128) the first time this SRC_URI was ever
 # actually fetched anywhere in the fleet.
-INSTR_SRCREV ?= "a3be4e4f228246a3cabe510033c267a521e0af8d"
+INSTR_SRCREV ?= "29206254878cf0e66fcdc61be0a5f2997aea91c1"
 SRCREV = "${@d.getVar('AUTOREV') if d.getVar('ARCHES_DEV_BUILD') == '1' else d.getVar('INSTR_SRCREV')}"
 # One version for the whole suite (REQ §2). This used to read PV from
 # S/VERSION via a python expression: PV -> S -> WORKDIR -> PV (WORKDIR's own
